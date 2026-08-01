@@ -79,8 +79,26 @@ validation list, not in the automated suite.
 ## Manual validation on real sites
 
 Everything above runs against local fixture pages, so the sites the extension
-actually has to survive get checked by hand. Load `dist/` as an unpacked
-extension and walk the list below.
+actually has to survive get checked by hand.
+
+```sh
+pnpm dev:chrome                          # build, then open YouTube with dist/ loaded
+pnpm dev:chrome https://www.tiktok.com/  # or any other start URL
+```
+
+`scripts/open-chromium.mjs` launches the same persistent Chromium the Playwright
+fixture does — a system Chromium if there is one, `channel: 'chromium'`
+otherwise — with `--load-extension=dist`, and stays open until the window is
+closed. It prints the extension id and the popup URL, which is the only way to
+reach the popup document directly.
+
+The profile lives in `node_modules/.tmp/dev-profile` and is reused between runs,
+so a site logged into once stays logged in. `REBOBINATE_PROFILE_DIR` moves it,
+and `REBOBINATE_HEADLESS=1` runs new headless mode for driving over CDP. Loading
+`dist/` as an unpacked extension in your own browser works too; the script only
+saves the trip through `chrome://extensions`.
+
+Then walk the list below.
 
 Both sites were last walked on 2026-08-01 against `dist/` in Chromium.
 

@@ -16,6 +16,7 @@
   "packageManager": "pnpm@11.3.0",
   "scripts": {
     "dev": "vite",
+    "dev:chrome": "tsc -b && vite build && node scripts/open-chromium.mjs",
     "build": "tsc -b && vite build",
     "build:firefox": "EXT_TARGET=firefox pnpm run build",
     "package:firefox": "pnpm run build:firefox && web-ext build --source-dir dist-firefox --artifacts-dir release --filename rebobinate-firefox-{version}.zip --overwrite-dest",
