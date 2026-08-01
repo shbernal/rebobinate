@@ -75,3 +75,53 @@ is nothing to control.
 Real sites are deliberately not in CI. When a site misbehaves, reproduce it in a
 fixture page first; if it cannot be reproduced there, it belongs in the manual
 validation list, not in the automated suite.
+
+## Manual validation on real sites
+
+Everything above runs against local fixture pages, so the sites the extension
+actually has to survive get checked by hand. Load `dist/` as an unpacked
+extension and walk the list below.
+
+Both sites were last walked on 2026-08-01 against `dist/` in Chromium.
+
+### YouTube
+
+| Check                                                 | Result |
+| ----------------------------------------------------- | ------ |
+| `+` / `-` move the rate on the step grid              | passes |
+| badge renders over the player, correct corner         | passes |
+| `0` resets to 1× **without** YouTube seeking to start | passes |
+| the rate survives the page forcing `playbackRate = 1` | passes |
+| `+ - 0 =` typed into the search box are not stolen    | passes |
+| the keys work again once the search box loses focus   | passes |
+| still controllable after navigating to another video  | passes |
+
+`0` is the one worth re-checking after any key-handling change: YouTube binds it
+to seek-to-start on the document, so a regression there is silent — the speed
+still resets and the video also jumps to 0:00.
+
+### TikTok
+
+| Check                                         | Result |
+| --------------------------------------------- | ------ |
+| `+` raises the rate on the Explore grid       | passes |
+| badge renders on the playing tile             | passes |
+| the rate holds while the video plays          | passes |
+| the rate survives a forced `playbackRate = 1` | passes |
+| the speed carries over to the next post       | passes |
+
+TikTok really does reset `playbackRate`, and it is not subtle. With the
+extension switched off (`enabled: false`) and the rate set to 1.5 by hand, all
+30 samples over 15s read back 1 — the site pulls it down inside half a second,
+and every post scrolled into view starts at 1×. With the extension on, the rate
+held for all 20 samples over 10s. This is what `src/content/enforcer.ts` exists
+for, and TikTok is the site that proves it works.
+
+Measuring this needs the extension disabled: with it enabled you cannot tell
+"the site never reset" apart from "the enforcer won", because both look like a
+flat line.
+
+### Still to walk
+
+Twitch and Netflix. Netflix in particular uses a Media Source player and its own
+speed control, so it is the most likely to need a fixture of its own.
