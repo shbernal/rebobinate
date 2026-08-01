@@ -79,26 +79,50 @@ validation list, not in the automated suite.
 ## Manual validation on real sites
 
 Everything above runs against local fixture pages, so the sites the extension
-actually has to survive get checked by hand.
+actually has to survive get checked by hand. One command per target builds and
+opens a browser with the extension already installed:
 
 ```sh
-pnpm dev:chrome                          # build, then open YouTube with dist/ loaded
-pnpm dev:chrome https://www.tiktok.com/  # or any other start URL
+pnpm dev:chrome                          # dist/ in Chromium
+pnpm dev:zen                             # dist-firefox/ in Zen
+pnpm dev:chrome https://www.tiktok.com/  # either one takes a start URL
 ```
+
+Both default to YouTube, keep a profile under `node_modules/.tmp/` that is
+reused between runs so a site logged into once stays logged in, and stay open
+until the window is closed. Loading the build by hand — `chrome://extensions`,
+or `about:debugging` on Gecko — does the same thing; the scripts only save the
+trip.
 
 `scripts/open-chromium.mjs` launches the same persistent Chromium the Playwright
 fixture does — a system Chromium if there is one, `channel: 'chromium'`
-otherwise — with `--load-extension=dist`, and stays open until the window is
-closed. It prints the extension id and the popup URL, which is the only way to
-reach the popup document directly.
+otherwise — with `--load-extension=dist`. It prints the extension id and the
+popup URL, which is the only way to reach the popup document directly.
+`REBOBINATE_PROFILE_DIR` moves the profile, and `REBOBINATE_HEADLESS=1` runs new
+headless mode for driving over CDP.
 
-The profile lives in `node_modules/.tmp/dev-profile` and is reused between runs,
-so a site logged into once stays logged in. `REBOBINATE_PROFILE_DIR` moves it,
-and `REBOBINATE_HEADLESS=1` runs new headless mode for driving over CDP. Loading
-`dist/` as an unpacked extension in your own browser works too; the script only
-saves the trip through `chrome://extensions`.
+`scripts/open-zen.mjs` is a wrapper over `web-ext`, the tool `pnpm lint:firefox`
+already uses, which installs `dist-firefox/` as a temporary add-on. It looks for
+Zen in the usual places; `ZEN_BINARY` overrides that and accepts web-ext's
+`flatpak:app.zen_browser.zen` form. `REBOBINATE_ZEN_PROFILE_DIR` moves the
+profile. Temporary add-ons are gone on restart and their internal UUID changes
+each run, so reach the extension from the toolbar or from
+`about:debugging#/runtime/this-firefox` rather than by URL.
 
-Then walk the list below.
+### Why Zen is not in the Playwright suite
+
+The automated suite is Chromium-only and has to stay that way for now. Playwright
+drives Firefox through Juggler, a patch carried in its own Firefox build, so
+pointing `executablePath` at a stock Gecko binary launches the process and then
+hangs waiting for a protocol that is not there. Playwright 1.62 also ships no
+WebDriver BiDi channel for stock Firefox, and no Gecko equivalent of
+`--load-extension`. Automating the Gecko build means a separate WebDriver stack —
+geckodriver plus its `installAddon` command — not another Playwright project.
+
+So Gecko coverage is: unit tests, the `tests/browser-api-compat.test.ts`
+convention guard, `pnpm lint:firefox`, and the manual list below. The guard
+matters more than it looks, because the divergence it catches — an awaited
+`chrome.*` call resolving to `undefined` — is invisible to every Chromium test.
 
 Both sites were last walked on 2026-08-01 against `dist/` in Chromium.
 

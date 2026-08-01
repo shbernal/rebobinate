@@ -70,7 +70,9 @@ Chrome build healthy.
 
 ## Manual validation
 
-After `pnpm build`, load `dist/` unpacked and check:
+`pnpm dev:chrome` builds and opens Chromium with `dist/` loaded; `pnpm dev:zen`
+does the same for Zen and `dist-firefox/`. See
+[Testing](./testing.md#manual-validation-on-real-sites). Check:
 
 - a plain HTML5 video page, a YouTube watch page, an embedded player on a
   third-party page;
@@ -79,4 +81,5 @@ After `pnpm build`, load `dist/` unpacked and check:
 - typing in a site's search box must never change the speed;
 - the four badge corners, at normal speed and above.
 
-Then repeat the list on `dist-firefox/` via `about:debugging`.
+Run the list on both targets. Gecko is where the background script, not a
+service worker, and the callback-only `chrome.*` surface can diverge.
