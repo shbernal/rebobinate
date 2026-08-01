@@ -52,8 +52,39 @@ fails if any file in `src/` awaits a `chrome.*` call. See
   Retrying is also what a user does.
 
 Fixture pages cover a plain player, a player plus a search box, a scrolling
-page, a page with no video, a player inside a web component, and a page whose
-only player is a cross-origin iframe.
+page, a page with no video, a player inside a web component, a page whose only
+player is a cross-origin iframe, and a player with real media behind it.
+
+### The one fixture with real media
+
+Every fixture video except `/playing` is a source-less `<video>`. That is enough
+to set `playbackRate` on, but it never decodes anything, so those specs can only
+assert the property the extension just wrote — the plumbing, not the outcome.
+
+`/playing` points at `e2e/fixtures/media/clip.mp4`, four seconds of animation
+committed alongside a WebM transcode of the same footage (~50 KB together, see
+that directory's README for provenance and the ffmpeg flags). They are served by
+the same route interception as the pages, whole and without range support, which
+Chromium is happy with at this size.
+
+`e2e/specs/playback.spec.ts` is what they exist for:
+
+- **Doubling the rate doubles playback.** Measures media seconds consumed per
+  wall-clock second at 1x and at 2x and compares the two. It is the only test
+  that proves a speed change reaches decoded output rather than just landing on
+  a property. Locally the two measurements come out at exactly 1.000 and 2.000;
+  the assertion is a ratio rather than a fixed target so a decode-starved CI
+  machine does not turn it flaky.
+- **The speed survives a source reload.** Chromium really does drop
+  `playbackRate` back to `defaultPlaybackRate` when a player reassigns `src`,
+  which is the quality-switch and next-item path on real sites.
+
+That second one is deliberately redundant. Three mechanisms defend it —
+`defaultPlaybackRate` in `src/content/enforcer.ts`, the
+`loadstart`/`loadedmetadata` re-apply in `src/content/content-script.ts`, and
+the `ratechange` reconcile — and removing any single one still passes. Only
+removing all three fails it. It is an outcome test, not a guard on one line;
+`src/content/enforcer.test.ts` covers `defaultPlaybackRate` directly.
 
 ### The popup is not a tab
 
@@ -71,6 +102,9 @@ is nothing to control.
 - Video discovery, rate enforcement, badge geometry: unit tests against jsdom.
 - Anything that depends on real frames, real focus, or the real extension
   messaging path: Playwright. That includes iframes, fullscreen, and the popup.
+- Anything that depends on a video actually decoding — playback progress, source
+  reloads, buffering: `e2e/specs/playback.spec.ts`, against `/playing`. A
+  source-less fixture cannot show any of it.
 
 Real sites are deliberately not in CI. When a site misbehaves, reproduce it in a
 fixture page first; if it cannot be reproduced there, it belongs in the manual

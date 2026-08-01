@@ -1,7 +1,15 @@
+import { fileURLToPath } from 'node:url'
 import type { BrowserContext, Route } from '@playwright/test'
 
 export const FIXTURE_ORIGIN = 'https://player.test'
 export const EMBED_ORIGIN = 'https://embed.test'
+
+const mediaDir = fileURLToPath(new URL('./media/', import.meta.url))
+
+const MEDIA_TYPES: Record<string, string> = {
+  '/media/clip.mp4': 'video/mp4',
+  '/media/clip.webm': 'video/webm',
+}
 
 const shell = (title: string, body: string) => `<!doctype html>
 <html lang="en">
@@ -42,9 +50,29 @@ const PAGES: Record<string, string> = {
     'Third-party embed',
     `<h1>An article</h1><iframe src="${EMBED_ORIGIN}/simple"></iframe>`,
   ),
+  // The only fixture with real media behind it. `muted` is what lets it play
+  // without a user gesture, and it deliberately does not loop — a test that
+  // watches `currentTime` cannot tell a wrap-around from a stall.
+  '/playing': shell(
+    'Player with real media',
+    `<video id="player" src="/media/clip.mp4" muted playsinline
+            preload="auto"></video>`,
+  ),
 }
 
 const fulfillPage = (route: Route, pathname: string) => {
+  const contentType = MEDIA_TYPES[pathname]
+
+  if (contentType) {
+    // Served whole, with no range support. Chromium only needs byte ranges to
+    // seek efficiently, and at 30 KB there is nothing to seek through.
+    return route.fulfill({
+      status: 200,
+      contentType,
+      path: `${mediaDir}${pathname.slice('/media/'.length)}`,
+    })
+  }
+
   const body = PAGES[pathname]
 
   if (!body) {
