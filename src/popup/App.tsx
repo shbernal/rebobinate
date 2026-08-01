@@ -6,6 +6,7 @@ import {
   BADGE_CORNERS,
   DEFAULT_SETTINGS,
   LIMITS,
+  clampStep,
   onSettingsChange,
   readSettings,
   writeSettings,
@@ -36,6 +37,15 @@ const sendMessage = (
 const App = () => {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [speed, setSpeed] = useState(1)
+  /**
+   * The step is typed digit by digit, and the halfway states are not valid
+   * steps: going from 0.2 to 0.15 passes through '', '0' and '0.'. Clamping
+   * every keystroke straight back into the field rewrites it under the cursor
+   * and makes those targets unreachable, so the raw text is held here while the
+   * field is being edited and only a value that is already a valid step is
+   * saved as it is typed.
+   */
+  const [stepDraft, setStepDraft] = useState<string | null>(null)
 
   useEffect(() => {
     readSettings(setSettings)
@@ -55,6 +65,31 @@ const App = () => {
     },
     [save, settings],
   )
+
+  const editStep = (raw: string) => {
+    setStepDraft(raw)
+
+    const parsed = Number(raw)
+
+    if (raw.trim() !== '' && parsed === clampStep(parsed)) {
+      save({ ...settings, step: parsed })
+    }
+  }
+
+  /** Leaving the field takes the last typed value as far as it can go. */
+  const commitStep = () => {
+    const parsed = Number(stepDraft)
+
+    if (
+      stepDraft !== null &&
+      stepDraft.trim() !== '' &&
+      !Number.isNaN(parsed)
+    ) {
+      save({ ...settings, step: clampStep(parsed) })
+    }
+
+    setStepDraft(null)
+  }
 
   const act = (action: SpeedAction) => {
     sendMessage(
@@ -108,10 +143,9 @@ const App = () => {
           min={LIMITS.step.min}
           max={LIMITS.step.max}
           step={0.01}
-          value={settings.step}
-          onChange={event =>
-            save({ ...settings, step: Number(event.target.value) })
-          }
+          value={stepDraft ?? String(settings.step)}
+          onChange={event => editStep(event.target.value)}
+          onBlur={commitStep}
         />
       </section>
 

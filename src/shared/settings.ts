@@ -95,6 +95,20 @@ const normalizeBoolean = (value: unknown, fallback: boolean): boolean => {
   return typeof value === 'boolean' ? value : fallback
 }
 
+/**
+ * The step is the one setting the user types digit by digit, so the popup needs
+ * the same clamp the stored value gets without building a whole `Settings`
+ * first. Anything that is not a usable step comes back as the default.
+ */
+export const clampStep = (value: unknown): number => {
+  return normalizeNumber(
+    value,
+    DEFAULT_SETTINGS.step,
+    LIMITS.step,
+    input => Math.round(input * 100) / 100,
+  )
+}
+
 const COLOR_PATTERN = /^#[0-9a-f]{3}$|^#[0-9a-f]{6}$|^rgba?\([\d.,\s%]+\)$/i
 
 const normalizeColor = (value: unknown, fallback: string): string => {
@@ -181,12 +195,7 @@ export const normalizeSettings = (value: unknown): Settings => {
   return {
     schemaVersion: SCHEMA_VERSION,
     enabled: normalizeBoolean(source.enabled, DEFAULT_SETTINGS.enabled),
-    step: normalizeNumber(
-      source.step,
-      DEFAULT_SETTINGS.step,
-      LIMITS.step,
-      value => Math.round(value * 100) / 100,
-    ),
+    step: clampStep(source.step),
     minSpeed: Math.min(minSpeed, maxSpeed),
     maxSpeed: Math.max(minSpeed, maxSpeed),
     badge: normalizeBadge(source.badge),

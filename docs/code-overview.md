@@ -110,3 +110,12 @@ ever sees a complete `Settings`.
 Speed arithmetic lives in `src/shared/speed.ts`. Steps land on the multiple of
 the step size in the direction of travel, so a site that left the video at 1.07
 does not drag that stray 0.02 through every later press.
+
+The step field in the popup is the one setting typed a character at a time, and
+its halfway states are not valid settings: going from `0.2` to `0.15` passes
+through `''`, `'0'` and `'0.'`. Normalizing each keystroke back into the field
+would rewrite it under the cursor and make those targets unreachable, so
+`src/popup/App.tsx` holds the raw text in a draft while the field is being
+edited. A value that is already a valid step saves as it is typed; anything else
+waits for blur, which clamps it through `clampStep` or, for an empty field,
+restores the saved step.
