@@ -16,10 +16,79 @@
   margin: 0;
 }
 
+/* On/off slider. The popup follows the OS theme through `color-scheme` and the
+   system colour keywords, so the track, the knob and the checked accent all
+   resolve per theme without a `prefers-color-scheme` block. */
 .switch {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  background: color-mix(in srgb, CanvasText 30%, Canvas);
+  transition: background 0.2s ease;
+}
+
+.slider::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: Canvas;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  transition: transform 0.2s ease;
+}
+
+.switch input:checked + .slider {
+  background: AccentColor;
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(20px);
+}
+
+.switch input:focus-visible + .slider {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+
+.switch-small {
+  width: 36px;
+  height: 20px;
+}
+
+.switch-small .slider::before {
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+}
+
+.switch-small input:checked + .slider::before {
+  transform: translateX(16px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slider,
+  .slider::before {
+    transition: none;
+  }
 }
 
 .speed {

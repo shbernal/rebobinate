@@ -21,6 +21,30 @@ const CORNER_LABELS: Record<BadgeCorner, string> = {
   'bottom-right': '↘',
 }
 
+type ToggleProps = {
+  label: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  size?: 'large' | 'small'
+}
+
+/**
+ * An on/off slider. The visible track and knob are the sibling `<span>`; the
+ * checkbox itself stays in the DOM, transparent and zero-sized, so the control
+ * keeps a real checkbox's keyboard and screen-reader behaviour.
+ */
+const Toggle = ({ label, checked, onChange, size = 'small' }: ToggleProps) => (
+  <label className={size === 'small' ? 'switch switch-small' : 'switch'}>
+    <input
+      type="checkbox"
+      aria-label={label}
+      checked={checked}
+      onChange={event => onChange(event.target.checked)}
+    />
+    <span className="slider" />
+  </label>
+)
+
 const sendMessage = (
   message: RuntimeMessage,
   onResponse?: (speed: number) => void,
@@ -102,16 +126,12 @@ const App = () => {
     <main className="popup">
       <header className="header">
         <h1>Rebobinate</h1>
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={settings.enabled}
-            onChange={event =>
-              save({ ...settings, enabled: event.target.checked })
-            }
-          />
-          <span>{settings.enabled ? 'On' : 'Off'}</span>
-        </label>
+        <Toggle
+          label="Enabled"
+          size="large"
+          checked={settings.enabled}
+          onChange={enabled => save({ ...settings, enabled })}
+        />
       </header>
 
       <section className="speed">
@@ -152,12 +172,11 @@ const App = () => {
       <hr />
 
       <section className="field">
-        <label htmlFor="badge-enabled">Speed badge</label>
-        <input
-          id="badge-enabled"
-          type="checkbox"
+        <span>Speed badge</span>
+        <Toggle
+          label="Speed badge"
           checked={settings.badge.enabled}
-          onChange={event => saveBadge({ enabled: event.target.checked })}
+          onChange={enabled => saveBadge({ enabled })}
         />
       </section>
 
@@ -243,14 +262,11 @@ const App = () => {
       </section>
 
       <section className="field" hidden={!settings.badge.enabled}>
-        <label htmlFor="badge-hide-normal">Hide at 1.0×</label>
-        <input
-          id="badge-hide-normal"
-          type="checkbox"
+        <span>Hide at 1.0×</span>
+        <Toggle
+          label="Hide at 1.0×"
           checked={settings.badge.hideAtNormalSpeed}
-          onChange={event =>
-            saveBadge({ hideAtNormalSpeed: event.target.checked })
-          }
+          onChange={hideAtNormalSpeed => saveBadge({ hideAtNormalSpeed })}
         />
       </section>
 
