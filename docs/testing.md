@@ -118,15 +118,16 @@ opens a browser with the extension already installed:
 
 ```sh
 pnpm dev:chrome                          # dist/ in Chromium
+pnpm dev:firefox                         # dist-firefox/ in Firefox
 pnpm dev:zen                             # dist-firefox/ in Zen
-pnpm dev:chrome https://www.tiktok.com/  # either one takes a start URL
+pnpm dev:chrome https://www.tiktok.com/  # any of them takes a start URL
 ```
 
-Both default to YouTube, keep a profile under `node_modules/.tmp/` that is
-reused between runs so a site logged into once stays logged in, and stay open
-until the window is closed. Loading the build by hand — `chrome://extensions`,
-or `about:debugging` on Gecko — does the same thing; the scripts only save the
-trip.
+All three default to YouTube, keep their own profile under `node_modules/.tmp/`
+that is reused between runs so a site logged into once stays logged in, and stay
+open until the window is closed. Loading the build by hand —
+`chrome://extensions`, or `about:debugging` on Gecko — does the same thing; the
+scripts only save the trip.
 
 `scripts/open-chromium.mjs` launches the same persistent Chromium the Playwright
 fixture does — a system Chromium if there is one, `channel: 'chromium'`
@@ -135,15 +136,25 @@ popup URL, which is the only way to reach the popup document directly.
 `REBOBINATE_PROFILE_DIR` moves the profile, and `REBOBINATE_HEADLESS=1` runs new
 headless mode for driving over CDP.
 
-`scripts/open-zen.mjs` is a wrapper over `web-ext`, the tool `pnpm lint:firefox`
-already uses, which installs `dist-firefox/` as a temporary add-on. It looks for
-Zen in the usual places; `ZEN_BINARY` overrides that and accepts web-ext's
-`flatpak:app.zen_browser.zen` form. `REBOBINATE_ZEN_PROFILE_DIR` moves the
-profile. Temporary add-ons are gone on restart and their internal UUID changes
-each run, so reach the extension from the toolbar or from
+`scripts/open-gecko.mjs` takes the browser as its first argument and is a
+wrapper over `web-ext`, the tool `pnpm lint:firefox` already uses, which
+installs `dist-firefox/` as a temporary add-on. web-ext resolves Firefox itself
+on every platform it supports; Zen it has never heard of, so the script looks in
+the usual places for that one. `FIREFOX_BINARY` and `ZEN_BINARY` override the
+lookup and accept web-ext's `flatpak:org.mozilla.firefox` form.
+`REBOBINATE_FIREFOX_PROFILE_DIR` and `REBOBINATE_ZEN_PROFILE_DIR` move the
+profiles, which are separate so the two browsers do not share add-on state.
+Temporary add-ons are gone on restart and their internal UUID changes each run,
+so reach the extension from the toolbar or from
 `about:debugging#/runtime/this-firefox` rather than by URL.
 
-### Why Zen is not in the Playwright suite
+Zen is a Firefox fork and runs the same Gecko build of the extension, so the two
+are one target, not two. `pnpm dev:firefox` is the one that matches what AMO
+users get; `pnpm dev:zen` is there because a fork can still diverge in its
+chrome — toolbar, popup sizing, keyboard handling — and that is where it would
+show.
+
+### Why Gecko is not in the Playwright suite
 
 The automated suite is Chromium-only and has to stay that way for now. Playwright
 drives Firefox through Juggler, a patch carried in its own Firefox build, so

@@ -70,8 +70,9 @@ Chrome build healthy.
 
 ## Manual validation
 
-`pnpm dev:chrome` builds and opens Chromium with `dist/` loaded; `pnpm dev:zen`
-does the same for Zen and `dist-firefox/`. See
+`pnpm dev:chrome` builds and opens Chromium with `dist/` loaded.
+`pnpm dev:firefox` and `pnpm dev:zen` do the same for `dist-firefox/` on Gecko.
+See
 [Testing](./testing.md#manual-validation-on-real-sites). Check:
 
 - a plain HTML5 video page, a YouTube watch page, an embedded player on a
