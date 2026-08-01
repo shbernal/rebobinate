@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-firefox
+release
+web-ext-artifacts
+coverage
+.env*
+!.env.example
+!.envrc
+test-results
+playwright-report

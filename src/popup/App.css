@@ -1,0 +1,154 @@
+.popup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header h1 {
+  font-size: 14px;
+  margin: 0;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.speed {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.speed button {
+  font-size: 16px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.speed .reset {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.readout {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.field input[type='number'] {
+  width: 72px;
+}
+
+.field input[type='range'] {
+  width: 150px;
+}
+
+hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+  margin: 2px 0;
+}
+
+.corners {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.corners legend {
+  float: left;
+  margin-right: 8px;
+}
+
+.corners button {
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.corners button.active {
+  outline: 2px solid Highlight;
+}
+
+.colors {
+  display: flex;
+  gap: 4px;
+}
+
+.preview {
+  position: relative;
+  height: 68px;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, CanvasText 8%, transparent) 0 6px,
+      transparent 6px 12px
+    ),
+    color-mix(in srgb, CanvasText 12%, Canvas);
+  display: flex;
+  padding: 8px;
+}
+
+.preview-badge {
+  border-radius: 4px;
+  padding: 4px 7px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  height: fit-content;
+}
+
+.preview:has([data-corner='top-left']) {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.preview:has([data-corner='top-right']) {
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.preview:has([data-corner='bottom-left']) {
+  align-items: flex-end;
+  justify-content: flex-start;
+}
+
+.preview:has([data-corner='bottom-right']) {
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.hint {
+  opacity: 0.7;
+  text-align: center;
+}
+
+kbd {
+  border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+  border-radius: 3px;
+  padding: 0 4px;
+}

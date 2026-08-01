@@ -1,0 +1,71 @@
+{
+  "name": "rebobinate",
+  "version": "0.1.0",
+  "description": "Control the playback speed of any video with the keyboard.",
+  "keywords": [
+    "video",
+    "playback-speed",
+    "chrome-extension",
+    "firefox-addon",
+    "productivity",
+    "accessibility"
+  ],
+  "author": "shbernal",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:firefox": "EXT_TARGET=firefox pnpm run build",
+    "package:firefox": "pnpm run build:firefox && web-ext build --source-dir dist-firefox --artifacts-dir release --filename rebobinate-firefox-{version}.zip --overwrite-dest",
+    "package:source": "node scripts/package-source.mjs",
+    "publish:amo": "node scripts/publish-amo.mjs",
+    "lint:firefox": "pnpm run build:firefox && web-ext lint --source-dir dist-firefox",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "tsc -b && vite build && playwright test",
+    "e2e:headed": "tsc -b && vite build && playwright test --headed",
+    "e2e:ui": "tsc -b && vite build && playwright test --ui",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "preview": "vite preview"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "trailingComma": "all",
+    "printWidth": 80,
+    "tabWidth": 2,
+    "useTabs": false,
+    "bracketSpacing": true,
+    "bracketSameLine": false,
+    "arrowParens": "avoid",
+    "endOfLine": "lf"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.7.1",
+    "@playwright/test": "^1.62.0",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/chrome": "^0.2.2",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "@vitest/coverage-v8": "^4.1.10",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10",
+    "web-ext": "^10.5.0"
+  }
+}

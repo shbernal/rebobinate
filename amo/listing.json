@@ -1,0 +1,17 @@
+{
+  "slug": "rebobinate",
+  "default_locale": "en-US",
+  "summary": {
+    "en-US": "Change the playback speed of any video from the keyboard: + faster, - slower, 0 back to normal. Adjustable step and an optional speed badge on the video. Nothing leaves your device."
+  },
+  "categories": ["photos-music-videos"],
+  "tags": ["video", "playback speed", "accessibility"],
+  "homepage": {
+    "en-US": "https://github.com/shbernal/rebobinate"
+  },
+  "support_url": {
+    "en-US": "https://github.com/shbernal/rebobinate/issues"
+  },
+  "is_experimental": false,
+  "requires_payment": false
+}
