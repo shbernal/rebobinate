@@ -14,9 +14,10 @@ iframes, and it holds your speed when a site tries to reset it.
 
 ## Status
 
-0.1.0 is the first release. It is in review at the Chrome Web Store, and the
-addons.mozilla.org submission goes out with the release itself. Both stores
-review before listing, so neither has an install link yet — build from source in
+0.1.0 is the first release, and it is in review at both the Chrome Web Store and
+addons.mozilla.org. Both review before listing, so neither has an install link
+yet — build from source, or use the packages attached to the
+[v0.1.0 release](https://github.com/shbernal/rebobinate/releases/tag/v0.1.0), in
 the meantime.
 
 ## Install from source

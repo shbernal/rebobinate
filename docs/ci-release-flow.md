@@ -79,22 +79,26 @@ Only `MOZILLA_ADDON_JWT_ISSUER` and `MOZILLA_ADDON_JWT_SECRET` are read by
 anything in this repository — `scripts/publish-amo.mjs`. The Chrome names are
 carried for symmetry with the other extensions; nothing here reads them.
 
-## First release checklist
+## First release
 
-For 0.1.0:
+Done. 0.1.0 is in review at both stores.
 
-1. ~~Create the GitHub repository and push.~~ Done.
-2. ~~Create the Chrome Web Store item and fill the privacy form from
-   `chrome-web-store/privacy-justifications.md`.~~ Submitted by hand and in
-   review. `CWS_EXTENSION_ID` is still unrecorded, which is why the Chrome
-   workflow is dispatch-only.
-3. Set `MOZILLA_ADDON_JWT_ISSUER` and `MOZILLA_ADDON_JWT_SECRET` on the
-   `addons-mozilla-org` GitHub environment. Creating the environment is part of
-   this step; no environment exists yet.
-4. Publish the `v0.1.0` GitHub Release. There is no AMO listing to create
-   first: `scripts/publish-amo.mjs` `PUT`s on the add-on id, which creates the
-   add-on the first time and a new version every time after, so the first
-   release is what claims `rebobinate@shbernal.github.io`. That id can never
-   change afterwards.
-5. ~~Verify the reviewer build is reproducible and record the result in
-   `amo/source-submission.md`.~~ Done; the result is recorded there.
+- The Chrome Web Store item was created and submitted by hand.
+  `CWS_EXTENSION_ID` is still unrecorded, which is why the Chrome workflow is
+  dispatch-only.
+- The `addons-mozilla-org` environment holds the Mozilla JWT pair, and
+  publishing the `v0.1.0` release created the AMO add-on. No listing had to
+  exist first: `scripts/publish-amo.mjs` `PUT`s on the add-on id, which creates
+  the add-on the first time and a new version every time after. That first
+  release is what claimed `rebobinate@shbernal.github.io`, and the id can never
+  change now.
+- The reviewer build is verified reproducible; the result is in
+  `amo/source-submission.md`.
+
+The first attempt at the release failed, and it is worth knowing why before the
+next one. `amo/listing.json` carried tags AMO does not define, and AMO only
+rejects them on the call that creates the version — after the package has
+uploaded and validated, and after the release that triggered it is published.
+There is nothing to re-run at that point: the tag has to move. Run
+`pnpm publish:amo --dry-run` before tagging; it now validates the listing
+against AMO's tag and category vocabularies.
