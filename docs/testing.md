@@ -25,9 +25,16 @@ pnpm e2e:headed      # the same, with a visible browser
   `vi.resetModules()` and re-import it to get a clean instance, then drive it
   through `chrome.runtime.onMessage.emit(message, sender, sendResponse)`.
 
-`tests/browser-api-compat.test.ts` is a convention guard, not a unit test: it
-fails if any file in `src/` awaits a `chrome.*` call. See
-[Build Targets](./build-targets.md) for why that matters.
+`tests/` holds convention guards rather than unit tests. Both encode a Gecko
+rule that no Chromium test can catch, and both are explained in
+[Build Targets](./build-targets.md):
+
+- `browser-api-compat.test.ts` fails if any file in `src/` awaits a `chrome.*`
+  call.
+- `popup-native-dialogs.test.ts` fails if an `<input>` that opens a native
+  chooser (`type="color"`, `type="file"`) appears under `src/popup/`. It strips
+  comments before scanning, since the doc comments are where the rule is
+  written down.
 
 ## Playwright
 

@@ -164,7 +164,123 @@ hr {
 
 .colors {
   display: flex;
+  gap: 6px;
+}
+
+/* The popup renders its own colour picker rather than `<input type="color">`,
+   which on Firefox opens a toplevel dialog that steals focus and tears the
+   popup down before a colour is chosen. See docs/build-targets.md. */
+.swatch {
+  width: 44px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, CanvasText 35%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+  border-radius: 6px;
+}
+
+.color-picker *,
+.swatch {
+  box-sizing: border-box;
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
   gap: 4px;
+}
+
+.presets button {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.swatch.active,
+.presets button.active {
+  outline: 2px solid Highlight;
+  outline-offset: 1px;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The gradient lives on the input itself so each channel's track can show the
+   colour it is about to produce; the native tracks are cleared out of its way
+   and the thumb is redrawn, since neither engine styles both halves alike. */
+.color-picker input[type='range'] {
+  flex: 1;
+  width: auto;
+  height: 14px;
+  margin: 0;
+  appearance: none;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.color-picker input[type='range']::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+
+.color-picker input[type='range']::-moz-range-track {
+  height: 100%;
+  background: transparent;
+}
+
+.color-picker input[type='range']::-moz-range-progress {
+  background: transparent;
+}
+
+.color-picker input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid CanvasText;
+  background: Canvas;
+}
+
+.color-picker input[type='range']::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid CanvasText;
+  background: Canvas;
+}
+
+.color-picker input[type='range']:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+
+.color-picker input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, monospace;
+}
+
+.color-preview {
+  flex: none;
+  width: 32px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+  border-radius: 4px;
 }
 
 .preview {

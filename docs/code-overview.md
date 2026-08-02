@@ -119,3 +119,28 @@ would rewrite it under the cursor and make those targets unreachable, so
 edited. A value that is already a valid step saves as it is typed; anything else
 waits for blur, which clamps it through `clampStep` or, for an empty field,
 restores the saved step.
+
+## The badge colours
+
+`src/popup/ColorPicker.tsx` is a colour picker written out by hand — preset
+swatches, hue/saturation/lightness sliders, and a hex field — because
+`<input type="color">` cannot be used in the popup at all. On Firefox the native
+chooser is a separate toplevel window whose focus closes the popup, so the
+choice is dropped before it can be saved; see
+[Build Targets](./build-targets.md#no-native-pickers-in-the-popup) for the trace
+and the upstream bugs.
+
+The conversions live in `src/shared/color.ts` for the same reason the speed
+arithmetic does — they are load-bearing and testable without a DOM. `toHex` also
+reads the `rgb()` and `rgba()` forms, because `normalizeSettings` still accepts
+them and a value written before this picker existed need not be hex.
+
+One detail is not obvious from the component: the picker holds its HSL in state
+rather than deriving it from the stored hex on every render. Whole degrees and
+percents cannot round-trip through eight bits per channel, so re-deriving would
+make a dragged slider drift under the cursor. It re-seeds when the hex changes
+from anywhere other than the sliders themselves.
+
+The hex field repeats the step field's draft pattern above: `#ff88` is not a
+colour, so the raw text is held while it is typed, a complete six-digit value
+saves as it is typed, and blur expands a three-digit one.

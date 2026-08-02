@@ -37,6 +37,75 @@ variants on `browser.*`. An awaited `chrome.*` call therefore resolves to
 target-specific break. All extension API calls stay callback-based;
 `tests/browser-api-compat.test.ts` enforces it.
 
+## No native pickers in the popup
+
+`<input type="color">` and `<input type="file">` are unusable in the action
+popup on Gecko. The popup renders its own colour picker
+(`src/popup/ColorPicker.tsx`, on the maths in `src/shared/color.ts`) instead, and
+`tests/popup-native-dialogs.test.ts` fails if either input reappears under
+`src/popup/`.
+
+### What happens
+
+On Firefox the action popup is a **XUL panel**, not a tab, and a XUL panel
+autohides when it loses focus. A native picker is a separate toplevel window of
+the same process, so opening one destroys the document that asked for it:
+
+1. clicking the toolbar icon opens `src/popup/index.html` as a panel;
+2. clicking the input makes Gecko call `gtk_color_chooser_dialog_new` — a real
+   GTK toplevel, confirmed as a linked symbol in `libxul.so`;
+3. the window manager maps and focuses that window, which is ordinary
+   behaviour;
+4. the panel loses focus and the popup manager rolls it up, **tearing down the
+   popup document** — the React tree, the input, and its `onChange` with it;
+5. the user picks a colour into a dialog whose opener no longer exists. No
+   `change` event has anywhere to fire, so nothing is written to storage.
+
+Traced on Hyprland with Zen 1.21.9b (Gecko 153.0) by reading the compositor's
+event socket. Under Wayland the panel is an `xdg_popup` subsurface and never
+appears as a window at all; forcing XWayland makes it a real window and shows
+the ordering directly:
+
+```
+openwindow>>…,firefox,Firefox            # the popup panel
+openwindow>>…,firefox,Choose a color     # the GTK dialog maps
+activewindow>>firefox,Choose a color     # …and takes focus
+closewindow>>…                           # the panel is destroyed, before
+closewindow>>…                           # …the colour is chosen
+```
+
+### Whose bug it is
+
+Gecko's. It is not compositor-specific and not a Zen patch: it reproduces in
+stock Firefox under XWayland, with no Wayland toplevel involved, and Mozilla's
+one attempt at a fix was backed out over a **Windows** regression.
+
+- [bug 1292701](https://bugzilla.mozilla.org/show_bug.cgi?id=1292701) —
+  "Autoclose popups shouldn't close when they open a modal dialog (e.g., file
+  picker)". Core :: XUL, NEW since 2016-08-05, unassigned. The tracking bug.
+- [bug 1713107](https://bugzilla.mozilla.org/show_bug.cgi?id=1713107) — "The
+  native colorpicker from an input element with type='color' closes the
+  extension popup window". Duplicate of 1292701, and exactly this case.
+- [bug 1378527](https://bugzilla.mozilla.org/show_bug.cgi?id=1378527) — "popups
+  opened from a panel cause the panel to close". The general form, NEW for nine
+  years.
+
+Nothing was filed upstream for this: 1713107 already describes it and is one of
+five duplicates on 1292701, so a sixth adds no information.
+
+### Why the picker rather than an options page
+
+Moving the colours to an `options_ui` page is the workaround Mozilla suggests on
+1378527, and it does work — an options page is a tab, where a native dialog is
+harmless. It was rejected because it splits the settings across two surfaces for
+the sake of two controls, and it fixes nothing for any picker the popup might
+want later. Rendering the control in the popup document keeps every setting in
+one place and behaves identically on both targets.
+
+`ui.popup.disable_autohide` in `about:config` keeps the panel alive, but it is a
+devtools debugging pref: it applies to every panel in the browser, and it is not
+something a user can be asked to set.
+
 ## Entry basenames must be distinct
 
 crxjs names its output chunks after the entry file's basename. A content script

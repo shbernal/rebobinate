@@ -12,6 +12,7 @@ import {
   writeSettings,
 } from '@/shared/settings'
 import { formatSpeedLabel } from '@/shared/speed'
+import ColorPicker from './ColorPicker'
 import './App.css'
 
 const CORNER_LABELS: Record<BadgeCorner, string> = {
@@ -20,6 +21,17 @@ const CORNER_LABELS: Record<BadgeCorner, string> = {
   'bottom-left': '↙',
   'bottom-right': '↘',
 }
+
+/**
+ * One picker panel is shared by both swatches, so the popup grows by one panel
+ * at most. Opening a second swatch closes the first.
+ */
+const COLOR_FIELDS = [
+  { key: 'textColor', label: 'Text color' },
+  { key: 'backgroundColor', label: 'Background color' },
+] as const
+
+type ColorFieldKey = (typeof COLOR_FIELDS)[number]['key']
 
 type ToggleProps = {
   label: string
@@ -70,6 +82,8 @@ const App = () => {
    * saved as it is typed.
    */
   const [stepDraft, setStepDraft] = useState<string | null>(null)
+  const [openColor, setOpenColor] = useState<ColorFieldKey | null>(null)
+  const openColorField = COLOR_FIELDS.find(field => field.key === openColor)
 
   useEffect(() => {
     readSettings(setSettings)
@@ -225,25 +239,34 @@ const App = () => {
       </section>
 
       <section className="field" hidden={!settings.badge.enabled}>
-        <label htmlFor="badge-text">Colors</label>
+        <span>Colors</span>
         <span className="colors">
-          <input
-            id="badge-text"
-            type="color"
-            aria-label="Text color"
-            value={settings.badge.textColor}
-            onChange={event => saveBadge({ textColor: event.target.value })}
-          />
-          <input
-            type="color"
-            aria-label="Background color"
-            value={settings.badge.backgroundColor}
-            onChange={event =>
-              saveBadge({ backgroundColor: event.target.value })
-            }
-          />
+          {COLOR_FIELDS.map(field => (
+            <button
+              key={field.key}
+              type="button"
+              aria-label={field.label}
+              aria-expanded={openColor === field.key}
+              className={openColor === field.key ? 'swatch active' : 'swatch'}
+              style={{ background: settings.badge[field.key] }}
+              onClick={() =>
+                setOpenColor(open => (open === field.key ? null : field.key))
+              }
+            />
+          ))}
         </span>
       </section>
+
+      {openColorField && settings.badge.enabled ? (
+        <ColorPicker
+          // Each field gets its own instance: without a key React reuses the
+          // one panel across a switch, carrying a half-typed hex with it.
+          key={openColorField.key}
+          label={openColorField.label}
+          value={settings.badge[openColorField.key]}
+          onChange={hex => saveBadge({ [openColorField.key]: hex })}
+        />
+      ) : null}
 
       <section className="field" hidden={!settings.badge.enabled}>
         <label htmlFor="badge-autohide">Hide after</label>
