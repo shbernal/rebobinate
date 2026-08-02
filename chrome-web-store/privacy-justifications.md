@@ -5,34 +5,41 @@ must match `manifest.config.ts` and current runtime behavior. Re-read the
 content script, service worker, popup, and `src/shared/settings.ts` before
 submitting.
 
+The body text under each dashboard-field heading below is the answer itself and
+goes into a plain-text form field verbatim. Keep it free of Markdown — no
+backticks, emphasis, blockquotes, or lists — so nothing reaches the reviewer as
+stray punctuation. Headings are labels, not answers, so they may keep their
+markup, and anything explaining an answer belongs in a section that is never
+pasted.
+
 Last reviewed against `manifest.config.ts` at version 0.1.0.
 
 ## Single Purpose
 
-> Rebobinate has one purpose: to let the user change the playback speed of
-> videos on web pages, from the keyboard or from the extension popup, and to
-> show the current speed on the video.
+Rebobinate has one purpose: to let the user change the playback speed of videos
+on web pages, from the keyboard or from the extension popup, and to show the
+current speed on the video.
 
-## Permission: storage
+## Permission: `storage`
 
-> The extension stores the user's own preferences — the speed increment, the
-> keyboard bindings, and the appearance of the on-video speed badge — in local
-> extension storage so they persist between sessions. No other data is stored,
-> and nothing is written to a remote service.
+The extension stores the user's own preferences — the speed increment, the
+keyboard bindings, and the appearance of the on-video speed badge — in local
+extension storage so they persist between sessions. No other data is stored, and
+nothing is written to a remote service.
 
-## Host Permission: <all_urls>
+## Host Permission: `<all_urls>`
 
-> Videos are not confined to a list of sites: a user may want to change the
-> playback speed of a video on any page, including players embedded in iframes
-> on third-party sites. The content script runs only to find `<video>` elements,
-> set their `playbackRate`, and draw the optional speed badge over them. It does
-> not read page content, cookies, form fields, or any personal data, and it
-> sends nothing anywhere.
+Videos are not confined to a list of sites: a user may want to change the
+playback speed of a video on any page, including players embedded in iframes on
+third-party sites. The content script runs only to find video elements, set
+their playbackRate, and draw the optional speed badge over them. It does not
+read page content, cookies, form fields, or any personal data, and it sends
+nothing anywhere.
 
 ## Remote Code
 
-> No. The extension executes no remote code. All scripts are bundled in the
-> package.
+No. The extension executes no remote code. All scripts are bundled in the
+package.
 
 ## Data Usage Disclosures
 

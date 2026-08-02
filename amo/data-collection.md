@@ -53,20 +53,22 @@ when either ships.
 
 ## Permission Justifications
 
-Send these as reviewer notes if AMO asks why each permission is needed.
+Send these as reviewer notes if AMO asks why each permission is needed. The body
+text under each heading is pasted verbatim into a plain-text field, so it stays
+free of Markdown; the headings are labels and may keep their markup.
 
 ### `storage`
 
 Saves the user's own preferences: the speed increment, the keyboard bindings,
-and the appearance of the on-video speed badge. Written to `storage.local`. It
-is not used to collect or transmit browsing data.
+and the appearance of the on-video speed badge. Written to storage.local. It is
+not used to collect or transmit browsing data.
 
 ### Host permission `<all_urls>`
 
 Videos are not confined to a list of sites, and a player is frequently inside an
 iframe served from a different origin than the page around it. The content
-script therefore runs in every frame, but only to find `<video>` elements, apply
-the user's chosen playback rate, and position the speed badge. It reads no page
+script therefore runs in every frame, but only to find video elements, apply the
+user's chosen playback rate, and position the speed badge. It reads no page
 content and contacts no server.
 
 ## Review Process
