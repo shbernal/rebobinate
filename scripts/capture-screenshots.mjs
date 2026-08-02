@@ -1,5 +1,6 @@
 // Captures the Chrome Web Store listing screenshots from the real extension:
-// the popup, and the speed badge over a player. Run after `pnpm build`.
+// the popup, the speed badge over a player, and the "contribute on GitHub"
+// card. Run after `pnpm build`.
 //
 //   node scripts/capture-screenshots.mjs
 //
@@ -104,6 +105,66 @@ const PLAYER_PAGE = page(
   </main>`,
 )
 
+const REPO_SLUG = 'shbernal/rebobinate'
+
+// Breathing room around the popup on the 1280x800 listing canvas.
+const MARGIN = 48
+
+// The GitHub mark. The path is a disc with the octocat as negative space, so a
+// flat white fill is all it takes to read correctly on a dark card.
+const GITHUB_MARK = `<svg class="mark" viewBox="0 0 16 16" aria-hidden="true">
+  <path fill="#ffffff" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+</svg>`
+
+const CARD_PAGE = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Rebobinate is free software</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 1280px;
+        height: 800px;
+        background: #12121a;
+        color: #ffffff;
+        font-family: 'Noto Sans', system-ui, -apple-system, 'Segoe UI',
+          sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 118px;
+      }
+      h1 {
+        margin: 0;
+        max-width: 900px;
+        font-size: 46px;
+        font-weight: 700;
+        line-height: 1.6;
+        text-align: center;
+        letter-spacing: -0.01em;
+      }
+      .repo {
+        display: flex;
+        align-items: center;
+        gap: 36px;
+        margin-top: 118px;
+      }
+      .mark { width: 120px; height: 120px; display: block; }
+      .slug { font-size: 32px; font-weight: 600; letter-spacing: -0.01em; }
+    </style>
+  </head>
+  <body>
+    <h1>FOSS project, contribute on Github<br />and leave a star!</h1>
+    <div class="repo">
+      ${GITHUB_MARK}
+      <span class="slug">${REPO_SLUG}</span>
+    </div>
+  </body>
+</html>
+`
+
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium',
   headless: true,
@@ -165,17 +226,40 @@ await player.screenshot({ path: path.join(outputDir, 'rebobinate-1.png') })
 const popup = await context.newPage()
 await popup.goto(`chrome-extension://${extensionId}/src/popup/index.html`)
 await popup.waitForTimeout(600)
-// Screenshot the popup element itself, not the viewport around it.
-await popup.locator('main.popup').screenshot({
-  path: path.join(outputDir, 'rebobinate-2-popup.png'),
-})
+
+// Screenshot the popup element itself, then centre it on the listing canvas.
+// The scale is computed rather than fixed: the popup grows and shrinks as
+// controls change, and a hardcoded zoom silently crops it when it does.
+const shot = await popup.locator('main.popup').screenshot()
+const box = await popup.locator('main.popup').boundingBox()
+const scale = Math.min(
+  (1280 - MARGIN * 2) / box.width,
+  (800 - MARGIN * 2) / box.height,
+)
+
+const canvas = await context.newPage()
+await canvas.setContent(
+  `<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Rebobinate popup</title></head>
+  <body style="margin:0;width:1280px;height:800px;background:#12121a;display:flex;align-items:center;justify-content:center">
+    <img
+      src="data:image/png;base64,${shot.toString('base64')}"
+      style="width:${Math.round(box.width * scale)}px"
+      alt=""
+    />
+  </body>
+</html>`,
+  { waitUntil: 'load' },
+)
+await canvas.screenshot({ path: path.join(outputDir, 'rebobinate-2.png') })
+
+// The card is plain markup at the listing size, so it needs no compositing.
+const card = await context.newPage()
+await card.setContent(CARD_PAGE, { waitUntil: 'load' })
+await card.evaluate(() => document.fonts.ready)
+await card.screenshot({ path: path.join(outputDir, 'rebobinate-3.png') })
 
 await context.close()
 
 console.log(`wrote screenshots to ${path.relative(root, outputDir)}`)
-console.log(
-  'rebobinate-2-popup.png is the bare popup — centre it on a 1280x800 canvas',
-)
-console.log('  magick -size 1280x800 xc:#12121a \\')
-console.log('    \\( rebobinate-2-popup.png -resize 200% \\) \\')
-console.log('    -gravity center -composite rebobinate-2.png')

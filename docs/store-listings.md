@@ -7,10 +7,13 @@ code.
   Developer Dashboard.
 - `chrome-web-store/privacy-justifications.md` — paste-ready single-purpose,
   permission, and data-usage answers for the dashboard privacy form.
-- `chrome-web-store/screenshots/` — listing screenshots (1280×800 or 640×400,
-  at least one, ideally three). Regenerate them from the real extension with
-  `node scripts/capture-screenshots.mjs` after `pnpm build`; the script prints
-  the ImageMagick command that centres the popup capture on a 1280×800 canvas.
+- `chrome-web-store/screenshots/` — listing screenshots, three of the five the
+  Developer Dashboard allows: the speed badge over a player, the popup, and the
+  "contribute on GitHub" card. Regenerate all three with
+  `node scripts/capture-screenshots.mjs` after `pnpm build`. The script writes
+  them at 1280×800 and needs no post-processing; it scales the popup capture to
+  fit the canvas rather than assuming a fixed zoom, so adding a control to the
+  popup cannot silently crop it.
 - `chrome-web-store/promo-tile-440x280.png` — the small promo tile.
 - `amo/description.txt` — the AMO description.
 - `amo/listing.json` — slug, summary, categories, tags, and support URLs;
