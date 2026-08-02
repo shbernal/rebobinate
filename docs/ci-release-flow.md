@@ -12,15 +12,22 @@ extensions; run it locally with `pnpm e2e` before packaging.
 
 ## Releasing
 
-Publishing a GitHub Release with a `v*` tag triggers both store workflows. Both
-verify that the tag matches `package.json`'s version before doing anything.
+Publishing a GitHub Release with a `v*` tag triggers the AMO workflow, which
+verifies that the tag matches `package.json`'s version before doing anything.
+The Chrome workflow is dispatched by hand; see below.
 
 ### Chrome Web Store — `.github/workflows/publish-cws.yml`
 
-Runs in the `chrome-web-store` GitHub environment and authenticates through GCP
-workload identity federation, so there is no stored credential. It zips `dist/`,
-uploads it, polls until the upload finishes processing, submits a publish
-request, and attaches the zip to the release.
+Not wired up yet. The workflow is complete but runs on `workflow_dispatch` with
+a tag input rather than on a published release, because the Chrome Web Store
+item id and the GCP workload identity federation do not exist yet and a release
+must not fail on a store this repository cannot reach. 0.1.0 was submitted to
+the Chrome Web Store by hand.
+
+Once it runs, it does so in the `chrome-web-store` GitHub environment and
+authenticates through GCP workload identity federation, so there is no stored
+credential. It zips `dist/`, uploads it, polls until the upload finishes
+processing, submits a publish request, and attaches the zip to the release.
 
 Required environment variables (`vars`, not secrets):
 
@@ -28,6 +35,19 @@ Required environment variables (`vars`, not secrets):
   exists;
 - `CWS_PUBLISHER_ID`;
 - `GCP_PROJECT_ID`, `GCP_SERVICE_ACCOUNT`, `GCP_WORKLOAD_IDENTITY_PROVIDER`.
+
+To hand the Chrome release back to CI, set those five variables on the
+environment and restore the trigger to:
+
+```yaml
+on:
+  release:
+    types: [published]
+```
+
+The steps that read `inputs.tag` — the checkout, the version check, and the
+release upload — go back to `github.event.release.tag_name` and
+`GITHUB_REF_NAME` at the same time.
 
 ### addons.mozilla.org — `.github/workflows/publish-amo.yml`
 
@@ -48,19 +68,33 @@ A listed AMO version is queued for human review: the workflow succeeds on
 ## Local credentials
 
 `.env` (git-ignored, loaded by direnv through `.envrc`) holds the same names as
-`.env.example`. The Mozilla JWT pair and the GCP project and service account are
-account-scoped and carry over from the other extensions; `CHROME_EXTENSION_ID`
-is item-scoped and stays empty until the Chrome Web Store item exists.
+`.env.example`. Those are the local names shared with the other extensions in
+this account (`CHROME_EXTENSION_ID`, `GCLOUD_PROJECT_ID`,
+`SERVICE_ACCOUNT_EMAIL`); the GitHub environments use the `CWS_`/`GCP_` names
+listed above, and only the Mozilla pair is spelled the same in both places. The
+Mozilla JWT pair and the GCP project and service account are account-scoped and
+carry over from the other extensions; `CHROME_EXTENSION_ID` is item-scoped.
+
+Only `MOZILLA_ADDON_JWT_ISSUER` and `MOZILLA_ADDON_JWT_SECRET` are read by
+anything in this repository — `scripts/publish-amo.mjs`. The Chrome names are
+carried for symmetry with the other extensions; nothing here reads them.
 
 ## First release checklist
 
-Neither store item exists yet. Before the first release:
+For 0.1.0:
 
-1. Create the GitHub repository and push.
-2. Create the Chrome Web Store item, record `CWS_EXTENSION_ID`, and fill the
-   privacy form from `chrome-web-store/privacy-justifications.md`.
-3. Create the AMO listing with the add-on id
-   `rebobinate@shbernal.github.io` — it can never change afterwards.
-4. Configure the two GitHub environments with the variables and secrets above.
-5. Verify the reviewer build is reproducible and record the result in
-   `amo/source-submission.md`.
+1. ~~Create the GitHub repository and push.~~ Done.
+2. ~~Create the Chrome Web Store item and fill the privacy form from
+   `chrome-web-store/privacy-justifications.md`.~~ Submitted by hand and in
+   review. `CWS_EXTENSION_ID` is still unrecorded, which is why the Chrome
+   workflow is dispatch-only.
+3. Set `MOZILLA_ADDON_JWT_ISSUER` and `MOZILLA_ADDON_JWT_SECRET` on the
+   `addons-mozilla-org` GitHub environment. Creating the environment is part of
+   this step; no environment exists yet.
+4. Publish the `v0.1.0` GitHub Release. There is no AMO listing to create
+   first: `scripts/publish-amo.mjs` `PUT`s on the add-on id, which creates the
+   add-on the first time and a new version every time after, so the first
+   release is what claims `rebobinate@shbernal.github.io`. That id can never
+   change afterwards.
+5. ~~Verify the reviewer build is reproducible and record the result in
+   `amo/source-submission.md`.~~ Done; the result is recorded there.
