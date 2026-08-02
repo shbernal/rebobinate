@@ -142,6 +142,58 @@ const request = async (method, endpoint, { json, form } = {}) => {
   return body
 }
 
+// Tags and categories are closed vocabularies. AMO rejects anything outside
+// them on the PUT that creates the version, which is after the package has been
+// uploaded and validated and after the release that triggered it is already
+// published — so the whole release fails on a metadata typo. Both lists are
+// public and unauthenticated, so checking up front costs nothing and turns that
+// into a failed dry run.
+const publicList = async endpoint => {
+  const response = await fetch(`${API}${endpoint}`)
+
+  if (!response.ok) {
+    throw new Error(`GET ${endpoint} → ${response.status}`)
+  }
+
+  return response.json()
+}
+
+const verifyListing = async () => {
+  const { tags = [], categories = [] } = listing()
+  const [validTags, allCategories] = await Promise.all([
+    publicList('/addons/tags/'),
+    publicList('/addons/categories/'),
+  ])
+
+  const validCategories = allCategories
+    .filter(category => category.type === 'extension')
+    .map(category => category.slug)
+
+  const problems = [
+    ['tags', tags, validTags],
+    ['categories', categories, validCategories],
+  ]
+    .map(([field, values, valid]) => [
+      field,
+      values.filter(value => !valid.includes(value)),
+      valid,
+    ])
+    .filter(([, unknown]) => unknown.length > 0)
+    .map(
+      ([field, unknown, valid]) =>
+        `amo/listing.json ${field} AMO does not define: ${unknown.join(', ')}\n` +
+        `  valid ${field}: ${valid.join(', ')}`,
+    )
+
+  if (problems.length > 0) {
+    throw new Error(problems.join('\n\n'))
+  }
+
+  console.log(
+    `listing metadata valid (${tags.length} tags, ${categories.length} categories)`,
+  )
+}
+
 const zipPart = file =>
   new File([fs.readFileSync(file)], path.basename(file), {
     type: 'application/zip',
@@ -269,11 +321,13 @@ const main = async () => {
     console.log(`\n--- approval notes ---\n${approvalNotes()}`)
     console.log(`\npackage ${path.relative(root, packagePath)}`)
     console.log(`source  ${path.relative(root, sourcePath)}`)
+    await verifyListing()
     return
   }
 
   requireEnv()
   await verifyCredentials()
+  await verifyListing()
 
   // An upload on its own creates nothing on AMO and does not claim the add-on
   // id — only creating a version does that — so this is a safe way to put a

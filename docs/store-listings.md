@@ -17,7 +17,12 @@ code.
 - `chrome-web-store/promo-tile-440x280.png` — the small promo tile.
 - `amo/description.txt` — the AMO description.
 - `amo/listing.json` — slug, summary, categories, tags, and support URLs;
-  `scripts/publish-amo.mjs` re-applies it on every release.
+  `scripts/publish-amo.mjs` re-applies it on every release. `tags` and
+  `categories` are closed vocabularies, not free text: AMO defines 42 tags and
+  15 extension categories and rejects anything else. The live lists are
+  `https://addons.mozilla.org/api/v5/addons/tags/` and
+  `.../addons/categories/`, and `pnpm publish:amo --dry-run` checks the file
+  against both.
 - `amo/data-collection.md` — the basis for the `data_collection_permissions`
   answer and the per-permission justifications.
 - `amo/source-submission.md` — the reviewer build instructions and the source
@@ -40,6 +45,11 @@ product. Change them together.
    nothing" answer on both stores rests on it.
 4. Review the description against user-visible behavior changes since the last
    release.
+5. Run `pnpm package:firefox && pnpm package:source && pnpm publish:amo
+--dry-run`. It resolves the listing, prints the reviewer notes, and validates
+   the tags and categories against AMO. Metadata AMO rejects is only rejected on
+   the call that creates the version, which happens after the release is already
+   published, so the dry run is the last cheap place to catch it.
 
 `<all_urls>` is the broadest thing this extension asks for and the thing a
 reviewer will question. The answer is in the single purpose: a video can be on
