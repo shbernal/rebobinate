@@ -6,7 +6,7 @@ build. This is the AMO counterpart to
 `chrome-web-store/privacy-justifications.md`; the underlying claims are the
 same, but AMO asks for them in a different shape.
 
-Last reviewed against `manifest.config.ts` at version 0.1.0.
+Last reviewed against `manifest.config.ts` at version 0.1.1.
 
 ## Declared Data Collection
 

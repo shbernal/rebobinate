@@ -12,7 +12,7 @@ stray punctuation. Headings are labels, not answers, so they may keep their
 markup, and anything explaining an answer belongs in a section that is never
 pasted.
 
-Last reviewed against `manifest.config.ts` at version 0.1.0.
+Last reviewed against `manifest.config.ts` at version 0.1.1.
 
 ## Single Purpose
 
