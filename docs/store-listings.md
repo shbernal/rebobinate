@@ -24,8 +24,10 @@ Regenerate the screenshots with `node scripts/capture-screenshots.mjs` after
 `pnpm build`. It writes all three at 1280×800 with no post-processing, and
 scales the popup capture to fit the canvas rather than assuming a fixed zoom, so
 adding a control to the popup cannot silently crop it. Replacing a screenshot
-means checking that `amo/previews.json` still describes it — the caption is
-about the image, and the test suite only checks the file is still there.
+means re-reading its caption in `amo/previews.json` by hand:
+`tests/amo-previews.test.mjs` checks the manifest's shape and that every file it
+names is present and under 4MB, but no test can tell that a caption has stopped
+describing the image it points at.
 
 AMO has no promo-tile requirement, so it needs nothing the Chrome listing does
 not already have. Do not copy or regenerate the screenshots into `amo/`.
@@ -110,7 +112,10 @@ budget, and enough to trip the limit partway through.
 
 The script waits out the `Retry-After` header and retries, so a sync works but
 spends most of its wall-clock idle; it prints the call count up front so a slow
-run is not mistaken for a hung one. A 429 is the only status it retries, since
+run is not mistaken for a hung one. The decisions here — what to upload, what to
+delete, how long to wait — are in `scripts/amo-previews.mjs`, split out from
+`publish-amo.mjs` so they can be tested without an HTTP layer or a credential;
+`publish-amo.mjs` keeps the calls. A 429 is the only status it retries, since
 every other failure means the request itself is wrong. Waits are not short: a
 sync that crosses the hourly boundary can be handed a `Retry-After` of most of
 an hour and has to sit out the full window.

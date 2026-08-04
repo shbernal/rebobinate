@@ -25,9 +25,10 @@ pnpm e2e:headed      # the same, with a visible browser
   `vi.resetModules()` and re-import it to get a clean instance, then drive it
   through `chrome.runtime.onMessage.emit(message, sender, sendResponse)`.
 
-`tests/` holds convention guards rather than unit tests. Both encode a Gecko
-rule that no Chromium test can catch, and both are explained in
-[Build Targets](./build-targets.md):
+`tests/` holds what is not a unit test of `src/`.
+
+Two are convention guards. Both encode a Gecko rule that no Chromium test can
+catch, and both are explained in [Build Targets](./build-targets.md):
 
 - `browser-api-compat.test.ts` fails if any file in `src/` awaits a `chrome.*`
   call.
@@ -35,6 +36,16 @@ rule that no Chromium test can catch, and both are explained in
   chooser (`type="color"`, `type="file"`) appears under `src/popup/`. It strips
   comments before scanning, since the doc comments are where the rule is
   written down.
+
+The third covers the publishing side. `amo-previews.test.mjs` unit-tests
+`scripts/amo-previews.mjs` — the pure decision logic behind the AMO listing-asset
+sync, kept out of `publish-amo.mjs` so it can be exercised without an HTTP layer
+or a credential. It also parses the checked-in `amo/previews.json` and asserts
+every file it names is present and within AMO's 4MB limit, so a moved or
+oversized screenshot fails here rather than partway through a release. The file
+is `.mjs` because the module under test is: the publish scripts are plain ESM run
+by node, not part of a TypeScript project reference. See
+[Store Listings](./store-listings.md#preview-writes-are-throttled-hard).
 
 ## Playwright
 

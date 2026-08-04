@@ -1,17 +1,29 @@
 # Repository Instructions
 
-## Pre-Release Project Guidance
+## Release Status And What It Constrains
 
-This project has no GitHub release yet.
+This project is released. `v0.1.0` and `v0.1.1` are published GitHub releases
+and the extension is on the Chrome Web Store; the README carries the current
+per-store status. People have it installed, so three surfaces are now real
+constraints and a change to any of them needs a migration path rather than a
+rewrite:
 
-- Treat the project as pre-release and free to change.
-- Do not preserve backwards compatibility unless Santiago explicitly asks for it.
-- Do not defer to the prior architecture when it conflicts with the current goal.
-- Existing code, docs, and plans are context, not constraints.
-- Prefer the simplest coherent architecture for the current project direction.
+- **The stored settings.** An installed copy's `chrome.storage.local` holds a
+  `Settings` object written by an earlier version. `normalizeSettings` in
+  `src/shared/settings.ts` is what makes that safe, so it has to keep repairing
+  older shapes into the current one. Bumping `schemaVersion` without handling
+  what the previous version wrote silently resets a user's settings.
+- **`browser_specific_settings.gecko.id`.** AMO binds the listing and every
+  installed user's update path to it. A new id is a new add-on.
+- **The published listing copy and media.** `store/`, `amo/`, and
+  `chrome-web-store/` describe what is live or queued; see
+  [Generated And Release Files](#generated-and-release-files).
 
-Once the project has a GitHub release, compatibility and migration concerns
-become real project constraints and must be evaluated before breaking changes.
+Everything else is still free to change. The internals — module boundaries,
+message shapes, the build pipeline, the test layout — sit between the three
+surfaces of one extension that ships as a single package, so there is no
+external consumer to keep compatible. Prefer the simplest coherent architecture
+for the current direction, and do not defer to the prior one when it conflicts.
 
 ## Project Shape
 
@@ -32,11 +44,14 @@ addons.mozilla.org packages.
 - `src/content/badge.ts` renders the on-video speed badge.
 - `src/background/service-worker.ts` owns the speed of each tab and relays it to
   every frame.
-- `src/popup/App.tsx` is the popup UI.
-- `src/shared/` holds the settings contract, speed arithmetic, key matching, and
-  the message types shared by all three surfaces.
+- `src/popup/App.tsx` is the popup UI, with the badge colours handled by
+  `src/popup/ColorPicker.tsx`.
+- `src/shared/` holds the settings contract, speed arithmetic, key matching,
+  colour conversion, and the message types shared by all three surfaces.
 - `src/test/` contains the Vitest helpers, including the Chrome API mock.
-- `tests/` contains source-convention guards run by the same Vitest command.
+- `tests/` holds the checks that are not unit tests of `src/`: two
+  source-convention guards and the unit tests for the AMO preview logic in
+  `scripts/`. The same Vitest command runs them.
 - `e2e/` drives the built extension in a real Chromium.
 - `docs/` contains contributor-facing documentation.
 - `public/icons/` contains the icons copied into builds. `icon128.png` is also
@@ -44,8 +59,10 @@ addons.mozilla.org packages.
 - `store/` contains the long description and the screenshots both stores
   publish; `chrome-web-store/` and `amo/` contain the metadata only one store
   has a shape for.
-- `scripts/` contains the packaging and publishing scripts run by CI. Each takes
-  `--help`.
+- `scripts/` contains the packaging and publishing entry points — some run by
+  CI, some only by hand for screenshots and manual validation. Each takes
+  `--help`. `help.mjs` and `amo-previews.mjs` are shared modules rather than
+  entry points.
 - `dist/`, `dist-firefox/`, and `release/` are generated and git-ignored.
 
 ## Commands
@@ -90,6 +107,12 @@ touching the manifest or packaging — Gecko rejects manifest keys Chrome accept
   all mean hands off.
 - Keep the badge out of the page's own DOM tree. It is a fixed-position host
   with a shadow root; re-parenting site nodes is what breaks layouts.
+- **No `<input>` that opens a native chooser under `src/popup/`** — `type="color"`
+  and `type="file"`. On Gecko the popup is a XUL panel that autohides when the
+  native dialog takes focus, which tears down the popup document before the
+  user's choice can be saved. The popup renders its own colour picker instead;
+  `tests/popup-native-dialogs.test.ts` enforces this, and
+  `docs/build-targets.md` has the trace and the upstream bugs.
 - Keep the popup compact. It is fixed at 320px wide.
 
 ## Generated And Release Files
@@ -104,8 +127,9 @@ touching the manifest or packaging — Gecko rejects manifest keys Chrome accept
   only when someone pastes it into the Developer Dashboard. Do not park draft
   copy there.
 - Replacing anything in `store/screenshots/` also needs `amo/previews.json`
-  checked — the captions are about the images, and nothing verifies that beyond
-  the files still existing.
+  checked by hand. `tests/amo-previews.test.mjs` validates the manifest's shape
+  and that every file it names is present and under 4MB, but nothing can check
+  that a caption still describes the image it points at.
 - Do not bump the `package.json` version unless explicitly requested.
 
 ## Documentation Guidelines
