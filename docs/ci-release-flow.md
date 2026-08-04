@@ -51,8 +51,16 @@ Runs in the `addons-mozilla-org` GitHub environment. It archives the source
 _before_ building (so the archive cannot pick up build output), builds and zips
 the Firefox package, lints it, then runs `scripts/publish-amo.mjs`, which
 uploads the package, waits for AMO validation, creates the version with the
-reviewer notes from `amo/source-submission.md`, re-applies `amo/listing.json`,
-and attaches the source archive.
+reviewer notes from `amo/source-submission.md`, re-applies `amo/listing.json`
+and `store/description.txt`, attaches the source archive, and reapplies the
+listing icon.
+
+The listing screenshots are not reapplied on a release. A sync replaces every
+published preview and is throttled hard enough to stall a release, so it is a
+separate `pnpm publish:amo --assets-only --sync-previews` run — see
+[Store Listings](./store-listings.md#preview-writes-are-throttled-hard). Each
+release prints how far the published previews have drifted from
+`amo/previews.json`, so a screenshot change nobody synced stays visible.
 
 Required secrets: `MOZILLA_ADDON_JWT_ISSUER`, `MOZILLA_ADDON_JWT_SECRET`. They
 are account-scoped, so they are the same values used by the other extensions
@@ -84,6 +92,9 @@ the package has uploaded and validated, and after the release that triggered it
 was published. There is nothing to re-run at that point, so the tag has to
 move. The dry run now validates the listing against AMO's tag and category
 vocabularies before any of that can happen.
+
+It also resolves and size-checks every entry in `amo/previews.json`, so a moved
+or oversized screenshot fails there rather than partway through a sync.
 
 Then bump `package.json`, commit, and publish the release with a matching `v*`
 tag.

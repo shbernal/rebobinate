@@ -1,19 +1,29 @@
-// Captures the Chrome Web Store listing screenshots from the real extension:
-// the popup, the speed badge over a player, and the "contribute on GitHub"
-// card. Run after `pnpm build`.
-//
-//   node scripts/capture-screenshots.mjs
-//
-// Output is written to `chrome-web-store/screenshots/` at the 1280x800 size the
-// Developer Dashboard expects.
+// Captures the store listing screenshots from the real extension: the popup,
+// the speed badge over a player, and the "contribute on GitHub" card. Run after
+// `pnpm build`.
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
+import { printHelpAndExit } from './help.mjs'
+
+printHelpAndExit(`
+Usage: node scripts/capture-screenshots.mjs [--help]
+
+Captures the three listing screenshots from the built extension in dist/, so
+they can be regenerated instead of retouched. Run pnpm build first.
+
+Output goes to store/screenshots/ at 1280x800, which both stores accept and
+neither needs post-processed. The images are shared: the Chrome dashboard takes
+them as they are and amo/previews.json orders and captions the same files, so
+replacing one here means checking that manifest still describes it.
+
+See docs/store-listings.md.
+`)
 
 const root = process.cwd()
 const extensionPath = path.join(root, 'dist')
-const outputDir = path.join(root, 'chrome-web-store', 'screenshots')
+const outputDir = path.join(root, 'store', 'screenshots')
 const profileDir = path.join(root, 'node_modules', '.tmp', 'screenshot-profile')
 
 if (!fs.existsSync(path.join(extensionPath, 'manifest.json'))) {

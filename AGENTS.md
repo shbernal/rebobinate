@@ -39,9 +39,13 @@ addons.mozilla.org packages.
 - `tests/` contains source-convention guards run by the same Vitest command.
 - `e2e/` drives the built extension in a real Chromium.
 - `docs/` contains contributor-facing documentation.
-- `public/icons/` contains the icons copied into builds.
-- `chrome-web-store/` and `amo/` contain store listing copy and metadata.
-- `scripts/` contains the packaging and publishing scripts run by CI.
+- `public/icons/` contains the icons copied into builds. `icon128.png` is also
+  the AMO listing icon, which `scripts/publish-amo.mjs` uploads separately.
+- `store/` contains the long description and the screenshots both stores
+  publish; `chrome-web-store/` and `amo/` contain the metadata only one store
+  has a shape for.
+- `scripts/` contains the packaging and publishing scripts run by CI. Each takes
+  `--help`.
 - `dist/`, `dist-firefox/`, and `release/` are generated and git-ignored.
 
 ## Commands
@@ -95,8 +99,13 @@ touching the manifest or packaging — Gecko rejects manifest keys Chrome accept
   packaging.
 - Do not change `browser_specific_settings.gecko.id`. AMO binds the listing and
   every installed user's update path to it, so a new id is a new add-on.
-- `amo/description.txt` and `chrome-web-store/description.txt` describe the same
-  product; change them together.
+- Editing `store/description.txt` is a live change to the AMO listing: the next
+  release sends it. It is also the Chrome listing copy, which reaches that store
+  only when someone pastes it into the Developer Dashboard. Do not park draft
+  copy there.
+- Replacing anything in `store/screenshots/` also needs `amo/previews.json`
+  checked — the captions are about the images, and nothing verifies that beyond
+  the files still existing.
 - Do not bump the `package.json` version unless explicitly requested.
 
 ## Documentation Guidelines

@@ -11,8 +11,10 @@ or installation copy out of this directory.
 - [Build Targets](./build-targets.md) — the Chrome and Firefox builds, how the
   manifests differ, the callback-only `chrome.*` rule, why the popup cannot use
   a native colour picker, and the crxjs entry-name constraint.
-- [Store Listings](./store-listings.md) — the Chrome Web Store and AMO listing
-  copy, privacy answers, and the source-submission requirement.
+- [Store Listings](./store-listings.md) — the copy and screenshots shared by
+  both stores, the per-store metadata, how the AMO listing and its media are
+  applied through the API, privacy answers, and the source-submission
+  requirement.
 - [CI and Release Flow](./ci-release-flow.md) — validation on every push and
   publishing to both stores from a GitHub Release.
 

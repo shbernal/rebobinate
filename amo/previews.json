@@ -1,0 +1,20 @@
+[
+  {
+    "file": "store/screenshots/rebobinate-1.png",
+    "caption": {
+      "en-US": "Press + to speed up, - to slow down and 0 to go back to normal, with the speed badge on the video."
+    }
+  },
+  {
+    "file": "store/screenshots/rebobinate-2.png",
+    "caption": {
+      "en-US": "The popup sets the step and the badge corner, size, opacity, colours and how long it stays on screen."
+    }
+  },
+  {
+    "file": "store/screenshots/rebobinate-3.png",
+    "caption": {
+      "en-US": "Open source at github.com/shbernal/rebobinate."
+    }
+  }
+]
