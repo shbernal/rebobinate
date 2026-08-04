@@ -9,10 +9,13 @@ constraints and a change to any of them needs a migration path rather than a
 rewrite:
 
 - **The stored settings.** An installed copy's `chrome.storage.local` holds a
-  `Settings` object written by an earlier version. `normalizeSettings` in
-  `src/shared/settings.ts` is what makes that safe, so it has to keep repairing
+  `Settings` object written by an earlier version, and — from the per-site speed
+  memory onwards — a domain map under a second key. `normalizeSettings` and
+  `normalizeDomains` are what make that safe, so both have to keep repairing
   older shapes into the current one. Bumping `schemaVersion` without handling
-  what the previous version wrote silently resets a user's settings.
+  what the previous version wrote silently resets a user's settings. The current
+  settings schema is `2`; the `1` → `2` step needed no migration code because
+  both new keys default cleanly, and that is the bar for the next one too.
 - **`browser_specific_settings.gecko.id`.** AMO binds the listing and every
   installed user's update path to it. A new id is a new add-on.
 - **The published listing copy and media.** `store/`, `amo/`, and
@@ -42,12 +45,14 @@ addons.mozilla.org packages.
   site resets it.
 - `src/content/keys.ts` owns the capture-phase keyboard handling.
 - `src/content/badge.ts` renders the on-video speed badge.
-- `src/background/service-worker.ts` owns the speed of each tab and relays it to
-  every frame.
+- `src/background/service-worker.ts` owns the speed of each tab, relays it to
+  every frame, and owns the per-site speed memory.
 - `src/popup/App.tsx` is the popup UI, with the badge colours handled by
   `src/popup/ColorPicker.tsx`.
 - `src/shared/` holds the settings contract, speed arithmetic, key matching,
   colour conversion, and the message types shared by all three surfaces.
+  `domain.ts` turns a page URL into the registrable domain a speed is remembered
+  under; `domains.ts` is that map's own storage contract.
 - `src/test/` contains the Vitest helpers, including the Chrome API mock.
 - `tests/` holds the checks that are not unit tests of `src/`: two
   source-convention guards and the unit tests for the AMO preview logic in
@@ -97,8 +102,14 @@ touching the manifest or packaging — Gecko rejects manifest keys Chrome accept
   `main.ts` produce colliding chunks and the service-worker loader ends up
   importing the content script. That failure is silent: the extension loads, the
   content script works, and the background simply never registers its listeners.
-- Every storage read goes through `normalizeSettings` in
-  `src/shared/settings.ts`. Storage is untrusted input.
+- Every storage read goes through a normalizer — `normalizeSettings` in
+  `src/shared/settings.ts` for the settings object, `normalizeDomains` in
+  `src/shared/domains.ts` for the per-site speed map. Storage is untrusted
+  input. A new storage key needs its own normalizer, not a cast.
+- Per-site speeds are keyed by the registrable domain from
+  `src/shared/domain.ts`, taken from the **top frame's** URL so an embedded
+  player follows the page around it. The key format is baked into what installed
+  copies have stored: changing it needs a re-key, not a reset.
 - Keep speed arithmetic in `src/shared/speed.ts` so it stays testable without a
   DOM, and keep values on the step grid — off-grid rates are how a speed control
   starts feeling wrong.

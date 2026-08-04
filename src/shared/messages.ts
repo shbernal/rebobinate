@@ -51,9 +51,22 @@ export type SpeedStateMessage = {
   speed: number
 }
 
-/** Popup asks for the active tab's speed. */
+/** Popup asks for the active tab's speed and which domain it counts as. */
 export type PopupStateMessage = {
   type: 'rebobinate:popup-state'
+}
+
+/**
+ * Popup asks the service worker to drop a remembered speed.
+ *
+ * It goes through the service worker rather than writing storage from the popup
+ * because a speed change on that domain may still be sitting in the debounce,
+ * and only the service worker can cancel it. Forgetting from the popup while a
+ * write was pending would otherwise re-add the entry a second later.
+ */
+export type ForgetDomainMessage = {
+  type: 'rebobinate:forget-domain'
+  domain: string
 }
 
 export type RuntimeMessage =
@@ -62,12 +75,18 @@ export type RuntimeMessage =
   | SpeedQueryMessage
   | SpeedStateMessage
   | PopupStateMessage
+  | ForgetDomainMessage
   | MediaPresenceMessage
   | TabMediaMessage
 
 export type SpeedResponse = {
   speed: number
   hasVideo?: boolean
+  /**
+   * The registrable domain the active tab counts as, or `null` when the page is
+   * not one a speed can be remembered against. Only sent to the popup.
+   */
+  domain?: string | null
 }
 
 export const isRuntimeMessage = (value: unknown): value is RuntimeMessage => {

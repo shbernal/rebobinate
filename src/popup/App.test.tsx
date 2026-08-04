@@ -4,6 +4,7 @@ import type { UserEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getChromeMock } from '@/test/chrome'
 import { hexToHsl } from '@/shared/color'
+import { DOMAINS_STORAGE_KEY, type DomainMemory } from '@/shared/domains'
 import {
   DEFAULT_SETTINGS,
   SETTINGS_STORAGE_KEY,
@@ -18,6 +19,113 @@ const storedSettings = (): Settings => {
 }
 
 const stepField = () => screen.getByLabelText('Step') as HTMLInputElement
+
+/**
+ * The popup learns the active tab's domain from the service worker, which is
+ * not running under jsdom, so the reply has to be stood in for.
+ */
+const answerPopupState = (domain: string | null, speed = 1) => {
+  getChromeMock().runtime.sendMessage.mockImplementation(
+    (message: unknown, callback?: (response?: unknown) => void) => {
+      if ((message as { type?: string }).type === 'rebobinate:popup-state') {
+        callback?.({ speed, hasVideo: true, domain })
+        return
+      }
+
+      callback?.()
+    },
+  )
+}
+
+const seedDomains = (entries: Record<string, DomainMemory>) => {
+  getChromeMock().storage.local.seed({
+    [DOMAINS_STORAGE_KEY]: { schemaVersion: 1, entries },
+  })
+}
+
+describe('popup site memory', () => {
+  beforeEach(() => {
+    getChromeMock().storage.local.seed({
+      [SETTINGS_STORAGE_KEY]: DEFAULT_SETTINGS,
+    })
+  })
+
+  it('shows what the active tab domain is remembered at', () => {
+    answerPopupState('youtube.com')
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    render(<App />)
+
+    expect(screen.getByText('youtube.com')).toBeInTheDocument()
+    // Scoped to the row: `1.5×` is also one of the default-speed options.
+    expect(
+      screen.getByText('1.5×', { selector: '.site-speed' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Forget' })).toBeEnabled()
+  })
+
+  it('has nothing to forget on a site it has not seen', () => {
+    answerPopupState('vimeo.com')
+    render(<App />)
+
+    expect(screen.getByText('—')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Forget' })).toBeDisabled()
+  })
+
+  it('has nothing to forget on a page that is not a site', () => {
+    answerPopupState(null)
+    render(<App />)
+
+    expect(screen.getByText('This page')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Forget' })).toBeDisabled()
+  })
+
+  // The service worker owns the write: a speed change on this domain may still
+  // be sitting in its debounce, and only the worker can cancel that.
+  it('asks the service worker to forget the site', async () => {
+    const user = userEvent.setup()
+    answerPopupState('youtube.com')
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Forget' }))
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      { type: 'rebobinate:forget-domain', domain: 'youtube.com' },
+      expect.any(Function),
+    )
+  })
+
+  it('hides the site row when the memory is turned off', async () => {
+    const user = userEvent.setup()
+    answerPopupState('youtube.com')
+    render(<App />)
+
+    await user.click(screen.getByLabelText('Remember per site'))
+
+    expect(storedSettings().rememberPerDomain).toBe(false)
+    expect(screen.getByText('youtube.com')).not.toBeVisible()
+  })
+
+  it('saves the default speed for sites it has never seen', async () => {
+    const user = userEvent.setup()
+    answerPopupState('youtube.com')
+    render(<App />)
+
+    await user.selectOptions(screen.getByLabelText('Default speed'), '1.5')
+
+    expect(storedSettings().defaultSpeed).toBe(1.5)
+  })
+
+  it('keeps a default speed that is not one of the presets selectable', () => {
+    answerPopupState('youtube.com')
+    getChromeMock().storage.local.seed({
+      [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, defaultSpeed: 1.15 },
+    })
+    render(<App />)
+
+    expect(screen.getByLabelText('Default speed')).toHaveValue('1.15')
+  })
+})
 
 describe('popup step field', () => {
   beforeEach(() => {

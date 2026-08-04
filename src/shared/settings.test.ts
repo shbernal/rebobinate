@@ -3,6 +3,7 @@ import { getChromeMock } from '@/test/chrome'
 import {
   DEFAULT_SETTINGS,
   SETTINGS_STORAGE_KEY,
+  clampToSettings,
   normalizeSettings,
   onSettingsChange,
   readSettings,
@@ -77,6 +78,36 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({ schemaVersion: 0 }).schemaVersion).toBe(
       DEFAULT_SETTINGS.schemaVersion,
     )
+  })
+
+  // An installed copy holds a schema 1 object. The v2 keys are additions, so it
+  // upgrades by filling them in and nothing the user had is reset.
+  it('fills the per-domain keys into an object written before them', () => {
+    const settings = normalizeSettings({
+      schemaVersion: 1,
+      step: 0.25,
+      badge: { corner: 'bottom-right' },
+    })
+
+    expect(settings.step).toBe(0.25)
+    expect(settings.badge.corner).toBe('bottom-right')
+    expect(settings.defaultSpeed).toBe(1)
+    expect(settings.rememberPerDomain).toBe(true)
+  })
+
+  it('clamps the default speed to what a player accepts', () => {
+    expect(normalizeSettings({ defaultSpeed: 99 }).defaultSpeed).toBe(16)
+    expect(normalizeSettings({ defaultSpeed: 0 }).defaultSpeed).toBe(0.1)
+    expect(normalizeSettings({ defaultSpeed: 'fast' }).defaultSpeed).toBe(1)
+  })
+
+  // Narrowing the range is not a reason to rewrite the chosen default; the
+  // range is applied where the speed is used.
+  it('leaves a default speed outside a narrowed range alone', () => {
+    const settings = normalizeSettings({ defaultSpeed: 2, maxSpeed: 1.5 })
+
+    expect(settings.defaultSpeed).toBe(2)
+    expect(clampToSettings(settings.defaultSpeed, settings)).toBe(1.5)
   })
 })
 

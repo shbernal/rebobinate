@@ -14,9 +14,12 @@ import { SETTINGS_STORAGE_KEY } from '../../src/shared/settings'
 type PartialSettings = Partial<Omit<Settings, 'badge'>> & {
   badge?: Partial<BadgeSettings>
 }
+import type { DomainMemory, DomainStore } from '../../src/shared/domains'
+import { DOMAINS_STORAGE_KEY } from '../../src/shared/domains'
 import {
   closeExtensionContext,
   getExtensionId,
+  getStorageValue,
   launchExtensionContext,
   openExtensionPage as openExtensionPageInContext,
   removeStorageValues,
@@ -31,6 +34,8 @@ type ExtensionFixtures = {
   openFixture: (pathname: string) => Promise<Page>
   openPopup: () => Promise<Page>
   seedSettings: (settings: PartialSettings) => Promise<void>
+  /** What the extension has written down per site, as it stands right now. */
+  rememberedSites: () => Promise<Record<string, DomainMemory>>
 }
 
 export const test = base.extend<ExtensionFixtures>({
@@ -58,6 +63,17 @@ export const test = base.extend<ExtensionFixtures>({
       }
 
       await setStorageValue(extensionContext, SETTINGS_STORAGE_KEY, settings)
+    })
+  },
+
+  rememberedSites: async ({ extensionContext }, use) => {
+    await use(async () => {
+      const stored = await getStorageValue<DomainStore>(
+        extensionContext,
+        DOMAINS_STORAGE_KEY,
+      )
+
+      return stored?.entries ?? {}
     })
   },
 

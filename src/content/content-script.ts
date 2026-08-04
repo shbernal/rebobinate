@@ -33,6 +33,7 @@ if (isControllableDocument()) {
       // what makes the setting survive a site swapping its player element.
       enforcer.apply(video)
       reportMedia()
+      announceSpeed()
     },
     onMediaEvent: (video, eventName) => {
       reportMedia()
@@ -57,6 +58,24 @@ if (isControllableDocument()) {
   // still meant for us.
   let tabHasVideo = false
   let reportedHasVideo = false
+
+  /**
+   * A speed the user did not just ask for still owes them an explanation. A
+   * speed remembered for the site is applied at `document_start`, before there
+   * is a video for the badge to sit on, so the announcement waits for the first
+   * one to appear. Once per frame: a feed that recycles its player would
+   * otherwise flash on every item.
+   */
+  let announced = false
+
+  function announceSpeed() {
+    if (announced || speedsEqual(enforcer.getSpeed(), 1)) {
+      return
+    }
+
+    announced = true
+    badge.flash(enforcer.getSpeed(), settings.badge)
+  }
 
   const keyHandler = createKeyHandler({
     target: window,
@@ -170,6 +189,7 @@ if (isControllableDocument()) {
       if (typeof response?.speed === 'number') {
         enforcer.setSpeed(response.speed)
         badge.render(response.speed, settings.badge)
+        announceSpeed()
       }
     },
   )

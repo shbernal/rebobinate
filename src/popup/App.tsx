@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { RuntimeMessage } from '@/shared/messages'
+import type { RuntimeMessage, SpeedResponse } from '@/shared/messages'
 import type { SpeedAction } from '@/shared/keys'
+import type { DomainStore } from '@/shared/domains'
+import {
+  EMPTY_DOMAIN_STORE,
+  onDomainsChange,
+  readDomains,
+} from '@/shared/domains'
 import type { BadgeCorner, BadgeSettings, Settings } from '@/shared/settings'
 import {
   BADGE_CORNERS,
@@ -14,6 +20,15 @@ import {
 import { formatSpeedLabel } from '@/shared/speed'
 import ColorPicker from './ColorPicker'
 import './App.css'
+
+/**
+ * The default speed is a short list rather than a typed field. The step field
+ * above shows what a free-form number costs — a draft state, because its
+ * halfway values are not valid settings — and a starting speed has only a
+ * handful of useful answers. A `<select>` also keeps the popup compact, which
+ * is the constraint the whole layout is under.
+ */
+const DEFAULT_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 
 const CORNER_LABELS: Record<BadgeCorner, string> = {
   'top-left': '↖',
@@ -84,12 +99,40 @@ const App = () => {
   const [stepDraft, setStepDraft] = useState<string | null>(null)
   const [openColor, setOpenColor] = useState<ColorFieldKey | null>(null)
   const openColorField = COLOR_FIELDS.find(field => field.key === openColor)
+  /**
+   * The domain the active tab counts as. The service worker resolves it, not
+   * the popup: it is the *top* frame's registrable domain, and the popup has no
+   * access to the tab's URL without the `tabs` permission the extension does
+   * not ask for.
+   */
+  const [domain, setDomain] = useState<string | null>(null)
+  const [domains, setDomains] = useState<DomainStore>(EMPTY_DOMAIN_STORE)
+  const remembered = domain ? domains.entries[domain] : undefined
 
   useEffect(() => {
     readSettings(setSettings)
-    sendMessage({ type: 'rebobinate:popup-state' }, setSpeed)
+    readDomains(setDomains)
 
-    return onSettingsChange(setSettings)
+    chrome.runtime.sendMessage(
+      { type: 'rebobinate:popup-state' } satisfies RuntimeMessage,
+      (response?: SpeedResponse) => {
+        void chrome.runtime.lastError
+
+        if (typeof response?.speed === 'number') {
+          setSpeed(response.speed)
+        }
+
+        setDomain(response?.domain ?? null)
+      },
+    )
+
+    const stopSettings = onSettingsChange(setSettings)
+    const stopDomains = onDomainsChange(setDomains)
+
+    return () => {
+      stopSettings()
+      stopDomains()
+    }
   }, [])
 
   const save = useCallback((next: Settings) => {
@@ -136,6 +179,22 @@ const App = () => {
     )
   }
 
+  /**
+   * Routed through the service worker rather than written here: a speed change
+   * on this domain may still be sitting in its debounce, and only the service
+   * worker can cancel it. The stored map is what this list follows, so the
+   * write is the answer.
+   */
+  const forgetSite = () => {
+    if (domain) {
+      sendMessage({ type: 'rebobinate:forget-domain', domain })
+    }
+  }
+
+  const defaultSpeeds = DEFAULT_SPEEDS.includes(settings.defaultSpeed)
+    ? DEFAULT_SPEEDS
+    : [...DEFAULT_SPEEDS, settings.defaultSpeed].sort((a, b) => a - b)
+
   return (
     <main className="popup">
       <header className="header">
@@ -181,6 +240,57 @@ const App = () => {
           onChange={event => editStep(event.target.value)}
           onBlur={commitStep}
         />
+      </section>
+
+      <hr />
+
+      <section className="field">
+        <label htmlFor="default-speed">Default speed</label>
+        <select
+          id="default-speed"
+          value={settings.defaultSpeed}
+          onChange={event =>
+            save({ ...settings, defaultSpeed: Number(event.target.value) })
+          }
+        >
+          {defaultSpeeds.map(value => (
+            <option key={value} value={value}>
+              {formatSpeedLabel(value)}
+            </option>
+          ))}
+        </select>
+      </section>
+
+      <section className="field">
+        <span>Remember per site</span>
+        <Toggle
+          label="Remember per site"
+          checked={settings.rememberPerDomain}
+          onChange={rememberPerDomain =>
+            save({ ...settings, rememberPerDomain })
+          }
+        />
+      </section>
+
+      <section className="site" hidden={!settings.rememberPerDomain}>
+        <span className="site-name" title={domain ?? undefined}>
+          {domain ?? 'This page'}
+        </span>
+        <span className="site-speed">
+          {remembered ? formatSpeedLabel(remembered.speed) : '—'}
+        </span>
+        <button
+          type="button"
+          disabled={!remembered}
+          onClick={forgetSite}
+          title={
+            domain
+              ? `Forget the speed remembered for ${domain}`
+              : 'This page has no site to remember'
+          }
+        >
+          Forget
+        </button>
       </section>
 
       <hr />

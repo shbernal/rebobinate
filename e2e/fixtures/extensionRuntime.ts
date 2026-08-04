@@ -105,6 +105,23 @@ export const setStorageValue = async <Value>(
   )
 }
 
+export const getStorageValue = async <Value>(
+  context: BrowserContext,
+  key: string,
+): Promise<Value | undefined> => {
+  const worker = await waitForExtensionWorker(context)
+
+  return worker.evaluate(
+    storageKey =>
+      new Promise<unknown>(resolve => {
+        chrome.storage.local.get(storageKey, stored => {
+          resolve(stored?.[storageKey])
+        })
+      }),
+    key,
+  ) as Promise<Value | undefined>
+}
+
 export const removeStorageValues = async (
   context: BrowserContext,
   keys: string[],

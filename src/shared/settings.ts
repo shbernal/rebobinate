@@ -7,8 +7,13 @@ export const SETTINGS_STORAGE_KEY = 'rebobinate:settings'
  * Bumped whenever the stored shape changes in a way `normalizeSettings` cannot
  * repair on its own. Present from the first release so later features (per-site
  * speeds, statistics) have a migration hook instead of a guess.
+ *
+ * `2` added `rememberPerDomain` and `defaultSpeed`. It needs no migration code:
+ * both are new keys, so a stored `1` object has them filled from the defaults
+ * like any other missing field, and nothing an installed copy already holds is
+ * reset. The bump records the shape change.
  */
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export const BADGE_CORNERS = [
   'top-left',
@@ -37,6 +42,18 @@ export type Settings = {
   step: number
   minSpeed: number
   maxSpeed: number
+  /**
+   * The speed a tab starts at when nothing is remembered for its domain, and
+   * the speed `reset` returns to. At its default of 1.0 this is exactly the
+   * behaviour of the first releases.
+   */
+  defaultSpeed: number
+  /**
+   * Whether the speed chosen on a site is remembered and re-applied on the next
+   * visit. Off, the extension reads and writes no per-domain state at all and
+   * every tab starts at `defaultSpeed`.
+   */
+  rememberPerDomain: boolean
   badge: BadgeSettings
   keys: KeyBindings
 }
@@ -57,6 +74,8 @@ export const DEFAULT_SETTINGS: Settings = {
   step: 0.05,
   minSpeed: LIMITS.speed.min,
   maxSpeed: LIMITS.speed.max,
+  defaultSpeed: 1,
+  rememberPerDomain: true,
   badge: {
     enabled: true,
     corner: 'top-left',
@@ -198,6 +217,19 @@ export const normalizeSettings = (value: unknown): Settings => {
     step: clampStep(source.step),
     minSpeed: Math.min(minSpeed, maxSpeed),
     maxSpeed: Math.max(minSpeed, maxSpeed),
+    // Clamped to what `playbackRate` accepts rather than to the user's own
+    // range: narrowing the range should not silently rewrite the chosen
+    // default, and `clampToSettings` applies the range where the speed is used.
+    defaultSpeed: normalizeNumber(
+      source.defaultSpeed,
+      DEFAULT_SETTINGS.defaultSpeed,
+      LIMITS.speed,
+      roundSpeed,
+    ),
+    rememberPerDomain: normalizeBoolean(
+      source.rememberPerDomain,
+      DEFAULT_SETTINGS.rememberPerDomain,
+    ),
     badge: normalizeBadge(source.badge),
     keys: {
       increase: normalizeBindings(

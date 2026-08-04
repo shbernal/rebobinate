@@ -61,6 +61,7 @@ const pickStorageValues = (values: StorageValues, keys: StorageKeys) => {
 
 export const createChromeMock = () => {
   const values: StorageValues = {}
+  let openTabs: chrome.tabs.Tab[] = [{ id: 1 } as chrome.tabs.Tab]
   const storageChanged = createChromeEvent<StorageChangedArgs>()
   const runtimeMessage = createChromeEvent<RuntimeMessageArgs, boolean>()
   const tabRemoved = createChromeEvent<TabRemovedArgs>()
@@ -113,12 +114,18 @@ export const createChromeMock = () => {
     },
     tabs: {
       onRemoved: tabRemoved,
+      // The tabs a query answers with. Seeded rather than fixed because the
+      // service worker now reads the tab's URL and its private-window flag, not
+      // just its id.
+      seed: (next: Partial<chrome.tabs.Tab>[]) => {
+        openTabs = next as chrome.tabs.Tab[]
+      },
       query: vi.fn(
         (
           _queryInfo: chrome.tabs.QueryInfo,
           callback: (tabs: chrome.tabs.Tab[]) => void,
         ) => {
-          callback([{ id: 1 } as chrome.tabs.Tab])
+          callback(openTabs)
         },
       ),
       sendMessage: vi.fn(

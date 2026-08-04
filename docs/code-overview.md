@@ -18,8 +18,50 @@ intent carries the sending frame's own speed (`currentSpeed`), so the tab
 resumes from the truth on the page instead of snapping back to 1.0.
 
 A `rebobinate:query` from the top frame (`frameId === 0`) means a new page: the
-tab's speed and frame bookkeeping are cleared. Sub-frames use the same query to
-inherit a speed that was set before they existed.
+tab's speed and frame bookkeeping are cleared, and the speed is resolved again
+from what the tab's domain is remembered at. Sub-frames use the same query to
+inherit a speed that was set before they existed; one that asks before the top
+frame has (which happens) resolves from the tab's domain too, rather than
+sitting at 1.0 until the broadcast corrects it.
+
+## Per-site speed memory
+
+The speed chosen on a site is written down and applied on the next visit. The
+service worker owns it, for the same reason it owns the tab speed: the domain a
+page counts as is a property of the tab, not of the frame the keystroke reached.
+
+**The key is the registrable domain**, resolved by `src/shared/domain.ts`, so
+`www.youtube.com` and `m.youtube.com` share one setting. Getting that exactly
+right needs the public suffix list, which an extension can only have by bundling
+it — tens of kilobytes in every build plus a refresh at every release. That is
+not worth it here: when the guess is wrong two sites share a speed, and one
+keypress fixes it. So the rule is "the last two labels", with a third kept when
+the last two are a known multi-part suffix. That table is the part that earns
+its keep — without it `bbc.co.uk` keys as `co.uk` and every UK site shares one
+speed, which is the one failure anybody would notice. IP literals and
+single-label hosts are kept whole; `chrome://`, `about:`, `file://` and `data:`
+pages get no key at all and are never written down.
+
+**The domain is the top frame's.** A YouTube embed on a blog follows the blog's
+setting, not YouTube's, because the site a page belongs to is the one in the
+address bar. It also means one setting covers a site and everything it embeds.
+
+**Writes are debounced by a second, per domain.** Ramping from 1.0 to 2.0 in
+twenty keypresses is one write, not twenty. A pending timer dies with the
+service worker, but eviction takes thirty seconds of idle, so a second is well
+inside the margin.
+
+**`reset` forgets rather than records.** `0` returns to `defaultSpeed` and drops
+the entry: it is the "make this site normal again" gesture, and a map full of
+entries that only repeat the default would spend the eviction budget on nothing.
+
+**Private windows leave no trace.** The check is `sender.tab.incognito` rather
+than `chrome.extension.inIncognitoContext`, which answers for the caller's own
+context and is not what a shared background page needs to know.
+
+`rememberPerDomain` turns the whole thing off: no per-domain state is read or
+written, and every tab starts at `defaultSpeed`. At its default of `1.0` that is
+exactly the behaviour of the first releases.
 
 ## Whether a keystroke is ours
 
@@ -112,6 +154,24 @@ numbers, rejects unknown corners and non-colors, repairs partial objects, and
 stamps `schemaVersion`. Storage can hold a half-written object from an
 interrupted write or a shape from an older version, so the rest of the code only
 ever sees a complete `Settings`.
+
+Schema `2` added `defaultSpeed` and `rememberPerDomain`. It needed no migration
+code: both are new keys, so a stored `1` object has them filled from the
+defaults like any other missing field and nothing an installed copy holds is
+reset.
+
+The remembered speeds live under a **second storage key**, in
+`src/shared/domains.ts`, rather than inside `Settings`. The two are written by
+different owners at very different rates — the popup rewrites the whole settings
+object whenever a control moves, while the service worker writes a domain entry
+a second after the last keystroke — and in one key those writes clobber each
+other: the popup would save a settings object it read before the last speed
+change. The same rule applies to both, though. Storage is untrusted input, and
+every read of the domain map goes through `normalizeDomains`, which drops
+entries that are not a speed, clamps the ones that are, and trims the map to its
+500-entry cap by dropping the least recently updated. A map that only ever grows
+is a slow leak on a profile that lives for years; a site whose speed mattered
+gets visited again and re-remembered on the next keypress.
 
 Speed arithmetic lives in `src/shared/speed.ts`. Steps land on the multiple of
 the step size in the direction of travel, so a site that left the video at 1.07

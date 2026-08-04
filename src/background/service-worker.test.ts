@@ -1,12 +1,54 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getChromeMock } from '@/test/chrome'
-import { SETTINGS_STORAGE_KEY } from '@/shared/settings'
+import type { DomainMemory } from '@/shared/domains'
+import { DOMAINS_STORAGE_KEY } from '@/shared/domains'
+import type { Settings } from '@/shared/settings'
+import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '@/shared/settings'
 
 type Sender = chrome.runtime.MessageSender
 
 const TAB: Sender = { tab: { id: 7 } as chrome.tabs.Tab, frameId: 0 }
 const SUBFRAME: Sender = { tab: { id: 7 } as chrome.tabs.Tab, frameId: 3 }
 const POPUP: Sender = {}
+
+const WATCH_URL = 'https://www.youtube.com/watch?v=1'
+
+/** A frame of a tab that is actually on a site, with a URL to key on. */
+const onSite = ({
+  url = WATCH_URL,
+  frameId = 0,
+  incognito = false,
+  frameUrl,
+}: {
+  url?: string
+  frameId?: number
+  incognito?: boolean
+  /** The frame's own URL, when it is not the tab's — an embedded player. */
+  frameUrl?: string
+} = {}): Sender =>
+  ({
+    tab: { id: 7, url, incognito } as chrome.tabs.Tab,
+    frameId,
+    url: frameUrl ?? url,
+  }) as Sender
+
+const seedSettings = (patch: Partial<Settings> = {}) => {
+  getChromeMock().storage.local.seed({
+    [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, ...patch },
+  })
+}
+
+const seedDomains = (entries: Record<string, DomainMemory>) => {
+  getChromeMock().storage.local.seed({
+    [DOMAINS_STORAGE_KEY]: { schemaVersion: 1, entries },
+  })
+}
+
+const storedDomains = (): Record<string, DomainMemory> => {
+  const stored = getChromeMock().storage.local.snapshot()[DOMAINS_STORAGE_KEY]
+
+  return (stored as { entries?: Record<string, DomainMemory> })?.entries ?? {}
+}
 
 const loadBackground = async () => {
   vi.resetModules()
@@ -133,7 +175,11 @@ describe('background speed relay', () => {
     const response = send({ type: 'rebobinate:popup-state' }, POPUP)
 
     expect(chromeMock.tabs.query).toHaveBeenCalled()
-    expect(response).toHaveBeenCalledWith({ speed: 1, hasVideo: false })
+    expect(response).toHaveBeenCalledWith({
+      speed: 1,
+      hasVideo: false,
+      domain: null,
+    })
   })
 
   it('ignores messages that are not ours', async () => {
@@ -207,7 +253,7 @@ describe('tab media tracking', () => {
     expect(response).toHaveBeenCalledWith({ speed: 1, hasVideo: true })
   })
 
-  it('starts the bookkeeping over when the top frame navigates', async () => {
+  it('starts the frame bookkeeping over when the top frame navigates', async () => {
     const { send } = await loadBackground()
 
     send({ type: 'rebobinate:media', hasVideo: true }, SUBFRAME)
@@ -231,5 +277,276 @@ describe('tab media tracking', () => {
       type: 'rebobinate:tab-media',
       hasVideo: false,
     })
+  })
+})
+
+describe('the speed a page starts at', () => {
+  beforeEach(() => {
+    seedSettings()
+  })
+
+  it('is the speed remembered for the tab domain', async () => {
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:query' }, onSite())
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ speed: 1.5 }),
+    )
+  })
+
+  it('is shared between the subdomains of one site', async () => {
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    const response = send(
+      { type: 'rebobinate:query' },
+      onSite({ url: 'https://m.youtube.com/watch?v=2' }),
+    )
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ speed: 1.5 }),
+    )
+  })
+
+  it('follows the top frame for an embedded player', async () => {
+    // A YouTube embed on a blog takes the blog's setting: the domain a page
+    // counts as is the one in the address bar, not the one in the iframe.
+    seedDomains({
+      'blog.example': { speed: 1.75, updatedAt: 1 },
+      'youtube.com': { speed: 3, updatedAt: 1 },
+    })
+    const { send } = await loadBackground()
+
+    const response = send(
+      { type: 'rebobinate:query' },
+      onSite({
+        url: 'https://blog.example/post',
+        frameId: 3,
+        frameUrl: 'https://www.youtube.com/embed/abc',
+      }),
+    )
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ speed: 1.75 }),
+    )
+  })
+
+  it('is the chosen default for a domain never seen before', async () => {
+    seedSettings({ defaultSpeed: 1.25 })
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:query' }, onSite())
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ speed: 1.25 }),
+    )
+  })
+
+  it('ignores what is remembered while the toggle is off', async () => {
+    seedSettings({ rememberPerDomain: false })
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:query' }, onSite())
+
+    expect(response).toHaveBeenCalledWith(expect.objectContaining({ speed: 1 }))
+  })
+
+  it('stays inside the user range', async () => {
+    seedSettings({ maxSpeed: 1.2 })
+    seedDomains({ 'youtube.com': { speed: 4, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:query' }, onSite())
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ speed: 1.2 }),
+    )
+  })
+})
+
+describe('remembering the speed', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    seedSettings({ step: 0.5 })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('writes once after a ramp, not once per keystroke', async () => {
+    const { send, chromeMock } = await loadBackground()
+
+    for (let press = 0; press < 4; press += 1) {
+      send(
+        { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+        onSite(),
+      )
+    }
+
+    // Nothing yet: the user may not have stopped pressing.
+    expect(storedDomains()['youtube.com']).toBeUndefined()
+
+    vi.advanceTimersByTime(1000)
+
+    expect(storedDomains()['youtube.com'].speed).toBe(3)
+    expect(chromeMock.storage.local.set).toHaveBeenCalledTimes(1)
+  })
+
+  it('records a speed set straight from the popup', async () => {
+    getChromeMock().tabs.seed([{ id: 1, url: WATCH_URL, incognito: false }])
+    const { send } = await loadBackground()
+
+    send({ type: 'rebobinate:set', speed: 2 }, POPUP)
+    vi.advanceTimersByTime(1000)
+
+    expect(storedDomains()['youtube.com'].speed).toBe(2)
+  })
+
+  it('records a sub-frame keystroke against the tab domain', async () => {
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite({
+        url: 'https://blog.example/post',
+        frameId: 3,
+        frameUrl: 'https://www.youtube.com/embed/abc',
+      }),
+    )
+    vi.advanceTimersByTime(1000)
+
+    expect(Object.keys(storedDomains())).toEqual(['blog.example'])
+  })
+
+  it('forgets the site when the speed is reset', async () => {
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    // `0` is the "make this site normal again" gesture, so it drops the entry
+    // rather than storing the default under it.
+    const response = send(
+      { type: 'rebobinate:intent', action: 'reset', currentSpeed: 1.5 },
+      onSite(),
+    )
+
+    expect(storedDomains()['youtube.com']).toBeUndefined()
+    expect(response).toHaveBeenCalledWith({ speed: 1 })
+  })
+
+  it('resets to the chosen default rather than to 1.0', async () => {
+    seedSettings({ defaultSpeed: 1.5 })
+    const { send } = await loadBackground()
+
+    const response = send(
+      { type: 'rebobinate:intent', action: 'reset', currentSpeed: 2 },
+      onSite(),
+    )
+
+    expect(response).toHaveBeenCalledWith({ speed: 1.5 })
+  })
+
+  it('leaves no trace of a private window', async () => {
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite({ incognito: true }),
+    )
+    vi.advanceTimersByTime(1000)
+
+    expect(storedDomains()).toEqual({})
+  })
+
+  it('writes nothing while the toggle is off', async () => {
+    seedSettings({ rememberPerDomain: false })
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite(),
+    )
+    vi.advanceTimersByTime(1000)
+
+    expect(storedDomains()).toEqual({})
+  })
+
+  it('writes nothing for a page that is not a site', async () => {
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite({ url: 'file:///home/user/clip.mp4' }),
+    )
+    vi.advanceTimersByTime(1000)
+
+    expect(storedDomains()).toEqual({})
+  })
+})
+
+describe('forgetting a site from the popup', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    seedSettings({ step: 0.5 })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('drops the entry', async () => {
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    send({ type: 'rebobinate:forget-domain', domain: 'youtube.com' }, POPUP)
+
+    expect(storedDomains()['youtube.com']).toBeUndefined()
+  })
+
+  it('cancels a write that was still in its debounce', async () => {
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite(),
+    )
+    send({ type: 'rebobinate:forget-domain', domain: 'youtube.com' }, POPUP)
+    vi.advanceTimersByTime(1000)
+
+    // Without the cancel, the pending write puts the entry straight back.
+    expect(storedDomains()['youtube.com']).toBeUndefined()
+  })
+})
+
+describe('the domain the popup shows', () => {
+  beforeEach(() => {
+    seedSettings()
+  })
+
+  it('is the registrable domain of the active tab', async () => {
+    getChromeMock().tabs.seed([
+      { id: 1, url: 'https://news.bbc.co.uk/video', incognito: false },
+    ])
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:popup-state' }, POPUP)
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'bbc.co.uk' }),
+    )
+  })
+
+  it('is null on a page nothing can be remembered against', async () => {
+    getChromeMock().tabs.seed([{ id: 1, url: 'about:blank', incognito: false }])
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:popup-state' }, POPUP)
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: null }),
+    )
   })
 })

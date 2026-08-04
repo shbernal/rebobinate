@@ -20,10 +20,15 @@ pnpm e2e:headed      # the same, with a visible browser
   `runtime.onMessage` and `sendMessage`, `tabs.query`, `tabs.sendMessage`, and
   `tabs.onRemoved`. Its events expose `emit()` so a test can drive a listener
   directly, and `storage.local.seed()`/`snapshot()` for arranging and asserting
-  state.
+  state. `tabs.seed()` sets what a query answers with, which matters now that
+  the service worker reads a tab's URL and its private-window flag and not only
+  its id.
 - The service worker is a module with top-level side effects, so its tests
   `vi.resetModules()` and re-import it to get a clean instance, then drive it
-  through `chrome.runtime.onMessage.emit(message, sender, sendResponse)`.
+  through `chrome.runtime.onMessage.emit(message, sender, sendResponse)`. The
+  sender is where a test says which site the tab is on: `sender.tab.url` is the
+  top frame's URL, and `sender.url` the sending frame's, which is how the
+  embedded-player cases are set up.
 
 `tests/` holds what is not a unit test of `src/`.
 
@@ -60,9 +65,12 @@ by node, not part of a TypeScript project reference. See
   two invented origins (`https://player.test`, `https://embed.test`). Content
   scripts inject on those navigations; `file://` URLs would need an extra Chrome
   permission.
-- `e2e/fixtures/extension.ts` exposes the `openFixture`, `openPopup`, and
-  `seedSettings` fixtures. Seeded settings are partial — the extension
-  normalizes them.
+- `e2e/fixtures/extension.ts` exposes the `openFixture`, `openPopup`,
+  `seedSettings`, and `rememberedSites` fixtures. Seeded settings are partial —
+  the extension normalizes them. `rememberedSites()` reads the per-site speed
+  map back out of the extension's storage, which is what lets
+  `e2e/specs/site-memory.spec.ts` wait for the debounced write instead of
+  sleeping a fixed amount.
 - `e2e/fixtures/controls.ts` provides `pressSpeedKey`, which presses and retries
   until the rate moves. crxjs loads the content script through an asynchronous
   loader, so for a short moment after a navigation the page is live but the
