@@ -63,6 +63,25 @@ context and is not what a shared background page needs to know.
 written, and every tab starts at `defaultSpeed`. At its default of `1.0` that is
 exactly the behaviour of the first releases.
 
+**A site can also be switched off on its own.** An entry in the map is either a
+remembered speed or a `never` marker, and a marker means the site is left out
+entirely: its speed is not applied on load and a keystroke on it writes nothing.
+That guard lives in `rememberDomain` rather than at its call sites, so every
+writer gets it. `forgetDomain` leaves a marker standing, because `0` on such a
+site means "back to normal here", not "start watching me again", and the LRU cap
+counts the two kinds of entry separately — a profile with 500 remembered speeds
+must not quietly evict an opt-out and start remembering the site again.
+
+The marker only ever appears from the Sites tab, which is also where a
+remembered speed can be edited or dropped for any site rather than only the one
+in front of the user. Those edits go through the service worker
+(`rebobinate:set-domain-speed`, `rebobinate:set-domain-never`,
+`rebobinate:forget-domain`) for the same reason: a speed change on that domain
+may still be sitting in the debounce, and only the worker can cancel it. A speed
+set for the domain the active tab is on is applied to that tab as well —
+editing the row for the site being watched and seeing nothing happen would read
+as broken.
+
 ## Whether a keystroke is ours
 
 `src/content/keys.ts` listens on `window` in the **capture** phase and, when it
@@ -168,10 +187,15 @@ a second after the last keystroke — and in one key those writes clobber each
 other: the popup would save a settings object it read before the last speed
 change. The same rule applies to both, though. Storage is untrusted input, and
 every read of the domain map goes through `normalizeDomains`, which drops
-entries that are not a speed, clamps the ones that are, and trims the map to its
-500-entry cap by dropping the least recently updated. A map that only ever grows
-is a slow leak on a profile that lives for years; a site whose speed mattered
-gets visited again and re-remembered on the next keypress.
+entries that are neither a speed nor a marker, clamps the speeds, and trims the
+map to its 500-entry cap by dropping the least recently updated. A map that only
+ever grows is a slow leak on a profile that lives for years; a site whose speed
+mattered gets visited again and re-remembered on the next keypress.
+
+The domain map carries its own `schemaVersion`, now `2` for the `never` marker.
+Like the settings `1` → `2` step it needed no migration code: an entry written
+by version `1` has no `never` field, so it normalizes to `false` like any other
+missing key and keeps the speed it already held.
 
 Speed arithmetic lives in `src/shared/speed.ts`. Steps land on the multiple of
 the step size in the direction of travel, so a site that left the video at 1.07
@@ -181,10 +205,64 @@ The step field in the popup is the one setting typed a character at a time, and
 its halfway states are not valid settings: going from `0.2` to `0.15` passes
 through `''`, `'0'` and `'0.'`. Normalizing each keystroke back into the field
 would rewrite it under the cursor and make those targets unreachable, so
-`src/popup/App.tsx` holds the raw text in a draft while the field is being
-edited. A value that is already a valid step saves as it is typed; anything else
-waits for blur, which clamps it through `clampStep` or, for an empty field,
-restores the saved step.
+`src/popup/SettingsPane.tsx` holds the raw text in a draft while the field is
+being edited. A value that is already a valid step saves as it is typed;
+anything else waits for blur, which clamps it through `clampStep` or, for an
+empty field, restores the saved step.
+
+## The popup
+
+`src/popup/App.tsx` is a shell rather than a screen. It owns the state every
+pane reads — settings, the tab's speed, the domain the tab counts as, the domain
+map — and renders one of `SpeedPane`, `SitesPane` or `SettingsPane`. Only the
+selected pane is mounted, so nothing off screen holds state or listens for keys.
+
+Two things about it are load-bearing:
+
+- **The first paint does not wait on storage.** Both reads answer on a callback,
+  and a popup that gates its first render on them flashes an empty box every
+  time it is opened. The defaults render immediately and the stored values
+  arrive underneath.
+- **The tab strip follows the ARIA tab pattern**, including the part that is
+  easy to skip: only the selected tab is in the focus order and the arrow keys
+  move between them. Without that a keyboard user tabs through every tab to
+  reach the pane. The selected tab is not persisted — the popup opens on Speed.
+
+The strip is data-driven (`TABS` in `App.tsx`), which is what makes the Stats
+tab the metrics feature will need one entry rather than a rewrite. It is not
+there yet because a tab that opens onto a placeholder is worse than one that is
+not there.
+
+The pane scrolls rather than the popup window, so the header and the strip stay
+put on the long Settings pane. The popup is still fixed at 320px wide.
+
+## Rebinding a key
+
+`src/popup/KeyEditor.tsx` captures a keystroke and writes it into
+`settings.keys`, which the content script already follows live.
+
+Which of `key` and `code` to store is decided by `bindingToken` in
+`src/shared/keys.ts`. The numpad is stored as its `code` — its `key` is the same
+`0` as the digit row's, so binding one would bind both — and everything else as
+its `key`, which is the character on the cap the user pressed. Storing
+`Semicolon` would bind whatever that physical key types on another layout, which
+is not what somebody who pressed `;` asked for.
+
+`captureBinding` decides what a press means, and its rules follow
+`resolveAction`: a keystroke the matcher would never accept must not be offered
+as a binding. A modifier held alone leaves the capture open, `Escape` cancels,
+`Tab` is refused because it is how a keyboard user leaves the row, and a
+modified keystroke is refused because the content script deliberately hands
+those to the browser — binding one would produce a key that silently never
+fires. A key already bound to another action is refused too, since the content
+script resolves the actions in a fixed order and a duplicate would silently
+belong to whichever is checked first.
+
+The defaults hold both forms of the same key (`=` and `Equal`), so the editor
+groups the chips by `formatBinding` label and removes a whole group at once. The
+last chip of an action cannot be removed: `normalizeSettings` reads an empty
+binding list as a missing one and fills it from the defaults, so the key would
+come straight back.
 
 ## The badge colours
 

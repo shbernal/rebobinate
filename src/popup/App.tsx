@@ -7,70 +7,33 @@ import {
   onDomainsChange,
   readDomains,
 } from '@/shared/domains'
-import type { BadgeCorner, BadgeSettings, Settings } from '@/shared/settings'
+import type { Settings } from '@/shared/settings'
 import {
-  BADGE_CORNERS,
   DEFAULT_SETTINGS,
-  LIMITS,
-  clampStep,
   onSettingsChange,
   readSettings,
   writeSettings,
 } from '@/shared/settings'
-import { formatSpeedLabel } from '@/shared/speed'
-import ColorPicker from './ColorPicker'
+import SettingsPane from './SettingsPane'
+import SitesPane from './SitesPane'
+import SpeedPane from './SpeedPane'
+import Tabs, { tabId, tabPanelId } from './Tabs'
+import type { Tab } from './Tabs'
+import Toggle from './Toggle'
 import './App.css'
 
-/**
- * The default speed is a short list rather than a typed field. The step field
- * above shows what a free-form number costs — a draft state, because its
- * halfway values are not valid settings — and a starting speed has only a
- * handful of useful answers. A `<select>` also keeps the popup compact, which
- * is the constraint the whole layout is under.
- */
-const DEFAULT_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
-
-const CORNER_LABELS: Record<BadgeCorner, string> = {
-  'top-left': '↖',
-  'top-right': '↗',
-  'bottom-left': '↙',
-  'bottom-right': '↘',
-}
+type TabId = 'speed' | 'sites' | 'settings'
 
 /**
- * One picker panel is shared by both swatches, so the popup grows by one panel
- * at most. Opening a second swatch closes the first.
+ * The Stats tab the plan calls for is not here yet: there is nothing to put in
+ * it until the metrics feature exists, and a tab that opens onto a placeholder
+ * is worse than one that is not there. Adding it is one entry in this list.
  */
-const COLOR_FIELDS = [
-  { key: 'textColor', label: 'Text color' },
-  { key: 'backgroundColor', label: 'Background color' },
-] as const
-
-type ColorFieldKey = (typeof COLOR_FIELDS)[number]['key']
-
-type ToggleProps = {
-  label: string
-  checked: boolean
-  onChange: (checked: boolean) => void
-  size?: 'large' | 'small'
-}
-
-/**
- * An on/off slider. The visible track and knob are the sibling `<span>`; the
- * checkbox itself stays in the DOM, transparent and zero-sized, so the control
- * keeps a real checkbox's keyboard and screen-reader behaviour.
- */
-const Toggle = ({ label, checked, onChange, size = 'small' }: ToggleProps) => (
-  <label className={size === 'small' ? 'switch switch-small' : 'switch'}>
-    <input
-      type="checkbox"
-      aria-label={label}
-      checked={checked}
-      onChange={event => onChange(event.target.checked)}
-    />
-    <span className="slider" />
-  </label>
-)
+const TABS: Tab<TabId>[] = [
+  { id: 'speed', label: 'Speed' },
+  { id: 'sites', label: 'Sites' },
+  { id: 'settings', label: 'Settings' },
+]
 
 const sendMessage = (
   message: RuntimeMessage,
@@ -85,20 +48,18 @@ const sendMessage = (
   })
 }
 
+/**
+ * The popup shell: it owns everything the panes read and renders one of them.
+ *
+ * Nothing here waits on storage. Both reads answer on a callback a tick or two
+ * later, and gating the first paint on them is how a popup ends up flashing an
+ * empty box every time it is opened — so the defaults render immediately and
+ * the real values arrive underneath.
+ */
 const App = () => {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [speed, setSpeed] = useState(1)
-  /**
-   * The step is typed digit by digit, and the halfway states are not valid
-   * steps: going from 0.2 to 0.15 passes through '', '0' and '0.'. Clamping
-   * every keystroke straight back into the field rewrites it under the cursor
-   * and makes those targets unreachable, so the raw text is held here while the
-   * field is being edited and only a value that is already a valid step is
-   * saved as it is typed.
-   */
-  const [stepDraft, setStepDraft] = useState<string | null>(null)
-  const [openColor, setOpenColor] = useState<ColorFieldKey | null>(null)
-  const openColorField = COLOR_FIELDS.find(field => field.key === openColor)
+  const [tab, setTab] = useState<TabId>('speed')
   /**
    * The domain the active tab counts as. The service worker resolves it, not
    * the popup: it is the *top* frame's registrable domain, and the popup has no
@@ -107,7 +68,6 @@ const App = () => {
    */
   const [domain, setDomain] = useState<string | null>(null)
   const [domains, setDomains] = useState<DomainStore>(EMPTY_DOMAIN_STORE)
-  const remembered = domain ? domains.entries[domain] : undefined
 
   useEffect(() => {
     readSettings(setSettings)
@@ -140,38 +100,6 @@ const App = () => {
     writeSettings(next)
   }, [])
 
-  const saveBadge = useCallback(
-    (patch: Partial<BadgeSettings>) => {
-      save({ ...settings, badge: { ...settings.badge, ...patch } })
-    },
-    [save, settings],
-  )
-
-  const editStep = (raw: string) => {
-    setStepDraft(raw)
-
-    const parsed = Number(raw)
-
-    if (raw.trim() !== '' && parsed === clampStep(parsed)) {
-      save({ ...settings, step: parsed })
-    }
-  }
-
-  /** Leaving the field takes the last typed value as far as it can go. */
-  const commitStep = () => {
-    const parsed = Number(stepDraft)
-
-    if (
-      stepDraft !== null &&
-      stepDraft.trim() !== '' &&
-      !Number.isNaN(parsed)
-    ) {
-      save({ ...settings, step: clampStep(parsed) })
-    }
-
-    setStepDraft(null)
-  }
-
   const act = (action: SpeedAction) => {
     sendMessage(
       { type: 'rebobinate:intent', action, currentSpeed: speed },
@@ -180,20 +108,26 @@ const App = () => {
   }
 
   /**
-   * Routed through the service worker rather than written here: a speed change
-   * on this domain may still be sitting in its debounce, and only the service
-   * worker can cancel it. The stored map is what this list follows, so the
-   * write is the answer.
+   * Every edit to the map is routed through the service worker rather than
+   * written here: a speed change on that domain may still be sitting in its
+   * debounce, and only the service worker can cancel it. The stored map is what
+   * the list follows, so the write is the answer.
    */
-  const forgetSite = () => {
-    if (domain) {
-      sendMessage({ type: 'rebobinate:forget-domain', domain })
-    }
-  }
+  const forgetSite = useCallback((target: string) => {
+    sendMessage({ type: 'rebobinate:forget-domain', domain: target })
+  }, [])
 
-  const defaultSpeeds = DEFAULT_SPEEDS.includes(settings.defaultSpeed)
-    ? DEFAULT_SPEEDS
-    : [...DEFAULT_SPEEDS, settings.defaultSpeed].sort((a, b) => a - b)
+  const setSiteSpeed = useCallback((target: string, next: number) => {
+    sendMessage({
+      type: 'rebobinate:set-domain-speed',
+      domain: target,
+      speed: next,
+    })
+  }, [])
+
+  const setSiteNever = useCallback((target: string, never: boolean) => {
+    sendMessage({ type: 'rebobinate:set-domain-never', domain: target, never })
+  }, [])
 
   return (
     <main className="popup">
@@ -207,220 +141,34 @@ const App = () => {
         />
       </header>
 
-      <section className="speed">
-        <button
-          type="button"
-          onClick={() => act('decrease')}
-          aria-label="Slower"
-        >
-          −
-        </button>
-        <output className="readout">{formatSpeedLabel(speed)}</output>
-        <button
-          type="button"
-          onClick={() => act('increase')}
-          aria-label="Faster"
-        >
-          +
-        </button>
-        <button type="button" className="reset" onClick={() => act('reset')}>
-          Reset
-        </button>
-      </section>
+      <Tabs tabs={TABS} active={tab} onSelect={setTab} />
 
-      <section className="field">
-        <label htmlFor="step">Step</label>
-        <input
-          id="step"
-          type="number"
-          min={LIMITS.step.min}
-          max={LIMITS.step.max}
-          step={0.01}
-          value={stepDraft ?? String(settings.step)}
-          onChange={event => editStep(event.target.value)}
-          onBlur={commitStep}
-        />
-      </section>
+      <div
+        className="pane"
+        role="tabpanel"
+        id={tabPanelId(tab)}
+        aria-labelledby={tabId(tab)}
+      >
+        {tab === 'speed' ? (
+          <SpeedPane speed={speed} keys={settings.keys} onAction={act} />
+        ) : null}
 
-      <hr />
+        {tab === 'sites' ? (
+          <SitesPane
+            settings={settings}
+            save={save}
+            domain={domain}
+            domains={domains}
+            onSetSpeed={setSiteSpeed}
+            onSetNever={setSiteNever}
+            onForget={forgetSite}
+          />
+        ) : null}
 
-      <section className="field">
-        <label htmlFor="default-speed">Default speed</label>
-        <select
-          id="default-speed"
-          value={settings.defaultSpeed}
-          onChange={event =>
-            save({ ...settings, defaultSpeed: Number(event.target.value) })
-          }
-        >
-          {defaultSpeeds.map(value => (
-            <option key={value} value={value}>
-              {formatSpeedLabel(value)}
-            </option>
-          ))}
-        </select>
-      </section>
-
-      <section className="field">
-        <span>Remember per site</span>
-        <Toggle
-          label="Remember per site"
-          checked={settings.rememberPerDomain}
-          onChange={rememberPerDomain =>
-            save({ ...settings, rememberPerDomain })
-          }
-        />
-      </section>
-
-      <section className="site" hidden={!settings.rememberPerDomain}>
-        <span className="site-name" title={domain ?? undefined}>
-          {domain ?? 'This page'}
-        </span>
-        <span className="site-speed">
-          {remembered ? formatSpeedLabel(remembered.speed) : '—'}
-        </span>
-        <button
-          type="button"
-          disabled={!remembered}
-          onClick={forgetSite}
-          title={
-            domain
-              ? `Forget the speed remembered for ${domain}`
-              : 'This page has no site to remember'
-          }
-        >
-          Forget
-        </button>
-      </section>
-
-      <hr />
-
-      <section className="field">
-        <span>Speed badge</span>
-        <Toggle
-          label="Speed badge"
-          checked={settings.badge.enabled}
-          onChange={enabled => saveBadge({ enabled })}
-        />
-      </section>
-
-      <fieldset className="corners" disabled={!settings.badge.enabled}>
-        <legend>Corner</legend>
-        {BADGE_CORNERS.map(corner => (
-          <button
-            key={corner}
-            type="button"
-            aria-label={corner}
-            aria-pressed={settings.badge.corner === corner}
-            className={settings.badge.corner === corner ? 'active' : ''}
-            onClick={() => saveBadge({ corner })}
-          >
-            {CORNER_LABELS[corner]}
-          </button>
-        ))}
-      </fieldset>
-
-      <section className="field" hidden={!settings.badge.enabled}>
-        <label htmlFor="badge-size">Size</label>
-        <input
-          id="badge-size"
-          type="range"
-          min={LIMITS.fontSize.min}
-          max={LIMITS.fontSize.max}
-          value={settings.badge.fontSize}
-          onChange={event =>
-            saveBadge({ fontSize: Number(event.target.value) })
-          }
-        />
-      </section>
-
-      <section className="field" hidden={!settings.badge.enabled}>
-        <label htmlFor="badge-opacity">Opacity</label>
-        <input
-          id="badge-opacity"
-          type="range"
-          min={LIMITS.opacity.min * 100}
-          max={LIMITS.opacity.max * 100}
-          value={Math.round(settings.badge.opacity * 100)}
-          onChange={event =>
-            saveBadge({ opacity: Number(event.target.value) / 100 })
-          }
-        />
-      </section>
-
-      <section className="field" hidden={!settings.badge.enabled}>
-        <span>Colors</span>
-        <span className="colors">
-          {COLOR_FIELDS.map(field => (
-            <button
-              key={field.key}
-              type="button"
-              aria-label={field.label}
-              aria-expanded={openColor === field.key}
-              className={openColor === field.key ? 'swatch active' : 'swatch'}
-              style={{ background: settings.badge[field.key] }}
-              onClick={() =>
-                setOpenColor(open => (open === field.key ? null : field.key))
-              }
-            />
-          ))}
-        </span>
-      </section>
-
-      {openColorField && settings.badge.enabled ? (
-        <ColorPicker
-          // Each field gets its own instance: without a key React reuses the
-          // one panel across a switch, carrying a half-typed hex with it.
-          key={openColorField.key}
-          label={openColorField.label}
-          value={settings.badge[openColorField.key]}
-          onChange={hex => saveBadge({ [openColorField.key]: hex })}
-        />
-      ) : null}
-
-      <section className="field" hidden={!settings.badge.enabled}>
-        <label htmlFor="badge-autohide">Hide after</label>
-        <select
-          id="badge-autohide"
-          value={settings.badge.autoHideMs}
-          onChange={event =>
-            saveBadge({ autoHideMs: Number(event.target.value) })
-          }
-        >
-          <option value={0}>Never</option>
-          <option value={1000}>1s</option>
-          <option value={2000}>2s</option>
-          <option value={5000}>5s</option>
-        </select>
-      </section>
-
-      <section className="field" hidden={!settings.badge.enabled}>
-        <span>Hide at 1.0×</span>
-        <Toggle
-          label="Hide at 1.0×"
-          checked={settings.badge.hideAtNormalSpeed}
-          onChange={hideAtNormalSpeed => saveBadge({ hideAtNormalSpeed })}
-        />
-      </section>
-
-      <section className="preview" hidden={!settings.badge.enabled}>
-        <span
-          className="preview-badge"
-          data-corner={settings.badge.corner}
-          style={{
-            fontSize: `${settings.badge.fontSize}px`,
-            opacity: settings.badge.opacity,
-            color: settings.badge.textColor,
-            background: settings.badge.backgroundColor,
-          }}
-        >
-          {formatSpeedLabel(speed)}
-        </span>
-      </section>
-
-      <footer className="hint">
-        <kbd>+</kbd> faster · <kbd>−</kbd> slower · <kbd>0</kbd> reset
-      </footer>
+        {tab === 'settings' ? (
+          <SettingsPane settings={settings} save={save} speed={speed} />
+        ) : null}
+      </div>
     </main>
   )
 }

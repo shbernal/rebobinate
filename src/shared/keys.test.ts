@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { KeyEventLike } from './keys'
-import { resolveAction } from './keys'
+import {
+  bindingOwner,
+  captureBinding,
+  formatBinding,
+  resolveAction,
+} from './keys'
 import { DEFAULT_SETTINGS } from './settings'
 
 const keys = DEFAULT_SETTINGS.keys
@@ -83,5 +88,78 @@ describe('resolveAction', () => {
       'increase',
     )
     expect(resolveAction(event({ key: '+', code: 'Equal' }), custom)).toBeNull()
+  })
+})
+
+describe('bindingOwner', () => {
+  it('finds the action a key is already bound to', () => {
+    expect(bindingOwner(keys, 'Numpad0')).toBe('reset')
+    expect(bindingOwner(keys, 'k')).toBeNull()
+  })
+})
+
+describe('captureBinding', () => {
+  it('stores what the user sees on the key cap', () => {
+    expect(captureBinding(event({ key: ']', code: 'BracketRight' }))).toEqual({
+      status: 'bound',
+      binding: ']',
+    })
+  })
+
+  // The numpad is the one place `key` cannot answer: its `0` is the same `0`
+  // as the digit row's, so binding one would bind both.
+  it('stores the numpad by its code', () => {
+    expect(captureBinding(event({ key: '0', code: 'Numpad0' }))).toEqual({
+      status: 'bound',
+      binding: 'Numpad0',
+    })
+  })
+
+  it('keeps listening while only a modifier is held', () => {
+    expect(captureBinding(event({ key: 'Shift', code: 'ShiftLeft' }))).toEqual({
+      status: 'pending',
+    })
+  })
+
+  // `resolveAction` hands modified keystrokes back to the browser, so binding
+  // one would produce a key that silently never fires.
+  it('refuses a modified keystroke', () => {
+    expect(
+      captureBinding(event({ key: 'k', code: 'KeyK', ctrlKey: true })),
+    ).toEqual({ status: 'rejected', reason: 'modified' })
+  })
+
+  it('cancels on Escape and refuses Tab', () => {
+    expect(captureBinding(event({ key: 'Escape', code: 'Escape' }))).toEqual({
+      status: 'cancelled',
+    })
+    expect(captureBinding(event({ key: 'Tab', code: 'Tab' }))).toEqual({
+      status: 'rejected',
+      reason: 'reserved',
+    })
+  })
+})
+
+describe('formatBinding', () => {
+  // The defaults hold both forms of one key on purpose, and the popup groups
+  // the chips by label — so the two forms have to format the same.
+  it('gives the two forms of a key the same label', () => {
+    expect(formatBinding('=')).toBe(formatBinding('Equal'))
+    expect(formatBinding('-')).toBe(formatBinding('Minus'))
+    expect(formatBinding('0')).toBe(formatBinding('Digit0'))
+  })
+
+  it('marks the numpad apart from the key it shares a character with', () => {
+    expect(formatBinding('NumpadAdd')).toBe('Num +')
+    expect(formatBinding('Numpad0')).toBe('Num 0')
+  })
+
+  it('spells out the keys that have no printable form', () => {
+    expect(formatBinding(' ')).toBe('Space')
+    expect(formatBinding('ArrowUp')).toBe('↑')
+  })
+
+  it('passes an unknown token through unchanged', () => {
+    expect(formatBinding('F7')).toBe('F7')
   })
 })

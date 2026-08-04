@@ -131,12 +131,78 @@
   width: 150px;
 }
 
-/* The one remembered site the popup shows: the active tab's. The whole list
-   belongs in a Sites tab, which a 320px single pane has no room for. */
+/* The tab strip. Only the selected tab is in the focus order — the arrow keys
+   move between them — so the inactive ones need a hover/active affordance of
+   their own rather than relying on the focus ring. */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+}
+
+.tab {
+  flex: 1;
+  padding: 6px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px 4px 0 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+}
+
+.tab.active {
+  border-bottom-color: AccentColor;
+  font-weight: 600;
+}
+
+.tab:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: -2px;
+}
+
+/* The pane scrolls rather than the window, so the header and the tab strip stay
+   put. The height is under what either browser gives a popup, and a pane
+   shorter than it does not scroll at all. */
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 440px;
+  overflow-y: auto;
+}
+
+.pane-heading {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+  opacity: 0.8;
+}
+
+.note {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.sites {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .site {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .site-name {
@@ -154,16 +220,89 @@
   opacity: 0.8;
 }
 
-.site button {
+.site-speed-select {
   flex: none;
-  font-size: 12px;
-  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.site .forget {
+  flex: none;
+  padding: 2px 6px;
+  font-size: 11px;
   cursor: pointer;
 }
 
-.site button:disabled {
+.site .forget:disabled {
   cursor: default;
-  opacity: 0.5;
+  opacity: 0.4;
+}
+
+.field input[type='search'] {
+  flex: 1;
+  min-width: 0;
+}
+
+/* One row per action: the name, the keys bound to it, and the capture button.
+   The chips wrap onto their own lines rather than squeezing the button, which
+   is the column that has to stay clickable. */
+.keys {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.key-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.key-action {
+  font-size: 12px;
+}
+
+.key-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chip button {
+  padding: 0 3px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chip button:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+.chip button:hover:enabled {
+  background: color-mix(in srgb, CanvasText 15%, transparent);
+}
+
+.keys .capture,
+.keys .restore {
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.keys .restore {
+  align-self: flex-start;
 }
 
 hr {
@@ -363,6 +502,7 @@ hr {
 }
 
 .hint {
+  margin: 0;
   opacity: 0.7;
   text-align: center;
 }

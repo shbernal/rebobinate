@@ -4,7 +4,7 @@ import type { UserEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getChromeMock } from '@/test/chrome'
 import { hexToHsl } from '@/shared/color'
-import { DOMAINS_STORAGE_KEY, type DomainMemory } from '@/shared/domains'
+import { DOMAINS_SCHEMA_VERSION, DOMAINS_STORAGE_KEY } from '@/shared/domains'
 import {
   DEFAULT_SETTINGS,
   SETTINGS_STORAGE_KEY,
@@ -37,57 +37,169 @@ const answerPopupState = (domain: string | null, speed = 1) => {
   )
 }
 
-const seedDomains = (entries: Record<string, DomainMemory>) => {
+/** Seeded in the shape storage holds, so a marker carries no speed. */
+const seedDomains = (
+  entries: Record<
+    string,
+    { speed?: number; updatedAt: number; never?: boolean }
+  >,
+) => {
   getChromeMock().storage.local.seed({
-    [DOMAINS_STORAGE_KEY]: { schemaVersion: 1, entries },
+    [DOMAINS_STORAGE_KEY]: { schemaVersion: DOMAINS_SCHEMA_VERSION, entries },
   })
 }
 
-describe('popup site memory', () => {
+const openTab = async (user: UserEvent, name: string) => {
+  await user.click(screen.getByRole('tab', { name }))
+}
+
+const seedSettings = (patch: Partial<Settings> = {}) => {
+  getChromeMock().storage.local.seed({
+    [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, ...patch },
+  })
+}
+
+describe('popup tabs', () => {
   beforeEach(() => {
-    getChromeMock().storage.local.seed({
-      [SETTINGS_STORAGE_KEY]: DEFAULT_SETTINGS,
-    })
+    seedSettings()
+    answerPopupState('youtube.com', 1.5)
   })
 
-  it('shows what the active tab domain is remembered at', () => {
+  it('opens on the speed controls', () => {
+    render(<App />)
+
+    expect(screen.getByRole('tab', { name: 'Speed' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Faster' })).toBeInTheDocument()
+  })
+
+  /**
+   * The one thing the popup cannot be slow about. Both storage reads answer on
+   * a callback, and a popup that waits for them flashes an empty box every time
+   * it is opened.
+   */
+  it('shows the speed on the first render, before any read has answered', () => {
+    getChromeMock().storage.local.get.mockImplementation(() => {
+      // Never calls back: nothing on screen may depend on a read.
+    })
+    render(<App />)
+
+    expect(screen.getByRole('status')).toBeDefined
+    expect(screen.getByText('1.5×')).toBeInTheDocument()
+  })
+
+  it('swaps the pane and leaves only the selected tab in the focus order', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await openTab(user, 'Settings')
+
+    expect(screen.queryByRole('button', { name: 'Faster' })).toBeNull()
+    expect(screen.getByLabelText('Step')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Speed' })).toHaveAttribute(
+      'tabindex',
+      '-1',
+    )
+    expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute(
+      'tabindex',
+      '0',
+    )
+  })
+
+  it('moves between tabs with the arrow keys', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    screen.getByRole('tab', { name: 'Speed' }).focus()
+    await user.keyboard('{ArrowRight}')
+
+    expect(screen.getByRole('tab', { name: 'Sites' })).toHaveFocus()
+    expect(screen.getByRole('tab', { name: 'Sites' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    // Wraps, so the strip cannot dead-end.
+    await user.keyboard('{ArrowLeft}{ArrowLeft}')
+
+    expect(screen.getByRole('tab', { name: 'Settings' })).toHaveFocus()
+  })
+
+  it('keeps the enabled switch out of the tabs', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await openTab(user, 'Sites')
+
+    expect(screen.getByLabelText('Enabled')).toBeInTheDocument()
+  })
+
+  // The hint stops being true the moment a key is rebound.
+  it('names the bound keys in the hint', () => {
+    seedSettings({
+      keys: { increase: ['ArrowUp'], decrease: ['ArrowDown'], reset: ['r'] },
+    })
+    render(<App />)
+
+    expect(screen.getByText('↑')).toBeInTheDocument()
+    expect(screen.getByText('r')).toBeInTheDocument()
+  })
+})
+
+describe('popup sites tab', () => {
+  beforeEach(() => {
+    seedSettings()
+  })
+
+  const openSites = async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await openTab(user, 'Sites')
+
+    return user
+  }
+
+  it('shows what the active tab domain is remembered at', async () => {
     answerPopupState('youtube.com')
     seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
-    render(<App />)
+    await openSites()
 
     expect(screen.getByText('youtube.com')).toBeInTheDocument()
-    // Scoped to the row: `1.5×` is also one of the default-speed options.
+    expect(screen.getByLabelText('Speed for youtube.com')).toHaveValue('1.5')
     expect(
-      screen.getByText('1.5×', { selector: '.site-speed' }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Forget' })).toBeEnabled()
+      screen.getByRole('button', { name: 'Forget youtube.com' }),
+    ).toBeEnabled()
   })
 
-  it('has nothing to forget on a site it has not seen', () => {
+  it('has nothing to forget on a site it has not seen', async () => {
     answerPopupState('vimeo.com')
-    render(<App />)
+    await openSites()
 
     expect(screen.getByText('—')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Forget' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Forget vimeo.com' }),
+    ).toBeDisabled()
   })
 
-  it('has nothing to forget on a page that is not a site', () => {
+  it('says so on a page that is not a site', async () => {
     answerPopupState(null)
-    render(<App />)
+    await openSites()
 
-    expect(screen.getByText('This page')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Forget' })).toBeDisabled()
+    expect(
+      screen.getByText(/not one a speed can be remembered for/),
+    ).toBeInTheDocument()
   })
 
   // The service worker owns the write: a speed change on this domain may still
   // be sitting in its debounce, and only the worker can cancel that.
-  it('asks the service worker to forget the site', async () => {
-    const user = userEvent.setup()
+  it('asks the service worker to forget a site', async () => {
     answerPopupState('youtube.com')
     seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
-    render(<App />)
+    const user = await openSites()
 
-    await user.click(screen.getByRole('button', { name: 'Forget' }))
+    await user.click(screen.getByRole('button', { name: 'Forget youtube.com' }))
 
     expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
       { type: 'rebobinate:forget-domain', domain: 'youtube.com' },
@@ -95,48 +207,252 @@ describe('popup site memory', () => {
     )
   })
 
-  it('hides the site row when the memory is turned off', async () => {
-    const user = userEvent.setup()
+  it('lists the other remembered sites, most recent first', async () => {
     answerPopupState('youtube.com')
-    render(<App />)
+    seedDomains({
+      'youtube.com': { speed: 1.5, updatedAt: 5 },
+      'old.example': { speed: 1.25, updatedAt: 1 },
+      'new.example': { speed: 2, updatedAt: 9 },
+    })
+    await openSites()
+
+    const names = screen
+      .getAllByRole('listitem')
+      .map(row => row.querySelector('.site-name')?.textContent)
+
+    expect(names).toEqual(['youtube.com', 'new.example', 'old.example'])
+  })
+
+  it('sends an edited speed for a site in the list', async () => {
+    answerPopupState('youtube.com')
+    seedDomains({ 'vimeo.com': { speed: 1.25, updatedAt: 1 } })
+    const user = await openSites()
+
+    await user.selectOptions(screen.getByLabelText('Speed for vimeo.com'), '2')
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      { type: 'rebobinate:set-domain-speed', domain: 'vimeo.com', speed: 2 },
+      expect.any(Function),
+    )
+  })
+
+  // Speeds set from the keyboard land anywhere on the step grid, and opening
+  // the list must not quietly round one away.
+  it('keeps a remembered speed that is not one of the presets selectable', async () => {
+    answerPopupState('youtube.com')
+    seedDomains({ 'vimeo.com': { speed: 1.35, updatedAt: 1 } })
+    await openSites()
+
+    expect(screen.getByLabelText('Speed for vimeo.com')).toHaveValue('1.35')
+  })
+
+  it('switches a site out of the memory', async () => {
+    answerPopupState('youtube.com')
+    seedDomains({ 'vimeo.com': { speed: 1.25, updatedAt: 1 } })
+    const user = await openSites()
+
+    await user.click(screen.getByLabelText('Never remember vimeo.com'))
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      { type: 'rebobinate:set-domain-never', domain: 'vimeo.com', never: true },
+      expect.any(Function),
+    )
+  })
+
+  it('offers no speed to edit or forget on a site that is switched off', async () => {
+    answerPopupState('youtube.com')
+    seedDomains({ 'vimeo.com': { updatedAt: 1, never: true } })
+    await openSites()
+
+    expect(screen.queryByLabelText('Speed for vimeo.com')).toBeNull()
+    expect(screen.getByText('Never')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Forget vimeo.com' }),
+    ).toBeDisabled()
+  })
+
+  it('filters a long list down', async () => {
+    answerPopupState(null)
+    seedDomains(
+      Object.fromEntries(
+        Array.from({ length: 12 }, (_, index) => [
+          `site-${index}.example`,
+          { speed: 1.5, updatedAt: index },
+        ]),
+      ),
+    )
+    const user = await openSites()
+
+    await user.type(screen.getByLabelText('Filter'), 'site-7')
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByTitle('site-7.example')).toBeInTheDocument()
+  })
+
+  it('hides the list while the memory is turned off', async () => {
+    answerPopupState('youtube.com')
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    const user = await openSites()
 
     await user.click(screen.getByLabelText('Remember per site'))
 
     expect(storedSettings().rememberPerDomain).toBe(false)
-    expect(screen.getByText('youtube.com')).not.toBeVisible()
+    expect(screen.queryByText('youtube.com')).toBeNull()
   })
 
   it('saves the default speed for sites it has never seen', async () => {
-    const user = userEvent.setup()
     answerPopupState('youtube.com')
-    render(<App />)
+    const user = await openSites()
 
     await user.selectOptions(screen.getByLabelText('Default speed'), '1.5')
 
     expect(storedSettings().defaultSpeed).toBe(1.5)
   })
 
-  it('keeps a default speed that is not one of the presets selectable', () => {
+  it('keeps a default speed that is not one of the presets selectable', async () => {
     answerPopupState('youtube.com')
-    getChromeMock().storage.local.seed({
-      [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, defaultSpeed: 1.15 },
-    })
-    render(<App />)
+    seedSettings({ defaultSpeed: 1.15 })
+    await openSites()
 
     expect(screen.getByLabelText('Default speed')).toHaveValue('1.15')
   })
 })
 
-describe('popup step field', () => {
+describe('popup key bindings', () => {
   beforeEach(() => {
-    getChromeMock().storage.local.seed({
-      [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, step: 0.2 },
-    })
+    seedSettings()
+    answerPopupState('youtube.com')
   })
 
-  it('lets a new step be typed through its invalid halfway states', async () => {
+  const openSettings = async () => {
     const user = userEvent.setup()
     render(<App />)
+    await openTab(user, 'Settings')
+
+    return user
+  }
+
+  const capture = async (user: UserEvent, action: string) => {
+    await user.click(
+      screen.getByRole('button', { name: `Add a key for ${action}` }),
+    )
+  }
+
+  // `=` and `Equal` are both stored, and both are the same key to the user.
+  it('shows one chip per key, not one per stored form', async () => {
+    await openSettings()
+
+    const faster = screen.getByText('Faster').parentElement as HTMLElement
+
+    expect(
+      within(faster)
+        .getAllByRole('button', { name: /^Remove/ })
+        .map(button => button.getAttribute('aria-label')),
+    ).toEqual([
+      'Remove + from Faster',
+      'Remove = from Faster',
+      'Remove Num + from Faster',
+    ])
+  })
+
+  it('binds the key that is pressed', async () => {
+    const user = await openSettings()
+
+    await capture(user, 'Reset')
+    await user.keyboard('{r}')
+
+    expect(storedSettings().keys.reset).toContain('r')
+  })
+
+  it('refuses a key another action already has', async () => {
+    const user = await openSettings()
+
+    await capture(user, 'Reset')
+    await user.keyboard('{+}')
+
+    expect(screen.getByRole('status')).toHaveTextContent('+ is already faster.')
+    expect(storedSettings().keys.reset).not.toContain('+')
+  })
+
+  // The content script hands modified keystrokes back to the browser, so a
+  // binding on one would never fire.
+  it('refuses a modified keystroke', async () => {
+    const user = await openSettings()
+
+    await capture(user, 'Reset')
+    await user.keyboard('{Control>}{m}{/Control}')
+
+    expect(screen.getByRole('status')).toHaveTextContent('left to the browser')
+    expect(storedSettings().keys.reset).not.toContain('m')
+  })
+
+  it('cancels on Escape', async () => {
+    const user = await openSettings()
+
+    await capture(user, 'Reset')
+    await user.keyboard('{Escape}')
+
+    expect(
+      screen.getByRole('button', { name: 'Add a key for Reset' }),
+    ).toHaveAttribute('aria-pressed', 'false')
+    expect(storedSettings().keys.reset).toEqual(DEFAULT_SETTINGS.keys.reset)
+  })
+
+  it('removes both stored forms of one key with one chip', async () => {
+    const user = await openSettings()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Remove = from Faster' }),
+    )
+
+    expect(storedSettings().keys.increase).toEqual(['+', 'NumpadAdd'])
+  })
+
+  /**
+   * `normalizeSettings` reads an empty binding list as a missing one and fills
+   * it from the defaults, so a row emptied here would come straight back.
+   */
+  it('will not let the last key of an action go', async () => {
+    seedSettings({
+      keys: { ...DEFAULT_SETTINGS.keys, reset: ['r'] },
+    })
+    await openSettings()
+
+    expect(
+      screen.getByRole('button', { name: 'Remove r from Reset' }),
+    ).toBeDisabled()
+  })
+
+  it('puts the defaults back', async () => {
+    seedSettings({
+      keys: { increase: ['a'], decrease: ['b'], reset: ['c'] },
+    })
+    const user = await openSettings()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Restore default keys' }),
+    )
+
+    expect(storedSettings().keys).toEqual(DEFAULT_SETTINGS.keys)
+  })
+})
+
+describe('popup step field', () => {
+  beforeEach(() => {
+    seedSettings({ step: 0.2 })
+    answerPopupState('youtube.com')
+  })
+
+  const openSettings = async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await openTab(user, 'Settings')
+
+    return user
+  }
+
+  it('lets a new step be typed through its invalid halfway states', async () => {
+    const user = await openSettings()
 
     await user.clear(stepField())
 
@@ -151,8 +467,7 @@ describe('popup step field', () => {
   })
 
   it('keeps a half-typed value out of storage', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+    const user = await openSettings()
 
     await user.clear(stepField())
     await user.type(stepField(), '0')
@@ -162,8 +477,7 @@ describe('popup step field', () => {
   })
 
   it('clamps the typed value when the field is left', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+    const user = await openSettings()
 
     await user.clear(stepField())
     await user.type(stepField(), '9')
@@ -174,8 +488,7 @@ describe('popup step field', () => {
   })
 
   it('restores the saved step when the field is left empty', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+    const user = await openSettings()
 
     await user.clear(stepField())
     await user.tab()
@@ -193,16 +506,22 @@ const openPicker = async (user: UserEvent, label: string) => {
 
 describe('popup color picker', () => {
   beforeEach(() => {
-    getChromeMock().storage.local.seed({
-      [SETTINGS_STORAGE_KEY]: DEFAULT_SETTINGS,
-    })
+    seedSettings()
+    answerPopupState('youtube.com')
   })
+
+  const openSettings = async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await openTab(user, 'Settings')
+
+    return user
+  }
 
   // The whole reason this control exists: on Firefox the native chooser is a
   // toplevel window that closes the popup before it can report a colour.
   it('picks a color without a native color input', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+    const user = await openSettings()
 
     expect(document.querySelector('input[type="color"]')).toBeNull()
 
@@ -214,8 +533,7 @@ describe('popup color picker', () => {
   })
 
   it('shares one panel between the two swatches', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+    const user = await openSettings()
 
     await openPicker(user, 'Text color')
     await openPicker(user, 'Background color')
@@ -232,8 +550,7 @@ describe('popup color picker', () => {
   })
 
   it('saves a hex only once it is a whole color', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+    const user = await openSettings()
 
     const picker = await openPicker(user, 'Background color')
     const field = within(picker).getByLabelText('Background color hex')
@@ -249,8 +566,7 @@ describe('popup color picker', () => {
   })
 
   it('expands a three-digit hex when the field is left', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+    const user = await openSettings()
 
     const picker = await openPicker(user, 'Background color')
     const field = within(picker).getByLabelText('Background color hex')
@@ -263,8 +579,7 @@ describe('popup color picker', () => {
   })
 
   it('moves the saved color along the hue slider', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+    const user = await openSettings()
 
     const picker = await openPicker(user, 'Text color')
 
@@ -278,14 +593,10 @@ describe('popup color picker', () => {
   })
 
   it('keeps the sliders on the value the popup already had', async () => {
-    const user = userEvent.setup()
-    getChromeMock().storage.local.seed({
-      [SETTINGS_STORAGE_KEY]: {
-        ...DEFAULT_SETTINGS,
-        badge: { ...DEFAULT_SETTINGS.badge, textColor: 'rgb(255, 136, 0)' },
-      },
+    seedSettings({
+      badge: { ...DEFAULT_SETTINGS.badge, textColor: 'rgb(255, 136, 0)' },
     })
-    render(<App />)
+    const user = await openSettings()
 
     const picker = await openPicker(user, 'Text color')
 

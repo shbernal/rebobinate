@@ -6,6 +6,7 @@ import {
   forgetDomain,
   readDomains,
   rememberDomain,
+  setDomainNever,
   writeDomains,
 } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
@@ -123,7 +124,10 @@ const resolveStartSpeed = (
     }
 
     readDomains(store => {
-      const remembered = store.entries[domain]?.speed
+      const entry = store.entries[domain]
+      // A site switched off by hand starts at the default like any site the
+      // extension has never seen.
+      const remembered = entry?.never ? undefined : entry?.speed
 
       callback(clampToSettings(remembered ?? settings.defaultSpeed, settings))
     })
@@ -261,6 +265,30 @@ const withTargetTab = (
   })
 }
 
+/**
+ * Applies a speed the popup set for a domain to the tab in front of the user,
+ * when that tab is on it. Editing the row for the site being watched and seeing
+ * nothing happen would read as broken; every other row is for the next visit.
+ */
+const applyToTabOnDomain = (
+  sender: chrome.runtime.MessageSender,
+  domain: string,
+  speed: number,
+) => {
+  withTargetTab(sender, tab => {
+    if (domainKeyFromUrl(tab.url) !== domain) {
+      return
+    }
+
+    readSettings(settings => {
+      const applied = clampToSettings(speed, settings)
+
+      tabSpeeds.set(tab.id, applied)
+      broadcastSpeed(tab.id, applied)
+    })
+  })
+}
+
 chrome.runtime.onMessage.addListener(
   (message: unknown, sender, sendResponse) => {
     if (!isRuntimeMessage(message)) {
@@ -293,6 +321,27 @@ chrome.runtime.onMessage.addListener(
       forget(message.domain)
 
       // The popup follows the stored map, so the write itself is the answer.
+      return false
+    }
+
+    if (message.type === 'rebobinate:set-domain-speed') {
+      cancelPendingWrite(message.domain)
+      updateDomains(store =>
+        rememberDomain(store, message.domain, message.speed, Date.now()),
+      )
+      applyToTabOnDomain(sender, message.domain, message.speed)
+
+      return false
+    }
+
+    if (message.type === 'rebobinate:set-domain-never') {
+      cancelPendingWrite(message.domain)
+      updateDomains(store =>
+        setDomainNever(store, message.domain, message.never, Date.now()),
+      )
+
+      // The tab keeps the speed it is playing at. Switching a site off says
+      // what happens on the next visit; it is not a reset of what is on screen.
       return false
     }
 

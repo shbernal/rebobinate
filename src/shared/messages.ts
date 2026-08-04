@@ -69,6 +69,26 @@ export type ForgetDomainMessage = {
   domain: string
 }
 
+/**
+ * Popup edits the speed remembered for a domain from the Sites list.
+ *
+ * It goes through the service worker for the reason above, and because the
+ * domain may be the one in front of the user: editing the speed of the site
+ * being watched applies to it now, not on the next visit.
+ */
+export type SetDomainSpeedMessage = {
+  type: 'rebobinate:set-domain-speed'
+  domain: string
+  speed: number
+}
+
+/** Popup switches a site out of the per-site memory, or back into it. */
+export type SetDomainNeverMessage = {
+  type: 'rebobinate:set-domain-never'
+  domain: string
+  never: boolean
+}
+
 export type RuntimeMessage =
   | SpeedIntentMessage
   | SetSpeedMessage
@@ -76,6 +96,8 @@ export type RuntimeMessage =
   | SpeedStateMessage
   | PopupStateMessage
   | ForgetDomainMessage
+  | SetDomainSpeedMessage
+  | SetDomainNeverMessage
   | MediaPresenceMessage
   | TabMediaMessage
 

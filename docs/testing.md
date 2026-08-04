@@ -121,6 +121,20 @@ drives the popup buttons with `dispatchEvent('click')` instead of `click()`.
 Without that, the extension resolves the popup's own tab as the target and there
 is nothing to control.
 
+That matters for more than the buttons. Which site the popup shows under **This
+tab** is resolved by the service worker from the active tab, so with the popup
+document in front it resolves nothing at all. A test that cares about the
+answer — rather than about a control working — has to hand the page back the
+front and then reload the popup, so it asks the question while the page is
+active. `openPopupOver` in that spec is that dance.
+
+The popup's own on/off switches are a transparent, zero-sized checkbox behind a
+styled `<span>`, which Playwright rightly considers invisible. Click the
+`.switch` label around it, as a user does.
+
+Since the popup is tabbed, anything outside the Speed pane needs its tab
+selected first, and a reload puts the popup back on Speed.
+
 ## Where to add coverage
 
 - Speed arithmetic, key matching, settings normalization: unit tests, no DOM

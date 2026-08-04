@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getChromeMock } from '@/test/chrome'
 import type { DomainMemory } from '@/shared/domains'
-import { DOMAINS_STORAGE_KEY } from '@/shared/domains'
+import { DOMAINS_SCHEMA_VERSION, DOMAINS_STORAGE_KEY } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '@/shared/settings'
 
@@ -38,9 +38,18 @@ const seedSettings = (patch: Partial<Settings> = {}) => {
   })
 }
 
-const seedDomains = (entries: Record<string, DomainMemory>) => {
+/**
+ * Seeded as it would be found in storage, which is why the entries are partial:
+ * every read goes through `normalizeDomains`, and a marker carries no speed.
+ */
+const seedDomains = (
+  entries: Record<
+    string,
+    { speed?: number; updatedAt: number; never?: boolean }
+  >,
+) => {
   getChromeMock().storage.local.seed({
-    [DOMAINS_STORAGE_KEY]: { schemaVersion: 1, entries },
+    [DOMAINS_STORAGE_KEY]: { schemaVersion: DOMAINS_SCHEMA_VERSION, entries },
   })
 }
 
@@ -518,6 +527,157 @@ describe('forgetting a site from the popup', () => {
 
     // Without the cancel, the pending write puts the entry straight back.
     expect(storedDomains()['youtube.com']).toBeUndefined()
+  })
+})
+
+describe('editing a site from the popup', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    seedSettings({ step: 0.5 })
+    getChromeMock().tabs.seed([{ id: 1, url: WATCH_URL, incognito: false }])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('writes the speed set for a domain straight away', async () => {
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:set-domain-speed', domain: 'vimeo.com', speed: 1.5 },
+      POPUP,
+    )
+
+    expect(storedDomains()['vimeo.com'].speed).toBe(1.5)
+  })
+
+  // Editing the row for the site being watched and seeing nothing happen on
+  // the page would read as broken.
+  it('applies a speed set for the active tab domain to that tab', async () => {
+    const { send, broadcasts } = await loadBackground()
+
+    send(
+      {
+        type: 'rebobinate:set-domain-speed',
+        domain: 'youtube.com',
+        speed: 1.5,
+      },
+      POPUP,
+    )
+
+    expect(broadcasts()).toEqual([{ type: 'rebobinate:state', speed: 1.5 }])
+  })
+
+  it('leaves the tab alone for any other site in the list', async () => {
+    const { send, broadcasts } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:set-domain-speed', domain: 'vimeo.com', speed: 1.5 },
+      POPUP,
+    )
+
+    expect(broadcasts()).toEqual([])
+  })
+
+  it('cancels a pending write for the domain it edits', async () => {
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite(),
+    )
+    send(
+      {
+        type: 'rebobinate:set-domain-speed',
+        domain: 'youtube.com',
+        speed: 1.5,
+      },
+      POPUP,
+    )
+    vi.advanceTimersByTime(1000)
+
+    expect(storedDomains()['youtube.com'].speed).toBe(1.5)
+  })
+
+  it('drops the remembered speed when a site is switched off', async () => {
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    send(
+      {
+        type: 'rebobinate:set-domain-never',
+        domain: 'youtube.com',
+        never: true,
+      },
+      POPUP,
+    )
+
+    expect(storedDomains()['youtube.com'].never).toBe(true)
+    expect(storedDomains()['youtube.com'].speed).toBe(1)
+  })
+
+  it('removes the entry when a site is let back in', async () => {
+    seedDomains({ 'youtube.com': { updatedAt: 1, never: true } })
+    const { send } = await loadBackground()
+
+    send(
+      {
+        type: 'rebobinate:set-domain-never',
+        domain: 'youtube.com',
+        never: false,
+      },
+      POPUP,
+    )
+
+    expect(storedDomains()['youtube.com']).toBeUndefined()
+  })
+})
+
+describe('a site switched out of the memory', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    seedSettings({ step: 0.5, defaultSpeed: 1.25 })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('starts at the default like a site never seen', async () => {
+    seedDomains({ 'youtube.com': { speed: 2, updatedAt: 1, never: true } })
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:query' }, onSite())
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ speed: 1.25 }),
+    )
+  })
+
+  it('is not re-remembered by a keystroke on it', async () => {
+    seedDomains({ 'youtube.com': { updatedAt: 1, never: true } })
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite(),
+    )
+    vi.advanceTimersByTime(1000)
+
+    expect(storedDomains()['youtube.com'].never).toBe(true)
+  })
+
+  it('keeps its marker through a reset', async () => {
+    seedDomains({ 'youtube.com': { updatedAt: 1, never: true } })
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'reset', currentSpeed: 2 },
+      onSite(),
+    )
+
+    expect(storedDomains()['youtube.com'].never).toBe(true)
   })
 })
 
