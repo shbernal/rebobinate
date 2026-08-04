@@ -7,8 +7,28 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { execFileSync } from 'node:child_process'
+import { printHelpAndExit } from './help.mjs'
 
-const ref = process.argv[2] ?? process.env.SOURCE_REF ?? 'HEAD'
+printHelpAndExit(`
+Usage: pnpm package:source [ref] [--help]
+
+Writes release/rebobinate-source-<version>.zip from the tracked tree at ref,
+which is what an AMO reviewer rebuilds and diffs against the submitted package.
+
+  ref   git ref to archive (default: HEAD, or SOURCE_REF)
+
+Release builds must archive the tag, not HEAD. Archiving a dirty HEAD warns,
+because the archive holds committed state only.
+
+See amo/source-submission.md.
+`)
+
+// Flags are skipped rather than taken positionally, so `--help` cannot reach
+// `git archive` as a ref.
+const ref =
+  process.argv.slice(2).find(argument => !argument.startsWith('-')) ??
+  process.env.SOURCE_REF ??
+  'HEAD'
 const releaseDir = path.resolve(process.cwd(), 'release')
 
 const git = args => execFileSync('git', args, { encoding: 'utf8' }).trim()

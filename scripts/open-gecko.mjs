@@ -3,25 +3,37 @@
 // docs/testing.md can be walked on Gecko as well as Chromium. Run after
 // `pnpm build:firefox`.
 //
-//   node scripts/open-gecko.mjs <firefox|zen> [url]
-//
 // Playwright cannot drive these browsers — see docs/testing.md — so unlike
 // `scripts/open-chromium.mjs` this is a thin wrapper over web-ext, the same
 // tool `pnpm lint:firefox` already uses.
-//
-// Each browser keeps its own profile under `node_modules/.tmp/`, and the
-// profiles survive between runs, so a site you logged into once stays logged
-// in — and Firefox and Zen do not fight over each other's state.
-//
-//   FIREFOX_BINARY / ZEN_BINARY   executable (default: resolved as below)
-//   REBOBINATE_FIREFOX_PROFILE_DIR / REBOBINATE_ZEN_PROFILE_DIR
-//                                 profile directory (default the one above)
-//   REBOBINATE_OPEN_URL           start URL when no positional argument is
-//                                 given
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import webExt from 'web-ext'
+import { printHelpAndExit } from './help.mjs'
+
+printHelpAndExit(`
+Usage: pnpm dev:firefox [url] [--help]
+       pnpm dev:zen [url] [--help]
+       node scripts/open-gecko.mjs <firefox|zen> [url]
+
+Installs dist-firefox/ as a temporary add-on and leaves the browser open, for
+the manual validation list in docs/testing.md. Walk that list on Gecko as well
+as Chromium: the background script, the callback-only chrome.* surface, and the
+popup being a XUL panel are all places the two targets can diverge.
+
+  url   page to open (default: https://www.youtube.com/)
+
+Each browser keeps its own profile under node_modules/.tmp/, and the profiles
+survive between runs, so a site you logged into once stays logged in and Firefox
+and Zen do not fight over each other's state.
+
+Environment
+  FIREFOX_BINARY / ZEN_BINARY   executable (default: resolved as below)
+  REBOBINATE_FIREFOX_PROFILE_DIR / REBOBINATE_ZEN_PROFILE_DIR
+                                profile directory (default the one above)
+  REBOBINATE_OPEN_URL           start URL when no positional argument is given
+`)
 
 const defaultOpenUrl = 'https://www.youtube.com/'
 const sourceDir = path.resolve(process.cwd(), 'dist-firefox')
@@ -66,7 +78,13 @@ const BROWSERS = {
   },
 }
 
-const browserName = process.argv[2]
+// Flags are skipped rather than counted, so the bare `--` left by the npm-style
+// `pnpm dev:zen -- --help` cannot shift the browser name or be opened as a URL.
+const positionals = process.argv
+  .slice(2)
+  .filter(argument => !argument.startsWith('-'))
+
+const [browserName] = positionals
 const browser = BROWSERS[browserName]
 
 if (!browser) {
@@ -94,7 +112,7 @@ const profilePath = path.resolve(
   process.env[browser.profileEnv] ?? browser.defaultProfile,
 )
 const openUrl =
-  process.argv[3] ?? process.env.REBOBINATE_OPEN_URL ?? defaultOpenUrl
+  positionals[1] ?? process.env.REBOBINATE_OPEN_URL ?? defaultOpenUrl
 
 console.log(
   JSON.stringify(
