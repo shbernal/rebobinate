@@ -46,6 +46,16 @@ const HOST_STYLE = [
   'contain:layout style',
 ].join(';')
 
+/**
+ * Read at style time rather than cached: the label is restyled on every show,
+ * so a preference change takes effect on the next speed change with no listener
+ * to keep alive. `matchMedia` is guarded because the badge also runs under
+ * jsdom.
+ */
+const prefersReducedMotion = (): boolean =>
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 export type BadgeOptions = {
   document: Document
   /** The video the badge should sit on, or null when there is nothing to mark. */
@@ -88,20 +98,22 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       return
     }
 
-    label.setAttribute(
-      'style',
-      [
-        `font:600 ${settings.fontSize}px/1 system-ui,-apple-system,"Segoe UI",sans-serif`,
-        `color:${settings.textColor}`,
-        `background:${settings.backgroundColor}`,
-        `opacity:${settings.opacity}`,
-        `padding:${Math.round(settings.fontSize * 0.35)}px ${Math.round(settings.fontSize * 0.6)}px`,
-        `border-radius:${Math.round(settings.fontSize * 0.35)}px`,
-        'font-variant-numeric:tabular-nums',
-        'white-space:nowrap',
-        'transition:opacity 120ms ease-out',
-      ].join(';'),
-    )
+    const declarations = [
+      `font:600 ${settings.fontSize}px/1 system-ui,-apple-system,"Segoe UI",sans-serif`,
+      `color:${settings.textColor}`,
+      `background:${settings.backgroundColor}`,
+      `opacity:${settings.opacity}`,
+      `padding:${Math.round(settings.fontSize * 0.35)}px ${Math.round(settings.fontSize * 0.6)}px`,
+      `border-radius:${Math.round(settings.fontSize * 0.35)}px`,
+      'font-variant-numeric:tabular-nums',
+      'white-space:nowrap',
+    ]
+
+    if (!prefersReducedMotion()) {
+      declarations.push('transition:opacity 120ms ease-out')
+    }
+
+    label.setAttribute('style', declarations.join(';'))
   }
 
   const hide = () => {

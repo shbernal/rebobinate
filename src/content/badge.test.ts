@@ -31,6 +31,19 @@ const host = () => document.getElementById('rebobinate-badge-host')
 
 const labelText = () => host()?.shadowRoot?.textContent ?? null
 
+const labelStyle = () =>
+  host()?.shadowRoot?.firstElementChild?.getAttribute('style') ?? ''
+
+const setReducedMotion = (reduce: boolean) => {
+  window.matchMedia = ((query: string) =>
+    ({
+      matches: query.includes('prefers-reduced-motion: reduce') && reduce,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }) as unknown as MediaQueryList) as typeof window.matchMedia
+}
+
 describe('cornerAlignment', () => {
   it('maps each corner to flex alignment', () => {
     expect(cornerAlignment('top-left')).toEqual({
@@ -49,9 +62,11 @@ describe('cornerAlignment', () => {
 describe('createBadge', () => {
   let video: HTMLVideoElement
   let badge: ReturnType<typeof createBadge>
+  const realMatchMedia = window.matchMedia
 
   beforeEach(() => {
     vi.useFakeTimers()
+    setReducedMotion(false)
     window.innerWidth = 1000
     window.innerHeight = 800
     Object.defineProperty(document.documentElement, 'clientWidth', {
@@ -69,6 +84,7 @@ describe('createBadge', () => {
 
   afterEach(() => {
     badge.destroy()
+    window.matchMedia = realMatchMedia
     vi.useRealTimers()
   })
 
@@ -185,6 +201,29 @@ describe('createBadge', () => {
     document.dispatchEvent(new Event('fullscreenchange'))
 
     expect(host()?.parentNode).toBe(document.documentElement)
+  })
+
+  it('fades between opacities by default', () => {
+    badge.flash(2, badgeSettings())
+
+    expect(labelStyle()).toContain('transition:opacity 120ms ease-out')
+  })
+
+  it('drops the fade when the user asks for reduced motion', () => {
+    setReducedMotion(true)
+
+    badge.flash(2, badgeSettings())
+
+    expect(labelStyle()).not.toContain('transition')
+  })
+
+  it('picks up a reduced-motion change on the next speed change', () => {
+    badge.flash(2, badgeSettings())
+    setReducedMotion(true)
+
+    badge.flash(2.5, badgeSettings())
+
+    expect(labelStyle()).not.toContain('transition')
   })
 
   it('removes itself from the page on destroy', () => {

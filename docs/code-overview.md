@@ -94,6 +94,12 @@ Two consequences worth remembering:
   on the video, and a short `requestAnimationFrame` burst after each change,
   because players move the video box when their controls appear.
 
+The label's opacity transition is dropped when `(prefers-reduced-motion:
+reduce)` matches. The query is read each time the label is styled, which is
+every time the badge is shown, so changing the system setting takes effect on
+the next speed change without a listener the badge would have to tear down. The
+popup honours the same preference in `src/popup/App.css`.
+
 The primary video is the one with the largest visible area, with a playing video
 scoring double: on a page full of preview players, the one making noise is the
 one the user means.
