@@ -3,5 +3,5 @@ dist-firefox/
 node_modules/
 pnpm-lock.yaml
 README.md
-POC-PLAN.md
 POST-POC-FEATURES.md
+ADDITIONAL-TESTING.md
