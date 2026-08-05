@@ -22,7 +22,11 @@ pnpm e2e:headed      # the same, with a visible browser
   directly, and `storage.local.seed()`/`snapshot()` for arranging and asserting
   state. `tabs.seed()` sets what a query answers with, which matters now that
   the service worker reads a tab's URL and its private-window flag and not only
-  its id.
+  its id. A query narrowed to `active` is honoured, because the service worker
+  asks twice — once for the active tab, once for all of them — and the second
+  ask only means something if it can answer with more than the first. Leaving
+  `url` off a seeded tab models one the extension has no access to: Chromium
+  omits the key rather than sending an empty string.
 - The service worker is a module with top-level side effects, so its tests
   `vi.resetModules()` and re-import it to get a clean instance, then drive it
   through `chrome.runtime.onMessage.emit(message, sender, sendResponse)`. The
@@ -121,27 +125,33 @@ drives the popup buttons with `dispatchEvent('click')` instead of `click()`.
 Without that, the extension resolves the popup's own tab as the target and there
 is nothing to control.
 
-That matters for more than the buttons. Which site the popup shows under **This
-tab** is resolved by the service worker from the active tab, so with the popup
-document in front it resolves nothing at all and the pane says the page is not
-one a speed can be remembered for. A test that cares about the answer — rather
-than about a control working — has to hand the page back the front and then
-reload the popup, so it asks the question while the page is active.
-`openPopupOver` in that spec is that dance.
+Which site the popup shows under **This tab** survives that, but only because
+`withTargetTab` in `src/background/service-worker.ts` falls back to the most
+recently used tab whose URL it can read. The mechanism behind the fallback is
+worth knowing, because it is not what the code reads like: Chromium omits `url`
+from a `tabs.query` result for any tab the extension has no access to, and
+`<all_urls>` does not cover `chrome-extension://` — so the popup document's own
+tab comes back with **no URL at all** rather than with a `chrome-extension://`
+one. Recognizing an extension page by its URL prefix therefore does not
+recognize that tab; treating a _missing_ URL as unknown is what does. The same
+applies to `chrome://` pages, and to every page if host access is ever withheld
+— which is the case with no readable tab left, where the popup is answered for
+the active tab with no site rather than not answered at all.
 
-The mechanism is worth knowing, because it is not what the code reads like.
-Chromium omits `url` from a `tabs.query` result for any tab the extension has no
-access to, and `<all_urls>` does not cover `chrome-extension://` — so the popup
-document's own tab comes back with **no URL at all** rather than with a
-`chrome-extension://` one. `withTargetTab` in `src/background/service-worker.ts`
-recognizes an extension page by its URL prefix, which that tab does not have, so
-it is taken for an ordinary web tab and resolved as the target. The same applies
-to `chrome://` pages, and to every page if host access is ever withheld.
+Two specs in `e2e/specs/popup.spec.ts` hold that down from both sides:
+`openPopupOver` hands the page back the front and reloads the popup, and
+'shows the site with the popup document itself in front' deliberately does not.
+Note what the second one has to do to be a real test: the popup asks once, on
+mount, so it is brought to the front and _then_ reloaded — raising it after it
+has already asked proves nothing. It also addresses the row through the **This
+tab** heading rather than as the first `.sites` list, because when there is no
+row that list is the remembered-sites one below, which names the same site and
+would answer for it.
 
-`pnpm inspect:chrome` reports exactly this: it asks `rebobinate:popup-state`
-twice, once with the page in front and once with the popup document in front,
-and lists every tab with a `urlReadable` flag. Reach for it before reasoning
-about which tab the service worker picked.
+`pnpm inspect:chrome` reports the whole picture: it asks
+`rebobinate:popup-state` twice, once with the page in front and once with the
+popup document in front, and lists every tab with a `urlReadable` flag. Reach
+for it before reasoning about which tab the service worker picked.
 
 The popup's own on/off switches are a transparent, zero-sized checkbox behind a
 styled `<span>`, which Playwright rightly considers invisible. Click the
@@ -216,7 +226,11 @@ REBOBINATE_PROFILE_DIR=node_modules/.tmp/dev-profile \
 ```
 
 It keeps its own profile at `node_modules/.tmp/inspect-profile` so it never
-fights the one `pnpm dev:chrome` is holding. There is no Gecko equivalent:
+fights the one `pnpm dev:chrome` is holding, and deletes that profile before
+every run: Chromium serves an already-installed extension out of a persistent
+profile, so a reused one will happily report on the build before the last one.
+A directory passed as `REBOBINATE_PROFILE_DIR` is someone else's and is reused
+as it is. There is no Gecko equivalent:
 web-ext installs a temporary add-on whose internal UUID changes every run.
 
 `scripts/open-gecko.mjs` takes the browser as its first argument and is a

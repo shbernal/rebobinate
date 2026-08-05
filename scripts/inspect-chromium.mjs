@@ -38,7 +38,9 @@ Reported
   storage      the normalized settings and the per-site speed map
 
 Environment
-  REBOBINATE_PROFILE_DIR   profile directory
+  REBOBINATE_PROFILE_DIR   profile directory. The default one is deleted before
+                           every run so the report cannot describe an older
+                           build; a directory named here is reused as it is.
                            (default: node_modules/.tmp/inspect-profile)
   REBOBINATE_HEADLESS=0    run headed
   PLAYWRIGHT_CHROMIUM_EXECUTABLE   browser executable
@@ -146,6 +148,16 @@ if (profileOnly) {
 if (!fs.existsSync(path.join(extensionPath, 'manifest.json'))) {
   console.error('dist/ is missing — run `pnpm build` first')
   process.exit(1)
+}
+
+// The profile this script owns is thrown away before every run. Chromium keeps
+// serving an already-installed extension out of a persistent profile, so a
+// reused one can answer for the build before the last one — and an inspector
+// that reports on code that is no longer there is worse than no inspector. A
+// profile named by REBOBINATE_PROFILE_DIR belongs to something else and is left
+// where it is.
+if (process.env.REBOBINATE_PROFILE_DIR === undefined) {
+  fs.rmSync(profilePath, { recursive: true, force: true })
 }
 
 const headless = process.env.REBOBINATE_HEADLESS !== '0'

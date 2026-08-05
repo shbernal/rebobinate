@@ -406,7 +406,9 @@ describe('remembering the speed', () => {
   })
 
   it('records a speed set straight from the popup', async () => {
-    getChromeMock().tabs.seed([{ id: 1, url: WATCH_URL, incognito: false }])
+    getChromeMock().tabs.seed([
+      { id: 1, url: WATCH_URL, incognito: false, active: true },
+    ])
     const { send } = await loadBackground()
 
     send({ type: 'rebobinate:set', speed: 2 }, POPUP)
@@ -534,7 +536,9 @@ describe('editing a site from the popup', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     seedSettings({ step: 0.5 })
-    getChromeMock().tabs.seed([{ id: 1, url: WATCH_URL, incognito: false }])
+    getChromeMock().tabs.seed([
+      { id: 1, url: WATCH_URL, incognito: false, active: true },
+    ])
   })
 
   afterEach(() => {
@@ -688,7 +692,12 @@ describe('the domain the popup shows', () => {
 
   it('is the registrable domain of the active tab', async () => {
     getChromeMock().tabs.seed([
-      { id: 1, url: 'https://news.bbc.co.uk/video', incognito: false },
+      {
+        id: 1,
+        url: 'https://news.bbc.co.uk/video',
+        incognito: false,
+        active: true,
+      },
     ])
     const { send } = await loadBackground()
 
@@ -700,7 +709,63 @@ describe('the domain the popup shows', () => {
   })
 
   it('is null on a page nothing can be remembered against', async () => {
-    getChromeMock().tabs.seed([{ id: 1, url: 'about:blank', incognito: false }])
+    getChromeMock().tabs.seed([
+      { id: 1, url: 'about:blank', incognito: false, active: true },
+    ])
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:popup-state' }, POPUP)
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: null }),
+    )
+  })
+
+  // The popup document opened in a tab of its own is the active tab, and
+  // Chromium answers for it with no `url` key at all rather than with the
+  // `chrome-extension://` one. Reading that absence as an ordinary web page is
+  // how the popup ends up describing itself instead of the site behind it.
+  it('is the page behind an extension page in a tab of its own', async () => {
+    getChromeMock().tabs.seed([
+      { id: 9, active: true },
+      { id: 1, url: WATCH_URL, incognito: false, lastAccessed: 20 },
+      { id: 2, url: 'https://news.bbc.co.uk/video', lastAccessed: 10 },
+    ])
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:popup-state' }, POPUP)
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'youtube.com' }),
+    )
+  })
+
+  it('skips a tab whose URL is an extension page', async () => {
+    getChromeMock().tabs.seed([
+      {
+        id: 9,
+        url: 'chrome-extension://abc/src/popup/index.html',
+        active: true,
+      },
+      { id: 1, url: WATCH_URL, incognito: false, lastAccessed: 20 },
+    ])
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:popup-state' }, POPUP)
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'youtube.com' }),
+    )
+  })
+
+  // Host access withheld — "Site access: on click" — leaves every tab without a
+  // readable URL. There is no site to name, but staying silent would leave the
+  // popup showing defaults it never confirmed.
+  it('still answers when no tab has a readable URL', async () => {
+    getChromeMock().tabs.seed([
+      { id: 9, active: true },
+      { id: 1, lastAccessed: 20 },
+    ])
     const { send } = await loadBackground()
 
     const response = send({ type: 'rebobinate:popup-state' }, POPUP)

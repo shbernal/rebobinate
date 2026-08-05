@@ -62,9 +62,9 @@ const App = () => {
   const [tab, setTab] = useState<TabId>('speed')
   /**
    * The domain the active tab counts as. The service worker resolves it, not
-   * the popup: it is the *top* frame's registrable domain, and the popup has no
-   * access to the tab's URL without the `tabs` permission the extension does
-   * not ask for.
+   * the popup: the popup is its own document with no handle on the tab it was
+   * opened over, so working out which tab that even is takes a `tabs.query`
+   * only the background can usefully make.
    */
   const [domain, setDomain] = useState<string | null>(null)
   const [domains, setDomains] = useState<DomainStore>(EMPTY_DOMAIN_STORE)

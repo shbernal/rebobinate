@@ -61,7 +61,7 @@ const pickStorageValues = (values: StorageValues, keys: StorageKeys) => {
 
 export const createChromeMock = () => {
   const values: StorageValues = {}
-  let openTabs: chrome.tabs.Tab[] = [{ id: 1 } as chrome.tabs.Tab]
+  let openTabs: chrome.tabs.Tab[] = [{ id: 1, active: true } as chrome.tabs.Tab]
   const storageChanged = createChromeEvent<StorageChangedArgs>()
   const runtimeMessage = createChromeEvent<RuntimeMessageArgs, boolean>()
   const tabRemoved = createChromeEvent<TabRemovedArgs>()
@@ -116,16 +116,24 @@ export const createChromeMock = () => {
       onRemoved: tabRemoved,
       // The tabs a query answers with. Seeded rather than fixed because the
       // service worker now reads the tab's URL and its private-window flag, not
-      // just its id.
+      // just its id. A seeded tab with no `url` is the shape Chromium returns
+      // for one the extension has no access to — the key is absent, not empty.
       seed: (next: Partial<chrome.tabs.Tab>[]) => {
         openTabs = next as chrome.tabs.Tab[]
       },
       query: vi.fn(
         (
-          _queryInfo: chrome.tabs.QueryInfo,
+          queryInfo: chrome.tabs.QueryInfo,
           callback: (tabs: chrome.tabs.Tab[]) => void,
         ) => {
-          callback(openTabs)
+          // `active` is honoured because the service worker asks twice, once
+          // narrowed to the active tab and once not, and the second query only
+          // means something if it can answer with more than the first.
+          callback(
+            queryInfo.active === undefined
+              ? openTabs
+              : openTabs.filter(tab => tab.active === queryInfo.active),
+          )
         },
       ),
       sendMessage: vi.fn(

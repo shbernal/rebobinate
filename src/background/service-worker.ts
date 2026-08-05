@@ -241,7 +241,12 @@ const withTargetTab = (
     return
   }
 
-  const isWebTab = (tab: chrome.tabs.Tab) => !isExtensionUrl(tab.url)
+  // A tab with no `url` is not one we know to be a web page. Chromium omits the
+  // key entirely for any tab the extension has no access to — every
+  // `chrome-extension://` page, and every page at all while host access is
+  // withheld — so an absent URL has to read as unknown rather than as a site.
+  const isWebTab = (tab: chrome.tabs.Tab) =>
+    typeof tab.url === 'string' && !isExtensionUrl(tab.url)
 
   chrome.tabs.query({ active: true, currentWindow: true }, activeTabs => {
     const active = activeTabs.find(isWebTab)
@@ -258,8 +263,14 @@ const withTargetTab = (
         .filter(isWebTab)
         .sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0]
 
-      if (typeof recent?.id === 'number') {
-        callback(toContext(recent, recent.id))
+      // With host access withheld there is no readable tab to fall back to, and
+      // the active one is still what the popup is asking about. Answering with
+      // it says "this page, no site" — silence would leave the popup showing
+      // defaults it never confirmed.
+      const target = recent ?? activeTabs[0]
+
+      if (typeof target?.id === 'number') {
+        callback(toContext(target, target.id))
       }
     })
   })

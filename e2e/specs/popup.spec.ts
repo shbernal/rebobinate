@@ -115,6 +115,18 @@ const openPopupOver = async (page: Page, popup: Page) => {
   return popup
 }
 
+/**
+ * Whatever the "This tab" heading is followed by — the row for the site the
+ * service worker resolved, or the note saying it resolved none. Addressed
+ * through the heading rather than as the first `.sites` list, because when
+ * there is no row the first such list is the remembered-sites one below, which
+ * names the same site and would answer for it.
+ */
+const thisTabBlock = (popup: Page) =>
+  popup
+    .locator('h2.pane-heading', { hasText: 'This tab' })
+    .locator('xpath=following-sibling::*[1]')
+
 test.describe('popup sites tab', () => {
   test('shows the site of the tab behind it', async ({
     openFixture,
@@ -132,14 +144,45 @@ test.describe('popup sites tab', () => {
     const popup = await openPopupOver(page, await openPopup())
     await popup.getByRole('tab', { name: 'Sites' }).dispatchEvent('click')
 
-    // The first list is the "This tab" row, which is the domain the service
-    // worker resolved rather than anything the popup worked out for itself.
-    const thisTab = popup.locator('.sites').first()
+    // The row is the domain the service worker resolved, not anything the popup
+    // worked out for itself.
+    const thisTab = thisTabBlock(popup)
 
     await expect(thisTab).toContainText('player.test')
     await expect(thisTab.getByLabel('Speed for player.test')).toHaveValue(
       '1.05',
     )
+  })
+
+  // Chromium answers for the popup's own tab with no URL at all — the key is
+  // absent, not a `chrome-extension://` one — so a service worker that reads a
+  // missing URL as an ordinary page takes that tab for the site and names
+  // nothing. Which document happens to be in front is not something the answer
+  // may depend on: a real popup is an overlay and never faces this, but the
+  // popup document opened in a tab is a click away in development.
+  test('shows the site with the popup document itself in front', async ({
+    openFixture,
+    openPopup,
+    rememberedSites,
+  }) => {
+    const page = await openFixture('/simple')
+    await page.bringToFront()
+
+    await pressSpeedKey(page, '+')
+    await expect
+      .poll(async () => (await rememberedSites())['player.test']?.speed)
+      .toBeCloseTo(1.05, 3)
+
+    // Deliberately not handed back to the page. The popup asks once, on mount,
+    // so it has to be brought to the front and re-mounted — opening it and
+    // raising it afterwards would ask the question while the page was still
+    // active and prove nothing.
+    const popup = await openPopup()
+    await popup.bringToFront()
+    await popup.reload()
+    await popup.getByRole('tab', { name: 'Sites' }).click()
+
+    await expect(thisTabBlock(popup)).toContainText('player.test')
   })
 
   test('switches a site out of the memory', async ({
