@@ -123,10 +123,25 @@ is nothing to control.
 
 That matters for more than the buttons. Which site the popup shows under **This
 tab** is resolved by the service worker from the active tab, so with the popup
-document in front it resolves nothing at all. A test that cares about the
-answer — rather than about a control working — has to hand the page back the
-front and then reload the popup, so it asks the question while the page is
-active. `openPopupOver` in that spec is that dance.
+document in front it resolves nothing at all and the pane says the page is not
+one a speed can be remembered for. A test that cares about the answer — rather
+than about a control working — has to hand the page back the front and then
+reload the popup, so it asks the question while the page is active.
+`openPopupOver` in that spec is that dance.
+
+The mechanism is worth knowing, because it is not what the code reads like.
+Chromium omits `url` from a `tabs.query` result for any tab the extension has no
+access to, and `<all_urls>` does not cover `chrome-extension://` — so the popup
+document's own tab comes back with **no URL at all** rather than with a
+`chrome-extension://` one. `withTargetTab` in `src/background/service-worker.ts`
+recognizes an extension page by its URL prefix, which that tab does not have, so
+it is taken for an ordinary web tab and resolved as the target. The same applies
+to `chrome://` pages, and to every page if host access is ever withheld.
+
+`pnpm inspect:chrome` reports exactly this: it asks `rebobinate:popup-state`
+twice, once with the page in front and once with the popup document in front,
+and lists every tab with a `urlReadable` flag. Reach for it before reasoning
+about which tab the service worker picked.
 
 The popup's own on/off switches are a transparent, zero-sized checkbox behind a
 styled `<span>`, which Playwright rightly considers invisible. Click the
@@ -175,6 +190,34 @@ otherwise — with `--load-extension=dist`. It prints the extension id and the
 popup URL, which is the only way to reach the popup document directly.
 `REBOBINATE_PROFILE_DIR` moves the profile, and `REBOBINATE_HEADLESS=1` runs new
 headless mode for driving over CDP.
+
+### Inspecting a running extension
+
+Manual validation shows what a browser does; it does not show why. `pnpm
+inspect:chrome [url]` loads `dist/` into a headless Chromium, drives it, and
+prints a JSON snapshot:
+
+- the extension id and how Chromium loaded it;
+- the permissions Chromium actually **granted**, read back out of
+  `<profile>/Default/Preferences` rather than out of the manifest —
+  `granted_permissions`, `active_permissions`, and whether host access is
+  withheld, which is the only place "Site access: on click" is visible;
+- every tab the service worker can see, each with a `urlReadable` flag;
+- the `rebobinate:popup-state` reply with the page in front and with the popup
+  document in front;
+- the extension's stored settings and per-site speed map.
+
+`--profile-only` skips the launch and reads just the granted permissions off
+disk, which is what to use while `pnpm dev:chrome` still has the profile open:
+
+```sh
+REBOBINATE_PROFILE_DIR=node_modules/.tmp/dev-profile \
+  pnpm inspect:chrome --profile-only
+```
+
+It keeps its own profile at `node_modules/.tmp/inspect-profile` so it never
+fights the one `pnpm dev:chrome` is holding. There is no Gecko equivalent:
+web-ext installs a temporary add-on whose internal UUID changes every run.
 
 `scripts/open-gecko.mjs` takes the browser as its first argument and is a
 wrapper over `web-ext`, the tool `pnpm lint:firefox` already uses, which

@@ -64,10 +64,11 @@ addons.mozilla.org packages.
 - `store/` contains the long description and the screenshots both stores
   publish; `chrome-web-store/` and `amo/` contain the metadata only one store
   has a shape for.
-- `scripts/` contains the packaging and publishing entry points — some run by
-  CI, some only by hand for screenshots and manual validation. Each takes
-  `--help`. `help.mjs` and `amo-previews.mjs` are shared modules rather than
-  entry points.
+- `scripts/` contains the packaging, publishing, and browser entry points — some
+  run by CI, some only by hand for screenshots, manual validation, and
+  debugging. Each takes `--help`. `inspect-chromium.mjs` is the one that reports
+  runtime state; `help.mjs` and `amo-previews.mjs` are shared modules rather
+  than entry points.
 - `dist/`, `dist-firefox/`, and `release/` are generated and git-ignored.
 
 ## Commands
@@ -82,11 +83,56 @@ lint`. Zero errors is the bar; a few warnings are expected.
 - `pnpm test` — the Vitest suite once.
 - `pnpm e2e` — build, then run the Playwright suite against a real Chromium.
 - `pnpm format` — Prettier check.
+- `pnpm dev:chrome`, `pnpm dev:firefox`, `pnpm dev:zen` — build and open a
+  browser with the extension loaded, for checking behavior by hand.
+- `pnpm inspect:chrome` — a JSON snapshot of the built extension running in a
+  headless Chromium. See [Debugging Reported
+  Behavior](#debugging-reported-behavior).
 
 For code changes run at least `pnpm typecheck` and `pnpm test`. Run `pnpm build`
 and `pnpm e2e` when touching the manifest, content script, service worker,
 popup, shared settings, icons, or packaging. Also run `pnpm lint:firefox` when
 touching the manifest or packaging — Gecko rejects manifest keys Chrome accepts.
+
+## Debugging Reported Behavior
+
+**Behavior is checked in a throwaway profile, never a personal one.** Every way
+this extension gets run by hand — `pnpm dev:chrome`, `pnpm dev:firefox`,
+`pnpm dev:zen`, `pnpm e2e` — loads the freshly built `dist/` or `dist-firefox/`
+into a profile under `node_modules/.tmp/`, and the browser is launched by
+Playwright or web-ext rather than being the one in the taskbar. So the extension
+is **not** installed under `~/.config/chromium`, `~/.config/google-chrome`, or
+`~/.mozilla/firefox`, and those profiles say nothing about a reported problem.
+`node_modules/.tmp/dev-profile` (Chromium), `firefox-dev-profile`, and
+`zen-dev-profile` are where the state actually is.
+
+When a report is about what the extension does at runtime, get the browser's
+answer before reasoning from the source:
+
+- `pnpm build && pnpm inspect:chrome [url]` prints the extension id, the
+  permissions Chromium granted, every tab the service worker can see with
+  whether its URL is readable, the `rebobinate:popup-state` reply, and stored
+  state. `--profile-only` reads just the granted permissions off disk, which
+  works while `pnpm dev:chrome` still holds the profile open.
+- Granted host access is not the manifest. Chromium records what it actually
+  gave the extension in `<profile>/Default/Preferences` under
+  `extensions.settings.<id>`; `withholding_permissions` and the gap between
+  `granted_permissions` and `active_permissions` are what "Site access: on
+  click" looks like from here. `inspect:chrome` reports all three.
+- **A tab with no `url` is the common trap.** Chromium omits `url` from
+  `tabs.query` results for any tab the extension has no access to — every
+  `chrome-extension://` and `chrome://` page, and every page when host access is
+  withheld. It is not distinguishable from a tab whose URL simply was not read,
+  so code that classifies tabs by URL has to treat a missing one as unknown.
+- The popup opened as a tab is not the popup. A real popup is an overlay, so the
+  page underneath stays active; the popup document in a tab is active itself and
+  the service worker resolves it instead. `pnpm dev:chrome` prints a popup URL,
+  and that URL is the only way to reach the popup document directly — so this
+  divergence is easy to hit by hand. `inspect:chrome` asks both ways and reports
+  both. [Testing](./docs/testing.md#the-popup-is-not-a-tab) has the detail.
+
+Gecko has no equivalent inspector: web-ext installs a temporary add-on whose
+internal UUID changes every run, so check those targets by hand.
 
 ## Coding Guidelines
 
