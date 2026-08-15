@@ -1,8 +1,11 @@
 import { useState } from 'react'
+import type { BackupContents } from '@/shared/backup'
+import type { DomainStore } from '@/shared/domains'
 import type { KeyBindings } from '@/shared/keys'
 import type { BadgeCorner, BadgeSettings, Settings } from '@/shared/settings'
 import { BADGE_CORNERS, LIMITS, clampStep } from '@/shared/settings'
 import { formatSpeedLabel } from '@/shared/speed'
+import Backup from './Backup'
 import ColorPicker from './ColorPicker'
 import KeyEditor from './KeyEditor'
 import Toggle from './Toggle'
@@ -30,9 +33,18 @@ type SettingsPaneProps = {
   save: (next: Settings) => void
   /** Only for the badge preview, which shows the speed the tab is at. */
   speed: number
+  /** Only for the backup panel, which exports the site list with the rest. */
+  domains: DomainStore
+  onImport: (contents: BackupContents) => void
 }
 
-const SettingsPane = ({ settings, save, speed }: SettingsPaneProps) => {
+const SettingsPane = ({
+  settings,
+  save,
+  speed,
+  domains,
+  onImport,
+}: SettingsPaneProps) => {
   /**
    * The step is typed digit by digit, and the halfway states are not valid
    * steps: going from 0.2 to 0.15 passes through '', '0' and '0.'. Clamping
@@ -235,6 +247,11 @@ const SettingsPane = ({ settings, save, speed }: SettingsPaneProps) => {
           {formatSpeedLabel(speed)}
         </span>
       </section>
+
+      <hr />
+
+      <h2 className="pane-heading">Backup</h2>
+      <Backup settings={settings} domains={domains} onImport={onImport} />
     </>
   )
 }

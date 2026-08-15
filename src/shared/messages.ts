@@ -1,3 +1,4 @@
+import type { DomainStore } from './domains'
 import type { SpeedAction } from './keys'
 
 /**
@@ -89,6 +90,19 @@ export type SetDomainNeverMessage = {
   never: boolean
 }
 
+/**
+ * Popup restores a whole site list from a backup.
+ *
+ * It replaces the map rather than merging into it — a restore says "this is
+ * what the memory is now" — and it goes through the service worker for the
+ * reason a single edit does, several times over: any debounced write still
+ * pending would land on top of the restored map a second later.
+ */
+export type ImportDomainsMessage = {
+  type: 'rebobinate:import-domains'
+  store: DomainStore
+}
+
 export type RuntimeMessage =
   | SpeedIntentMessage
   | SetSpeedMessage
@@ -98,6 +112,7 @@ export type RuntimeMessage =
   | ForgetDomainMessage
   | SetDomainSpeedMessage
   | SetDomainNeverMessage
+  | ImportDomainsMessage
   | MediaPresenceMessage
   | TabMediaMessage
 

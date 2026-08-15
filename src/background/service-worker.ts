@@ -192,6 +192,13 @@ const cancelPendingWrite = (domain: string) => {
   }
 }
 
+const cancelAllPendingWrites = () => {
+  pendingWrites.forEach(timer => {
+    clearTimeout(timer)
+  })
+  pendingWrites.clear()
+}
+
 const updateDomains = (change: (store: DomainStore) => DomainStore) => {
   readDomains(store => {
     writeDomains(change(store))
@@ -403,6 +410,19 @@ chrome.runtime.onMessage.addListener(
 
       // The tab keeps the speed it is playing at. Switching a site off says
       // what happens on the next visit; it is not a reset of what is on screen.
+      return false
+    }
+
+    if (message.type === 'rebobinate:import-domains') {
+      // Every pending write, not just this domain's: a restore replaces the
+      // whole map, so any debounced entry would otherwise re-appear in it a
+      // second later.
+      cancelAllPendingWrites()
+      writeDomains(message.store)
+
+      // Nothing is applied to the tab in front of the user. A restored map is a
+      // statement about the next visit to each site, and re-speeding whatever
+      // happens to be playing is not what "restore my settings" asks for.
       return false
     }
 

@@ -685,6 +685,67 @@ describe('a site switched out of the memory', () => {
   })
 })
 
+describe('restoring a site list from a backup', () => {
+  const RESTORED = {
+    schemaVersion: DOMAINS_SCHEMA_VERSION,
+    entries: { 'vimeo.com': { speed: 2, updatedAt: 9, never: false } },
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    seedSettings({ step: 0.5 })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('replaces the whole map rather than merging into it', async () => {
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    send({ type: 'rebobinate:import-domains', store: RESTORED }, POPUP)
+
+    expect(storedDomains()).toEqual(RESTORED.entries)
+  })
+
+  // Every pending write, not just one domain's: a restore that let a debounced
+  // entry land a second later would silently gain a site the backup never had.
+  it('cancels the writes still in their debounce', async () => {
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite(),
+    )
+    send({ type: 'rebobinate:import-domains', store: RESTORED }, POPUP)
+    vi.advanceTimersByTime(1000)
+
+    expect(storedDomains()).toEqual(RESTORED.entries)
+  })
+
+  // The map is untrusted input wherever it came from, and a backup is a file a
+  // user can edit.
+  it('normalizes what the backup carried', async () => {
+    const { send } = await loadBackground()
+
+    send(
+      {
+        type: 'rebobinate:import-domains',
+        store: {
+          schemaVersion: 1,
+          entries: { 'a.test': { speed: 900, updatedAt: 2 }, '': {} },
+        },
+      },
+      POPUP,
+    )
+
+    expect(storedDomains()).toEqual({
+      'a.test': { speed: 16, updatedAt: 2, never: false },
+    })
+  })
+})
+
 describe('the domain the popup shows', () => {
   beforeEach(() => {
     seedSettings()

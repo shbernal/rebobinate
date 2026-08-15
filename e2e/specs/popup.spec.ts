@@ -1,4 +1,6 @@
 import type { Page } from '@playwright/test'
+import { BACKUP_FORMAT, BACKUP_VERSION } from '../../src/shared/backup'
+import { DOMAINS_SCHEMA_VERSION } from '../../src/shared/domains'
 import { pressSpeedKey, rateOf } from '../fixtures/controls'
 import { expect, test } from '../fixtures/extension'
 
@@ -98,6 +100,84 @@ test.describe('popup', () => {
     await page.keyboard.press('u')
 
     await expect.poll(() => rateOf(page)).toBeCloseTo(1.05, 3)
+  })
+})
+
+/**
+ * Both halves of a backup go through a textarea, because a popup cannot open a
+ * file picker on Gecko. What only a real browser can show is that the two
+ * stores really are written: the settings by the popup, the site list by the
+ * service worker.
+ */
+test.describe('popup backup', () => {
+  test('exports what is actually stored', async ({
+    openFixture,
+    openPopup,
+    rememberedSites,
+  }) => {
+    const page = await openFixture('/simple')
+    await page.bringToFront()
+
+    await pressSpeedKey(page, '+')
+    await expect
+      .poll(async () => (await rememberedSites())['player.test']?.speed)
+      .toBeCloseTo(1.05, 3)
+
+    const popup = await openPopup()
+    await openTab(popup, 'Settings')
+    await popup.getByRole('button', { name: 'Export' }).click()
+
+    const exported = JSON.parse(
+      await popup.getByLabel('Backup').inputValue(),
+    ) as { format: string; domains: { entries: Record<string, unknown> } }
+
+    expect(exported.format).toBe(BACKUP_FORMAT)
+    expect(exported.domains.entries['player.test']).toBeDefined()
+  })
+
+  test('restores the settings and replaces the site list', async ({
+    openFixture,
+    openPopup,
+    rememberedSites,
+  }) => {
+    const page = await openFixture('/simple')
+    await page.bringToFront()
+
+    await pressSpeedKey(page, '+')
+    await expect
+      .poll(async () => Object.keys(await rememberedSites()))
+      .toEqual(['player.test'])
+
+    const backup = JSON.stringify({
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      settings: { step: 0.5 },
+      domains: {
+        schemaVersion: DOMAINS_SCHEMA_VERSION,
+        entries: { 'restored.example': { speed: 2, updatedAt: 9 } },
+      },
+    })
+
+    const popup = await openPopup()
+    await openTab(popup, 'Settings')
+    await popup.getByRole('button', { name: 'Import' }).click()
+    await popup.getByLabel('Backup to restore').fill(backup)
+    await popup
+      .getByRole('button', { name: 'Replace settings' })
+      .dispatchEvent('click')
+
+    // The map the backup carried, and only it: the site the keystroke above
+    // remembered is gone.
+    await expect
+      .poll(async () => Object.keys(await rememberedSites()))
+      .toEqual(['restored.example'])
+
+    // And the restored step is the one the page is driven at.
+    await page.bringToFront()
+    await pressSpeedKey(page, '0')
+    await pressSpeedKey(page, '+')
+
+    await expect.poll(() => rateOf(page)).toBeCloseTo(1.5, 3)
   })
 })
 

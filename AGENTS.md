@@ -52,7 +52,8 @@ addons.mozilla.org packages.
 - `src/shared/` holds the settings contract, speed arithmetic, key matching,
   colour conversion, and the message types shared by all three surfaces.
   `domain.ts` turns a page URL into the registrable domain a speed is remembered
-  under; `domains.ts` is that map's own storage contract.
+  under; `domains.ts` is that map's own storage contract; `backup.ts` wraps both
+  stores into the JSON document the popup exports and imports.
 - `src/test/` contains the Vitest helpers, including the Chrome API mock.
 - `tests/` holds the checks that are not unit tests of `src/`: two
   source-convention guards and the unit tests for the AMO preview logic in

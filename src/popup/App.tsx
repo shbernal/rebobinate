@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { BackupContents } from '@/shared/backup'
 import type { RuntimeMessage, SpeedResponse } from '@/shared/messages'
 import type { SpeedAction } from '@/shared/keys'
 import type { DomainStore } from '@/shared/domains'
@@ -129,6 +130,28 @@ const App = () => {
     sendMessage({ type: 'rebobinate:set-domain-never', domain: target, never })
   }, [])
 
+  /**
+   * A restore writes the two stores the way each is written anywhere else: the
+   * popup owns the settings object, and the service worker owns the domain map.
+   * Neither is set in state here — both reads are subscribed to the storage
+   * they came from, so the write is what puts the restored values on screen.
+   */
+  const importBackup = useCallback(
+    (contents: BackupContents) => {
+      if (contents.settings) {
+        save(contents.settings)
+      }
+
+      if (contents.domains) {
+        sendMessage({
+          type: 'rebobinate:import-domains',
+          store: contents.domains,
+        })
+      }
+    },
+    [save],
+  )
+
   return (
     <main className="popup">
       <header className="header">
@@ -166,7 +189,13 @@ const App = () => {
         ) : null}
 
         {tab === 'settings' ? (
-          <SettingsPane settings={settings} save={save} speed={speed} />
+          <SettingsPane
+            settings={settings}
+            save={save}
+            speed={speed}
+            domains={domains}
+            onImport={importBackup}
+          />
         ) : null}
       </div>
     </main>

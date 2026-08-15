@@ -45,6 +45,12 @@ popup on Gecko. The popup renders its own colour picker
 `tests/popup-native-dialogs.test.ts` fails if either input reappears under
 `src/popup/`.
 
+`type="file"` has one caller that would otherwise want it: importing a backup.
+It takes pasted JSON in a textarea instead (`src/popup/Backup.tsx`), and export
+answers with a textarea and a Copy button rather than a download, which keeps
+the pair symmetrical and needs no permission the extension does not already
+hold.
+
 ### What happens
 
 On Firefox the action popup is a **XUL panel**, not a tab, and a XUL panel

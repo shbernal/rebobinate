@@ -358,3 +358,37 @@ from anywhere other than the sliders themselves.
 The hex field repeats the step field's draft pattern above: `#ff88` is not a
 colour, so the raw text is held while it is typed, a complete six-digit value
 saves as it is typed, and blur expands a three-digit one.
+
+## Backup and restore
+
+`src/shared/backup.ts` turns both stores into one JSON document and back.
+`src/popup/Backup.tsx` is the panel at the bottom of the Settings pane: **Export**
+shows the document in a read-only textarea with a Copy button, **Import** takes a
+pasted one and replaces what is stored.
+
+It is text in a textarea on both engines because of the same Gecko constraint
+the colour picker works around: an `<input type="file">` opens a native chooser,
+whose focus closes the XUL panel the popup is, so the file would be picked into
+a document that no longer exists. See
+[Build Targets](./build-targets.md#no-native-pickers-in-the-popup). Once import
+has to be a paste, export being a copy keeps the pair symmetrical — and neither
+half needs a permission the extension does not already hold.
+
+The document is wrapped in a `{ format: 'rebobinate-backup', version }`
+envelope, and that envelope is the safety property rather than decoration.
+`normalizeSettings` turns _anything_ into a complete `Settings`, so pointing it
+straight at pasted text would make `{}` a successful restore that silently
+replaces everything with the defaults. `parseBackup` refuses text without the
+marker, refuses an envelope whose `version` is newer than this build understands
+— that one could carry a settings shape this version would normalize away — and
+otherwise runs both normalizers over what it found. It restores only the keys
+the document actually carries, so a hand-written settings-only backup does not
+wipe the site list to make its point.
+
+The two halves are then written by their usual owners: the popup saves the
+settings object itself, and the domain map goes to the service worker as
+`rebobinate:import-domains`. That is not ceremony — a debounced per-domain write
+may still be pending, and only the service worker can cancel it. It cancels
+_every_ pending write, not one domain's, since a restore replaces the whole map.
+Nothing is applied to the tab in front of the user: a restored map is a
+statement about the next visit to each site.

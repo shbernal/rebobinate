@@ -370,7 +370,7 @@ describe('popup key bindings', () => {
     await capture(user, 'Reset')
     await user.keyboard('{+}')
 
-    expect(screen.getByRole('status')).toHaveTextContent('+ is already faster.')
+    expect(screen.getByText('+ is already faster.')).toBeInTheDocument()
     expect(storedSettings().keys.reset).not.toContain('+')
   })
 
@@ -382,7 +382,7 @@ describe('popup key bindings', () => {
     await capture(user, 'Reset')
     await user.keyboard('{Control>}{m}{/Control}')
 
-    expect(screen.getByRole('status')).toHaveTextContent('left to the browser')
+    expect(screen.getByText(/left to the browser/)).toBeInTheDocument()
     expect(storedSettings().keys.reset).not.toContain('m')
   })
 
@@ -640,5 +640,95 @@ describe('popup toolbar badge toggle', () => {
     expect(
       screen.getByRole('checkbox', { name: 'On-video badge' }),
     ).toBeChecked()
+  })
+})
+
+describe('popup backup', () => {
+  beforeEach(() => {
+    seedSettings({ step: 0.25 })
+    seedDomains({ 'vimeo.com': { speed: 1.75, updatedAt: 7 } })
+    answerPopupState('vimeo.com')
+  })
+
+  const openBackup = async (button: 'Export' | 'Import') => {
+    const user = userEvent.setup()
+    render(<App />)
+    await openTab(user, 'Settings')
+    await user.click(screen.getByRole('button', { name: button }))
+
+    return user
+  }
+
+  it('exports the settings and the site list as one document', async () => {
+    await openBackup('Export')
+
+    const exported = JSON.parse(
+      (screen.getByLabelText('Backup') as HTMLTextAreaElement).value,
+    )
+
+    expect(exported.format).toBe('rebobinate-backup')
+    expect(exported.settings.step).toBe(0.25)
+    expect(exported.domains.entries['vimeo.com'].speed).toBe(1.75)
+  })
+
+  it('restores both stores the way each is normally written', async () => {
+    const user = await openBackup('Import')
+
+    const backup = {
+      format: 'rebobinate-backup',
+      version: 1,
+      settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+      domains: {
+        schemaVersion: DOMAINS_SCHEMA_VERSION,
+        entries: { 'restored.example': { speed: 2, updatedAt: 3 } },
+      },
+    }
+
+    // `paste` rather than `type`: a real restore is a paste, and typing 40
+    // lines of JSON character by character is a minute of test time.
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(JSON.stringify(backup))
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    expect(storedSettings().step).toBe(0.5)
+    // The map is the service worker's to write: a debounced entry may still be
+    // pending, and only it can cancel that before the restored map lands.
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      {
+        type: 'rebobinate:import-domains',
+        store: {
+          schemaVersion: DOMAINS_SCHEMA_VERSION,
+          entries: {
+            'restored.example': { speed: 2, updatedAt: 3, never: false },
+          },
+        },
+      },
+      expect.any(Function),
+    )
+  })
+
+  it('says why nothing was restored and changes nothing', async () => {
+    const user = await openBackup('Import')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste('{"step":0.5}')
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    expect(
+      screen.getByText('That is not a Rebobinate backup.'),
+    ).toBeInTheDocument()
+    expect(storedSettings().step).toBe(0.25)
+    expect(getChromeMock().runtime.sendMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'rebobinate:import-domains' }),
+      expect.any(Function),
+    )
+  })
+
+  // The reason this pane is two textareas rather than a download and a file
+  // input: on Gecko either one closes the popup before it can finish.
+  it('offers no file input', async () => {
+    await openBackup('Export')
+
+    expect(document.querySelector('input[type="file"]')).toBeNull()
   })
 })

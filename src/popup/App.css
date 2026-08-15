@@ -507,6 +507,36 @@ hr {
   text-align: center;
 }
 
+/* Backup. The JSON is copied and pasted by hand because a popup cannot open a
+   file picker on Gecko — see docs/build-targets.md. The box is deliberately
+   tall enough to show that there is structure in there without pushing the
+   buttons under the fold of a 320px popup. */
+.backup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.backup-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.backup-actions button {
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.backup-text {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 84px;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 10px;
+}
+
 kbd {
   border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
   border-radius: 3px;
