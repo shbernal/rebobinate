@@ -86,17 +86,36 @@ export const isExtensionWorker = (worker: Worker) => {
   )
 }
 
-export const waitForExtensionWorker = async (context: BrowserContext) => {
-  const existingWorker = context.serviceWorkers().find(isExtensionWorker)
+const isBlockerWorker = (worker: Worker) => worker.url().endsWith('/blocker.js')
+
+const waitForWorker = async (
+  context: BrowserContext,
+  predicate: (worker: Worker) => boolean,
+) => {
+  const existingWorker = context.serviceWorkers().find(predicate)
 
   if (existingWorker) {
     return existingWorker
   }
 
-  return context.waitForEvent('serviceworker', {
-    predicate: isExtensionWorker,
-  })
+  return context.waitForEvent('serviceworker', { predicate })
 }
+
+export const waitForExtensionWorker = (context: BrowserContext) =>
+  waitForWorker(context, isExtensionWorker)
+
+/**
+ * The fixture blocker's worker, which has to be up before anything navigates.
+ *
+ * It filters from `webNavigation.onCommitted`, and on the fresh profile every
+ * test gets, that worker is still starting while the first page could already
+ * be loading. An event that arrives before the listener is registered is simply
+ * gone, and the page then loads with no filtering on it at all — which a test
+ * reads as a badge that survived cosmetic filtering when nothing was ever
+ * filtered. Waiting here is what keeps that from being a coin flip.
+ */
+export const waitForBlockerWorker = (context: BrowserContext) =>
+  waitForWorker(context, isBlockerWorker)
 
 export const getExtensionId = async (context: BrowserContext) => {
   const worker = await waitForExtensionWorker(context)

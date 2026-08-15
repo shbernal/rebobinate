@@ -20,27 +20,21 @@
 const cssFor = selectors =>
   `${selectors.join(',\n')} { display: none !important; }`
 
-let injecting = null
-
-const readCss = () => {
-  if (!injecting) {
-    injecting = fetch(chrome.runtime.getURL('filters.json'))
-      .then(response => response.json())
-      .then(filters => cssFor(filters.selectors))
-  }
-
-  return injecting
-}
+// Read at start-up rather than on the first navigation. The injection already
+// lands after the page has loaded — it is a service worker reacting to a
+// navigation that has committed — and a cold worker fetching this file inside
+// the handler puts one more round trip in that window for no reason.
+const injecting = fetch(chrome.runtime.getURL('filters.json'))
+  .then(response => response.json())
+  .then(filters => cssFor(filters.selectors))
 
 const inject = async details => {
-  // Sub-frames get their own injection; `allFrames` on the top-level commit
-  // would race the frames that do not exist yet.
-  const css = await readCss()
-
   try {
+    // Sub-frames get their own injection; `allFrames` on the top-level commit
+    // would race the frames that do not exist yet.
     await chrome.scripting.insertCSS({
       target: { tabId: details.tabId, frameIds: [details.frameId] },
-      css,
+      css: await injecting,
       origin: 'USER',
     })
   } catch {

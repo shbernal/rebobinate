@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import type { Page } from '@playwright/test'
 import { pressSpeedKey } from '../fixtures/controls'
 import { expect, test } from '../fixtures/extension'
 import { blockerPath } from '../fixtures/extensionRuntime'
@@ -23,11 +24,51 @@ const filters = JSON.parse(
 
 test.use({ blockers: [blockerPath] })
 
-const badge = (page: import('@playwright/test').Page) =>
-  page.locator('#rebobinate-speed-host')
+const badge = (page: Page) => page.locator('#rebobinate-speed-host')
 
-const badgeDisplay = (page: import('@playwright/test').Page) =>
+const badgeDisplay = (page: Page) =>
   badge(page).evaluate(node => getComputedStyle(node).display)
+
+/**
+ * A decoy shaped like the overlays the corpus hides, measured and taken back
+ * out inside the one evaluate so it can be asked as often as it takes.
+ */
+const decoyDisplay = (page: Page) =>
+  page.evaluate(() => {
+    const decoy = document.createElement('div')
+    decoy.setAttribute(
+      'style',
+      'position:fixed;z-index:2147483647;display:flex',
+    )
+    document.documentElement.append(decoy)
+    const display = getComputedStyle(decoy).display
+    decoy.remove()
+
+    return display
+  })
+
+/**
+ * A fixture page the blocker has demonstrably reached.
+ *
+ * Its CSS lands a few milliseconds *after* `goto` resolves — always after, and
+ * unavoidably so: a service worker reacting to a navigation that has already
+ * committed cannot beat the load it is reacting to, and neither can a real
+ * MV3 blocker. Reading the page before then is the failure mode this whole tier
+ * exists to catch, and the quiet direction of it is the dangerous one: a test
+ * that reports the badge survived cosmetic filtering when nothing had been
+ * filtered yet. Waiting for the decoy to go is what makes the rest of the file
+ * mean what it says.
+ */
+const openBlocked = async (
+  openFixture: (pathname: string) => Promise<Page>,
+  pathname: string,
+) => {
+  const page = await openFixture(pathname)
+
+  await expect.poll(() => decoyDisplay(page)).toBe('none')
+
+  return page
+}
 
 test.describe('with a content blocker running', () => {
   test('the badge still appears and still reads the speed', async ({
@@ -35,7 +76,7 @@ test.describe('with a content blocker running', () => {
     seedSettings,
   }) => {
     await seedSettings({ badge: { autoHideMs: 0 } })
-    const page = await openFixture('/simple')
+    const page = await openBlocked(openFixture, '/simple')
 
     await pressSpeedKey(page, '+')
 
@@ -55,23 +96,11 @@ test.describe('with a content blocker running', () => {
   }) => {
     const page = await openFixture('/simple')
 
-    // Without this the test above passes just as well against a blocker that
+    // Without this the tests around it pass just as well against a blocker that
     // was never loaded, which is the failure mode worth guarding: an e2e tier
-    // that proves nothing while looking green.
-    const hidden = await page.evaluate(() => {
-      const decoy = document.createElement('div')
-      decoy.setAttribute(
-        'style',
-        'position:fixed;z-index:2147483647;display:flex',
-      )
-      document.documentElement.append(decoy)
-      const display = getComputedStyle(decoy).display
-      decoy.remove()
-
-      return display
-    })
-
-    expect(hidden).toBe('none')
+    // that proves nothing while looking green. They wait on the same reading
+    // through `openBlocked`; this is where it is named.
+    await expect.poll(() => decoyDisplay(page)).toBe('none')
   })
 
   test('every filter in the corpus leaves the badge alone', async ({
@@ -79,7 +108,7 @@ test.describe('with a content blocker running', () => {
     seedSettings,
   }) => {
     await seedSettings({ badge: { autoHideMs: 0 } })
-    const page = await openFixture('/simple')
+    const page = await openBlocked(openFixture, '/simple')
 
     await pressSpeedKey(page, '+')
     await expect(badge(page)).toBeAttached()
@@ -100,7 +129,7 @@ test.describe('with a content blocker running', () => {
     seedSettings,
   }) => {
     await seedSettings({ badge: { autoHideMs: 0 } })
-    const page = await openFixture('/simple')
+    const page = await openBlocked(openFixture, '/simple')
 
     await pressSpeedKey(page, '+')
     await expect(badge(page)).toBeAttached()

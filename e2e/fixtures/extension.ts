@@ -25,6 +25,7 @@ import {
   readActionBadge,
   removeStorageValues,
   setStorageValue,
+  waitForBlockerWorker,
   waitForExtensionWorker,
 } from './extensionRuntime'
 import { FIXTURE_ORIGIN, installFixtureRoutes } from './pages'
@@ -62,6 +63,11 @@ export const test = base.extend<ExtensionFixtures>({
 
     await installFixtureRoutes(context)
     await waitForExtensionWorker(context)
+
+    if (blockers.length > 0) {
+      await waitForBlockerWorker(context)
+    }
+
     await use(context)
     await closeExtensionContext(context)
   },

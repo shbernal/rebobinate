@@ -121,6 +121,26 @@ faithful to the part that matters, and it includes a test asserting the blocker
 is really hiding things, so the suite cannot go green against a blocker that
 failed to load.
 
+That tier has two ordering constraints, and both are load-bearing rather than
+tidy-up. A blocker filters from a service worker, so it is always behind the
+page it is filtering:
+
+- **Its worker has to be running before anything navigates.** The fixture
+  filters from `webNavigation.onCommitted`, and the profile is fresh for every
+  test, so the worker is still starting while the first page could already be
+  loading. An event that arrives before the listener is registered is gone, and
+  that page then loads with no filtering on it whatsoever. `waitForBlockerWorker`
+  in `e2e/fixtures/extension.ts` is what makes it a wait instead of a coin flip
+  — it was one, at roughly one run in five.
+- **Its CSS lands after `goto` resolves.** Reacting to a navigation that has
+  already committed cannot beat the load being reacted to, in the fixture or in
+  a real MV3 blocker. `openBlocked` in the spec waits for the injection to be in
+  force before the test reads anything.
+
+Both failures are quiet in the direction that matters: a test reading an
+unfiltered page reports that the badge survived cosmetic filtering, when nothing
+was ever filtered.
+
 uBO Lite is not used here. It installs fine, but its default mode applies only
 the filters of hostnames its lists actually name, so on a fixture origin it does
 nothing at all. It is useful against real sites instead:
