@@ -120,6 +120,42 @@ test.describe('speed badge', () => {
       )
       .toBeLessThan(2)
   })
+
+  test('follows the video when the page relayouts around it', async ({
+    openFixture,
+    seedSettings,
+  }) => {
+    await seedSettings({ badge: { autoHideMs: 0 } })
+    const page = await openFixture('/shifting-panel')
+
+    await pressSpeedKey(page, '+')
+    await expect(badge(page)).toBeAttached()
+
+    // Deliberate, and the point of the test: a speed change tracks the video
+    // for `REPOSITION_BURST_MS` afterwards, which would carry this on its own.
+    // The reported case is a panel opened long after the last keystroke, so
+    // the burst has to be over before the layout moves.
+    await page.waitForTimeout(800)
+
+    // A panel opening beside the video: it slides sideways over a transition,
+    // at an unchanged size, with no event the badge can listen for and no
+    // `ResizeObserver` entry, because the video's own box never changes size.
+    await page.click('#toggle')
+
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const host = document.getElementById('rebobinate-speed-host')
+          const video = document.querySelector('video')
+
+          return Math.abs(
+            (host?.getBoundingClientRect().left ?? 0) -
+              (video?.getBoundingClientRect().left ?? 999),
+          )
+        }),
+      )
+      .toBeLessThan(2)
+  })
 })
 
 test.describe('under a page CSP that forbids stylesheets', () => {

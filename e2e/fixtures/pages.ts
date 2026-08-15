@@ -38,6 +38,25 @@ const PAGES: Record<string, string> = {
     '<video id="player"></video><div class="spacer"></div>',
   ),
   '/no-video': shell('No video here', '<p id="text">nothing to speed up</p>'),
+  // The shape of the TikTok comment panel: opening it slides the video
+  // sideways at an unchanged size, over a transition. Nothing here fires a
+  // resize or a scroll, and a `ResizeObserver` on the video sees no entry — so
+  // a badge that only places itself from events lands nowhere near the video.
+  '/shifting-panel': shell(
+    'Player beside a panel',
+    `<style>
+       .stage { display: flex; }
+       .stage video { transition: margin-left 200ms ease-out; }
+       .stage.open video { margin-left: 300px; }
+     </style>
+     <div class="stage"><video id="player"></video></div>
+     <button id="toggle">comments</button>
+     <script>
+       document.getElementById('toggle').addEventListener('click', () => {
+         document.querySelector('.stage').classList.toggle('open')
+       })
+     </script>`,
+  ),
   // Served with a CSP that forbids stylesheets entirely. The badge styles
   // itself from a `<style>` element it puts in its own shadow root, and a
   // content script's DOM lives in an isolated world with its own CSP — this is

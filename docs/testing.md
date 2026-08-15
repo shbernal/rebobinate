@@ -89,7 +89,8 @@ by node, not part of a TypeScript project reference. See
 
 Fixture pages cover a plain player, a player plus a search box, a scrolling
 page, a page with no video, a player inside a web component, a page whose only
-player is a cross-origin iframe, and a player with real media behind it.
+player is a cross-origin iframe, a player a panel slides sideways without
+resizing it, and a player with real media behind it.
 
 ### The one fixture with real media
 

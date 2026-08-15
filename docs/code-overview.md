@@ -151,9 +151,27 @@ Two consequences worth remembering:
 - a `position: fixed` element is not painted while another element is
   fullscreen, so the host is moved into `document.fullscreenElement` on
   `fullscreenchange` and back out on exit;
-- the position is kept in sync by hand — on scroll, resize, a `ResizeObserver`
-  on the video, and a short `requestAnimationFrame` burst after each change,
-  because players move the video box when their controls appear.
+- the position is kept in sync by hand, and one measurement per event is not
+  enough to do it.
+
+Everything that can disturb the layout — scroll, resize, `visualViewport`
+changes, a `ResizeObserver` on the video, a fullscreen transition, a speed
+change — goes through `startBurst`, which measures immediately and then keeps
+re-measuring on `requestAnimationFrame` for `REPOSITION_BURST_MS`. The burst is
+what makes the badge land where a transition ends rather than where the video
+was when the event fired: the page's own handlers run after the extension's, and
+a player that slides a panel in reaches its final layout some frames later.
+
+The burst only covers changes something announced. A site that reflows around a
+panel it just opened moves the video sideways at an unchanged size, which fires
+no resize, no scroll, and no `ResizeObserver` entry — the observer watches the
+box's size, and a pure translation does not change it. So while the badge is on
+screen it also re-measures every `IDLE_WATCH_MS`, and hands over to a burst when
+it finds the video somewhere new. That watch stops as soon as the badge hides,
+so a badge that has faded out costs nothing. `/shifting-panel` in
+`e2e/fixtures/pages.ts` is that layout, and the e2e test against it waits out
+the post-keystroke burst before opening the panel — otherwise the burst alone
+would carry it and the test would prove nothing.
 
 The label's opacity transition is dropped when `(prefers-reduced-motion:
 reduce)` matches. The query is read each time the label is styled, which is

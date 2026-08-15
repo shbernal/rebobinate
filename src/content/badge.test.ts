@@ -10,22 +10,33 @@ const badgeSettings = (
   ...overrides,
 })
 
-const withRect = (video: HTMLVideoElement) => {
+const setRect = (
+  video: HTMLVideoElement,
+  {
+    left,
+    top,
+    width = 640,
+    height = 360,
+  }: { left: number; top: number; width?: number; height?: number },
+) => {
   video.getBoundingClientRect = () =>
     ({
-      width: 640,
-      height: 360,
-      top: 40,
-      left: 20,
-      right: 660,
-      bottom: 400,
-      x: 20,
-      y: 40,
+      width,
+      height,
+      top,
+      left,
+      right: left + width,
+      bottom: top + height,
+      x: left,
+      y: top,
       toJSON: () => ({}),
     }) as DOMRect
 
   return video
 }
+
+const withRect = (video: HTMLVideoElement) =>
+  setRect(video, { left: 20, top: 40 })
 
 const host = () => document.getElementById('rebobinate-speed-host')
 
@@ -191,20 +202,49 @@ describe('createBadge', () => {
   it('hides when the video has scrolled out of view', () => {
     badge.flash(2, badgeSettings({ autoHideMs: 0 }))
 
-    video.getBoundingClientRect = () =>
-      ({
-        width: 640,
-        height: 360,
-        top: 900,
-        left: 20,
-        right: 660,
-        bottom: 1260,
-        x: 20,
-        y: 900,
-        toJSON: () => ({}),
-      }) as DOMRect
+    setRect(video, { left: 20, top: 900 })
 
     window.dispatchEvent(new Event('scroll'))
+
+    expect(hostDeclaration('display')).toBe('none')
+  })
+
+  it('follows a video that moves with no event to announce it', () => {
+    badge.flash(2, badgeSettings({ autoHideMs: 0 }))
+    // Past the burst a speed change starts, so only the idle watch is left to
+    // notice anything.
+    vi.advanceTimersByTime(1000)
+    expect(hostDeclaration('left')).toBe('20px')
+
+    // What opening a comment panel does: the video is pushed sideways by a
+    // relayout, at the same size, with no resize and no scroll to hear about.
+    setRect(video, { left: 320, top: 40 })
+    vi.advanceTimersByTime(300)
+
+    expect(hostDeclaration('left')).toBe('320px')
+  })
+
+  it('keeps tracking after the event that moved the video', () => {
+    badge.flash(2, badgeSettings({ autoHideMs: 0 }))
+    vi.advanceTimersByTime(1000)
+
+    // A window resize the page reacts to over a transition: the box the badge
+    // can measure inside the event is not where the video ends up. Well under
+    // the idle watch's tick, so the burst is the only thing that can catch it.
+    window.dispatchEvent(new Event('resize'))
+    setRect(video, { left: 120, top: 40 })
+    vi.advanceTimersByTime(100)
+
+    expect(hostDeclaration('left')).toBe('120px')
+  })
+
+  it('stops tracking once it has faded out', () => {
+    badge.flash(2, badgeSettings({ autoHideMs: 1000 }))
+    vi.advanceTimersByTime(1000)
+    expect(hostDeclaration('display')).toBe('none')
+
+    setRect(video, { left: 320, top: 40 })
+    vi.advanceTimersByTime(2000)
 
     expect(hostDeclaration('display')).toBe('none')
   })

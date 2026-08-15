@@ -7,7 +7,9 @@ import { formatSpeedLabel } from '@/shared/speed'
  * It is a fixed-position overlay laid over the video's bounding box rather than
  * an element inserted into the player. Re-parenting site DOM is what makes
  * overlays break layouts, and players routinely wipe children they do not own.
- * The trade-off is that the position has to be kept in sync by hand.
+ * The trade-off is that the position has to be kept in sync by hand: see
+ * `startBurst` and `watch` for how, and why one measurement per event is not
+ * enough.
  *
  * The host carries no `style` attribute: every declaration that would sit there
  * is written into a `:host` rule inside the shadow root instead. An inline
@@ -24,7 +26,23 @@ import { formatSpeedLabel } from '@/shared/speed'
  * says who it belongs to, so a list maintainer who wants to allow it can.
  */
 const HOST_ID = 'rebobinate-speed-host'
+
+/**
+ * How long the badge keeps re-measuring the video after something disturbs the
+ * layout. A single measurement taken inside the event is not enough: the page's
+ * own handlers run after ours and the box often lands where a CSS transition
+ * takes it rather than where it was when the event fired.
+ */
 const REPOSITION_BURST_MS = 600
+
+/**
+ * How often the badge re-measures while nothing is known to be moving. Not
+ * every layout change announces itself — a site that reflows around a panel it
+ * just opened fires no resize, no scroll, and no `ResizeObserver` entry when
+ * the video keeps its size and only moves. This is the backstop that turns
+ * "wrong until the next speed change" into "wrong for a quarter second".
+ */
+const IDLE_WATCH_MS = 250
 const INSET_PX = 10
 
 export type BadgeGeometry = {
@@ -116,6 +134,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
   let hostStyle: HTMLStyleElement | null = null
   let label: HTMLDivElement | null = null
   let hideTimer: ReturnType<typeof setTimeout> | null = null
+  let watchTimer: ReturnType<typeof setTimeout> | null = null
   let burstUntil = 0
   let frame = 0
   let visible = false
@@ -147,17 +166,23 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
   /**
    * Rewriting the sheet costs a parse, so identical placements are dropped —
    * `position` runs once per frame during a burst and on every scroll event.
+   * Returns whether the badge actually moved, which is what the idle watch
+   * reads to decide that something is going on and a burst is worth starting.
    */
-  const placeHost = (placement: HostPlacement | null) => {
+  const placeHost = (placement: HostPlacement | null): boolean => {
     if (!hostStyle) {
-      return
+      return false
     }
 
     const rule = hostRule(placement)
 
-    if (hostStyle.textContent !== rule) {
-      hostStyle.textContent = rule
+    if (hostStyle.textContent === rule) {
+      return false
     }
+
+    hostStyle.textContent = rule
+
+    return true
   }
 
   const styleLabel = (settings: BadgeSettings) => {
@@ -185,15 +210,17 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
 
   const hide = () => {
     visible = false
+    stopWatch()
     placeHost(null)
   }
 
-  const position = () => {
+  /** Returns whether the placement changed. */
+  const position = (): boolean => {
     const video = anchor()
 
     if (!host || !video || !currentSettings) {
       hide()
-      return
+      return false
     }
 
     const rect = video.getBoundingClientRect()
@@ -209,15 +236,14 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       rect.left >= viewportWidth
 
     if (offscreen) {
-      placeHost(null)
-      return
+      return placeHost(null)
     }
 
     const { alignItems, justifyContent } = cornerAlignment(
       currentSettings.corner,
     )
 
-    placeHost({
+    return placeHost({
       left: rect.left,
       top: rect.top,
       width: rect.width,
@@ -247,6 +273,50 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     }
 
     frame = requestAnimationFrame(tick)
+  }
+
+  /**
+   * The one way the badge is told to move. Everything that can disturb the
+   * layout goes through here rather than placing the badge once: the immediate
+   * measurement keeps a scroll responsive, and the burst that follows it covers
+   * the transition, the site's own relayout, and the tail of a window drag.
+   */
+  const startBurst = () => {
+    burstUntil = Date.now() + REPOSITION_BURST_MS
+    position()
+    scheduleFrame()
+  }
+
+  const stopWatch = () => {
+    if (watchTimer !== null) {
+      clearTimeout(watchTimer)
+      watchTimer = null
+    }
+  }
+
+  /**
+   * Re-measures on a slow tick for as long as the badge is on screen. A move it
+   * finds is treated as the start of an animation rather than the whole of it,
+   * so it hands over to a burst.
+   */
+  const watch = () => {
+    watchTimer = null
+
+    if (!visible) {
+      return
+    }
+
+    if (position()) {
+      startBurst()
+    }
+
+    watchTimer = setTimeout(watch, IDLE_WATCH_MS)
+  }
+
+  const startWatch = () => {
+    if (watchTimer === null) {
+      watchTimer = setTimeout(watch, IDLE_WATCH_MS)
+    }
   }
 
   /**
@@ -284,13 +354,13 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       return
     }
 
-    resizeObserver = resizeObserver ?? new ResizeObserver(() => position())
+    resizeObserver = resizeObserver ?? new ResizeObserver(() => startBurst())
     resizeObserver.observe(video)
   }
 
   const handleViewportChange = () => {
     if (visible) {
-      position()
+      startBurst()
     }
   }
 
@@ -307,6 +377,16 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
   doc.addEventListener('fullscreenchange', handleFullscreenChange)
   doc.addEventListener('webkitfullscreenchange', handleFullscreenChange)
 
+  /**
+   * Pinch-zoom and the browser's own retracting UI move the layout viewport
+   * without a `resize` on `window`. Absent under jsdom, and on Gecko before the
+   * property shipped, so it is optional rather than assumed.
+   */
+  const viewport = window.visualViewport ?? null
+
+  viewport?.addEventListener('resize', handleViewportChange)
+  viewport?.addEventListener('scroll', handleViewportChange)
+
   const show = (speed: number, settings: BadgeSettings) => {
     ensureHost()
     styleLabel(settings)
@@ -319,6 +399,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     syncFullscreenParent()
     observeAnchor()
     position()
+    startWatch()
   }
 
   const clearHideTimer = () => {
@@ -366,8 +447,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
 
     // Track the video for a moment: a speed change often coincides with the
     // player showing its controls, which moves the video box.
-    burstUntil = Date.now() + REPOSITION_BURST_MS
-    scheduleFrame()
+    startBurst()
 
     if (settings.autoHideMs > 0) {
       hideTimer = setTimeout(hide, settings.autoHideMs)
@@ -376,12 +456,21 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
 
   const destroy = () => {
     clearHideTimer()
+    stopWatch()
+
+    if (frame !== 0 && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(frame)
+      frame = 0
+    }
+
     resizeObserver?.disconnect()
     resizeObserver = null
     window.removeEventListener('scroll', handleViewportChange, {
       capture: true,
     })
     window.removeEventListener('resize', handleViewportChange)
+    viewport?.removeEventListener('resize', handleViewportChange)
+    viewport?.removeEventListener('scroll', handleViewportChange)
     doc.removeEventListener('fullscreenchange', handleFullscreenChange)
     doc.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
     host?.remove()
