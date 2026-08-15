@@ -95,6 +95,25 @@ describe('normalizeSettings', () => {
     expect(settings.rememberPerDomain).toBe(true)
   })
 
+  // Same again for the v3 addition: an installed copy gains the toolbar badge
+  // without losing anything it was already holding.
+  it('fills the toolbar badge into an object written before it', () => {
+    const settings = normalizeSettings({
+      schemaVersion: 2,
+      step: 0.25,
+      rememberPerDomain: false,
+    })
+
+    expect(settings.step).toBe(0.25)
+    expect(settings.rememberPerDomain).toBe(false)
+    expect(settings.toolbarBadge).toBe(true)
+  })
+
+  it('keeps a toolbar badge the user switched off', () => {
+    expect(normalizeSettings({ toolbarBadge: false }).toolbarBadge).toBe(false)
+    expect(normalizeSettings({ toolbarBadge: 'no' }).toolbarBadge).toBe(true)
+  })
+
   it('clamps the default speed to what a player accepts', () => {
     expect(normalizeSettings({ defaultSpeed: 99 }).defaultSpeed).toBe(16)
     expect(normalizeSettings({ defaultSpeed: 0 }).defaultSpeed).toBe(0.1)

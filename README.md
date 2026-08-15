@@ -6,8 +6,9 @@ Control the playback speed of any video from the keyboard.
 - `-` — slower
 - `0` — back to your default speed
 
-The step is `0.05` by default and can be changed. An optional badge shows the
-current speed on the video itself, in the corner and style you choose.
+The step is `0.05` by default and can be changed. The extension's toolbar icon
+carries the speed of the tab you are on, and an optional badge shows it on the
+video itself, in the corner and style you choose.
 
 Rebobinate works on any site with an HTML5 video, including players embedded in
 iframes, and it holds your speed when a site tries to reset it.
@@ -41,9 +42,10 @@ developer mode on. For Firefox, run `pnpm build:firefox` and load
 ## Settings
 
 Open the extension popup to change the speed step, set the default speed, turn
-the per-site memory on or off, forget the site you are on, toggle the speed
-badge, and set its corner, size, opacity, colors, and how long it stays on
-screen. Settings are stored locally in your browser.
+the per-site memory on or off, forget the site you are on, toggle the speed on
+the toolbar icon, toggle the on-video badge, and set its corner, size, opacity,
+colors, and how long it stays on screen. Settings are stored locally in your
+browser.
 
 ## Privacy
 

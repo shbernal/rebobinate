@@ -607,3 +607,38 @@ describe('popup color picker', () => {
     expect(within(picker).getByLabelText('Hue')).toHaveValue('32')
   })
 })
+
+describe('popup toolbar badge toggle', () => {
+  beforeEach(() => {
+    seedSettings()
+    answerPopupState('youtube.com')
+  })
+
+  const openSettings = async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await openTab(user, 'Settings')
+
+    return user
+  }
+
+  it('is on by default and switches off', async () => {
+    const user = await openSettings()
+
+    const toggle = screen.getByRole('checkbox', { name: 'Toolbar badge' })
+    expect(toggle).toBeChecked()
+
+    await user.click(toggle)
+
+    expect(storedSettings().toolbarBadge).toBe(false)
+  })
+
+  // Two badges now, so the older one is named for where it is drawn.
+  it('keeps the on-video badge as a separate control', async () => {
+    await openSettings()
+
+    expect(
+      screen.getByRole('checkbox', { name: 'On-video badge' }),
+    ).toBeChecked()
+  })
+})

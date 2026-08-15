@@ -156,6 +156,52 @@ export const removeStorageValues = async (
   )
 }
 
+/**
+ * What the toolbar icon says, read back out of the browser.
+ *
+ * Playwright cannot see browser chrome at all, so the API the service worker
+ * wrote through is the only place the badge is observable. With no `url` this
+ * reads the global badge — what a tab the extension never heard from renders.
+ */
+export const readActionBadge = async (
+  context: BrowserContext,
+  url?: string,
+): Promise<{ text: string; title: string }> => {
+  const worker = await waitForExtensionWorker(context)
+
+  return worker.evaluate(
+    targetUrl =>
+      new Promise<{ text: string; title: string }>((resolve, reject) => {
+        const read = (details: { tabId?: number }) => {
+          chrome.action.getBadgeText(details, text => {
+            chrome.action.getTitle(details, title => {
+              resolve({ text, title })
+            })
+          })
+        }
+
+        if (targetUrl === undefined) {
+          read({})
+          return
+        }
+
+        chrome.tabs.query({}, tabs => {
+          const tab = tabs.find(candidate => candidate.url === targetUrl)
+
+          if (typeof tab?.id !== 'number') {
+            // Falling through to the global badge would let a mistyped URL
+            // pass a test that never looked at the tab it named.
+            reject(new Error(`No tab is open on ${targetUrl}`))
+            return
+          }
+
+          read({ tabId: tab.id })
+        })
+      }),
+    url,
+  )
+}
+
 export const openExtensionPage = async (
   context: BrowserContext,
   extensionId: string,

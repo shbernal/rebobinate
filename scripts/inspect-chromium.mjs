@@ -56,6 +56,13 @@ Reported
   badge        whether the badge is on screen, per frame, and why not when it
                is not. Computed style is the reading that matters: element
                hiding is injected at user origin and leaves nothing in the DOM
+  actionBadge  what the toolbar icon says: the global text and tooltip every
+               unvisited tab shows, and the per-tab override on top of it.
+               Browser chrome is invisible to the driver, so this is the only
+               way to read the icon at all. Expect the default here even when
+               the badge above is on screen: this script raises the speed by
+               broadcasting to the content script, which is not a route the
+               service worker owns a tab speed through
   storage      the normalized settings and the per-site speed map
 
 Environment
@@ -308,6 +315,37 @@ const withPopupActive = {
   popupState: await askPopupState(popup),
 }
 
+/**
+ * What the toolbar icon says. The global pair is what a tab the extension never
+ * heard from renders; a tab's own entry sits on top of it.
+ */
+const actionBadge = await worker.evaluate(
+  () =>
+    new Promise(resolve => {
+      const read = details =>
+        new Promise(done => {
+          chrome.action.getBadgeText(details, text => {
+            chrome.action.getTitle(details, title => {
+              done({ text, title })
+            })
+          })
+        })
+
+      chrome.tabs.query({}, async tabs => {
+        const perTab = await Promise.all(
+          tabs
+            .filter(tab => typeof tab.id === 'number')
+            .map(async tab => [tab.id, await read({ tabId: tab.id })]),
+        )
+
+        resolve({
+          global: await read({}),
+          tabs: Object.fromEntries(perTab),
+        })
+      })
+    }),
+)
+
 const storage = await worker.evaluate(
   () =>
     new Promise(resolve => {
@@ -330,5 +368,6 @@ print({
   withPageActive,
   withPopupActive,
   badge,
+  actionBadge,
   storage,
 })

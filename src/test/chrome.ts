@@ -35,6 +35,14 @@ type RuntimeMessageArgs = [
   sendResponse: (response?: unknown) => void,
 ]
 type TabRemovedArgs = [tabId: number, removeInfo: chrome.tabs.OnRemovedInfo]
+type TabUpdatedArgs = [
+  tabId: number,
+  changeInfo: chrome.tabs.OnUpdatedInfo,
+  tab: chrome.tabs.Tab,
+]
+
+/** The global badge, which every tab without an override of its own shows. */
+const GLOBAL = 'global'
 
 const pickStorageValues = (values: StorageValues, keys: StorageKeys) => {
   if (keys === null || keys === undefined) {
@@ -65,6 +73,21 @@ export const createChromeMock = () => {
   const storageChanged = createChromeEvent<StorageChangedArgs>()
   const runtimeMessage = createChromeEvent<RuntimeMessageArgs, boolean>()
   const tabRemoved = createChromeEvent<TabRemovedArgs>()
+  const tabUpdated = createChromeEvent<TabUpdatedArgs>()
+
+  // Keyed by tab id, with the global badge under its own key, because that is
+  // the distinction the real API draws: a tab without an entry renders the
+  // global text, and clearing one is not the same as clearing the other.
+  const badgeText = new Map<number | typeof GLOBAL, string>()
+  const badgeTitle = new Map<number | typeof GLOBAL, string>()
+
+  const recordAction = <Details extends { tabId?: number }>(
+    store: Map<number | typeof GLOBAL, string>,
+    details: Details,
+    value: string,
+  ) => {
+    store.set(details.tabId ?? GLOBAL, value)
+  }
 
   const local = {
     get: vi.fn(
@@ -112,8 +135,52 @@ export const createChromeMock = () => {
       local,
       onChanged: storageChanged,
     },
+    action: {
+      setBadgeText: vi.fn(
+        (details: chrome.action.BadgeTextDetails, callback?: () => void) => {
+          recordAction(badgeText, details, details.text ?? '')
+          callback?.()
+        },
+      ),
+      setTitle: vi.fn(
+        (details: chrome.action.TitleDetails, callback?: () => void) => {
+          recordAction(badgeTitle, details, details.title)
+          callback?.()
+        },
+      ),
+      setBadgeBackgroundColor: vi.fn(
+        (_details: chrome.action.BadgeColorDetails, callback?: () => void) => {
+          callback?.()
+        },
+      ),
+      setBadgeTextColor: vi.fn(
+        (_details: chrome.action.BadgeColorDetails, callback?: () => void) => {
+          callback?.()
+        },
+      ),
+      /** The text a tab renders: its own override, or the global one. */
+      badgeText: (tabId?: number) => {
+        if (tabId === undefined) {
+          return badgeText.get(GLOBAL)
+        }
+
+        return badgeText.has(tabId)
+          ? badgeText.get(tabId)
+          : badgeText.get(GLOBAL)
+      },
+      badgeTitle: (tabId?: number) => {
+        if (tabId === undefined) {
+          return badgeTitle.get(GLOBAL)
+        }
+
+        return badgeTitle.has(tabId)
+          ? badgeTitle.get(tabId)
+          : badgeTitle.get(GLOBAL)
+      },
+    },
     tabs: {
       onRemoved: tabRemoved,
+      onUpdated: tabUpdated,
       // The tabs a query answers with. Seeded rather than fixed because the
       // service worker now reads the tab's URL and its private-window flag, not
       // just its id. A seeded tab with no `url` is the shape Chromium returns

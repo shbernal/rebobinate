@@ -10,8 +10,18 @@ import {
   writeDomains,
 } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
-import { clampToSettings, readSettings } from '@/shared/settings'
+import {
+  clampToSettings,
+  onSettingsChange,
+  readSettings,
+} from '@/shared/settings'
 import { stepSpeed } from '@/shared/speed'
+import {
+  applyToolbarDefault,
+  applyToolbarSpeed,
+  clearToolbarBadge,
+  initToolbarBadge,
+} from './action-badge'
 
 /**
  * The background owns the speed of each tab.
@@ -110,16 +120,20 @@ const resolveSpeed = (
 /**
  * The speed a freshly loaded tab starts at: what this domain is remembered at,
  * or the user's default. Two storage reads, so it answers on a callback.
+ *
+ * The settings come back with the speed because every caller needs them too —
+ * to decide whether the toolbar icon should carry the number — and reading them
+ * a second time on the way out would be a read for an answer already in hand.
  */
 const resolveStartSpeed = (
   tab: TabContext,
-  callback: (speed: number) => void,
+  callback: (speed: number, settings: Settings) => void,
 ) => {
   readSettings(settings => {
     const domain = settings.rememberPerDomain ? domainKeyFromUrl(tab.url) : null
 
     if (!domain) {
-      callback(clampToSettings(settings.defaultSpeed, settings))
+      callback(clampToSettings(settings.defaultSpeed, settings), settings)
       return
     }
 
@@ -129,8 +143,43 @@ const resolveStartSpeed = (
       // extension has never seen.
       const remembered = entry?.never ? undefined : entry?.speed
 
-      callback(clampToSettings(remembered ?? settings.defaultSpeed, settings))
+      callback(
+        clampToSettings(remembered ?? settings.defaultSpeed, settings),
+        settings,
+      )
     })
+  })
+}
+
+/**
+ * Puts a tab's speed on the toolbar icon, when the user wants it there.
+ *
+ * Every caller already holds the settings for its own reasons, so the decision
+ * is made here rather than inside the badge module: nothing about drawing a
+ * number should have to read storage.
+ */
+const showToolbarSpeed = (settings: Settings, tabId: number, speed: number) => {
+  if (settings.enabled && settings.toolbarBadge) {
+    applyToolbarSpeed(tabId, speed)
+  }
+}
+
+/**
+ * Brings the whole toolbar badge in line with the settings: the fallback every
+ * untouched tab shows, plus a fresh override for every tab whose speed is
+ * known. Called at start-up and whenever the settings change, which is what
+ * makes switching the feature off — or back on — take effect immediately
+ * rather than at the next keystroke.
+ */
+const refreshToolbarBadge = (settings: Settings) => {
+  if (!settings.enabled || !settings.toolbarBadge) {
+    clearToolbarBadge()
+    return
+  }
+
+  applyToolbarDefault(settings.defaultSpeed)
+  tabSpeeds.forEach((speed, tabId) => {
+    applyToolbarSpeed(tabId, speed)
   })
 }
 
@@ -296,6 +345,7 @@ const applyToTabOnDomain = (
 
       tabSpeeds.set(tab.id, applied)
       broadcastSpeed(tab.id, applied)
+      showToolbarSpeed(settings, tab.id, applied)
     })
   })
 }
@@ -370,8 +420,9 @@ chrome.runtime.onMessage.addListener(
           // the tab has no video makes the ones that do say so again.
           broadcast(tab.id, { type: 'rebobinate:tab-media', hasVideo: false })
 
-          resolveStartSpeed(tab, speed => {
+          resolveStartSpeed(tab, (speed, settings) => {
             tabSpeeds.set(tab.id, speed)
+            showToolbarSpeed(settings, tab.id, speed)
             sendResponse({ speed, hasVideo: tabHasVideo(tab.id) })
           })
 
@@ -388,7 +439,8 @@ chrome.runtime.onMessage.addListener(
         // A sub-frame that loaded before the top frame asked. Resolving from
         // the tab's own domain gives it the answer the top frame is about to
         // get, instead of a second of 1.0 before the broadcast corrects it.
-        resolveStartSpeed(tab, speed => {
+        resolveStartSpeed(tab, (speed, settings) => {
+          showToolbarSpeed(settings, tab.id, speed)
           sendResponse({ speed, hasVideo: tabHasVideo(tab.id) })
         })
       })
@@ -420,6 +472,7 @@ chrome.runtime.onMessage.addListener(
 
         tabSpeeds.set(tab.id, speed)
         broadcastSpeed(tab.id, speed)
+        showToolbarSpeed(settings, tab.id, speed)
         remember(tab, settings, speed, isReset)
         sendResponse({ speed })
       })
@@ -432,4 +485,36 @@ chrome.runtime.onMessage.addListener(
 chrome.tabs.onRemoved.addListener(tabId => {
   tabSpeeds.delete(tabId)
   tabFramesWithVideo.delete(tabId)
+
+  // Nothing to undo on the icon: the browser drops a tab's action state with
+  // the tab itself.
 })
+
+/**
+ * A tab starting a navigation is showing a number for the page it is leaving,
+ * and the next page may be one the content script never runs on — a
+ * `chrome://` page, the Web Store, the PDF viewer — in which case nothing
+ * would ever correct it. Putting the default back is both the honest answer
+ * for those and the right first frame for a page that is about to report in.
+ *
+ * `status` is delivered whatever the host access, so this survives "on click".
+ */
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status !== 'loading') {
+    return
+  }
+
+  // Only the icon is put back. The tab's speed is the `rebobinate:query` from
+  // the new top frame's business, and clearing it here would race that.
+  readSettings(settings => {
+    showToolbarSpeed(
+      settings,
+      tabId,
+      clampToSettings(settings.defaultSpeed, settings),
+    )
+  })
+})
+
+initToolbarBadge()
+readSettings(refreshToolbarBadge)
+onSettingsChange(refreshToolbarBadge)

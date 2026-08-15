@@ -56,3 +56,21 @@ export const formatSpeed = (speed: number): string => {
 export const formatSpeedLabel = (speed: number): string => {
   return `${formatSpeed(speed)}×`
 }
+
+/**
+ * The same speed written for the toolbar icon, where about four characters fit
+ * before the browser starts squeezing glyphs.
+ *
+ * That budget is what the two rules buy: no `×`, since the icon already says
+ * whose number it is, and a whole number from 10 upwards, where the decimals
+ * would not fit and are past caring about anyway. Everything below stays exact
+ * — `1.05` is four characters, and so is the widest value a 0.01 step can
+ * produce under 10.
+ */
+export const formatToolbarSpeed = (speed: number): string => {
+  if (speed >= 10) {
+    return String(Math.round(speed))
+  }
+
+  return speed.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+}

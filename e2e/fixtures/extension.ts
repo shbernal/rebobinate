@@ -22,6 +22,7 @@ import {
   getStorageValue,
   launchExtensionContext,
   openExtensionPage as openExtensionPageInContext,
+  readActionBadge,
   removeStorageValues,
   setStorageValue,
   waitForExtensionWorker,
@@ -42,6 +43,11 @@ type ExtensionFixtures = {
   seedSettings: (settings: PartialSettings) => Promise<void>
   /** What the extension has written down per site, as it stands right now. */
   rememberedSites: () => Promise<Record<string, DomainMemory>>
+  /**
+   * The badge and tooltip on the toolbar icon: for the tab open on `url`, or
+   * the global pair every unvisited tab shows when `url` is left out.
+   */
+  actionBadge: (url?: string) => Promise<{ text: string; title: string }>
 }
 
 export const test = base.extend<ExtensionFixtures>({
@@ -84,6 +90,10 @@ export const test = base.extend<ExtensionFixtures>({
 
       return stored?.entries ?? {}
     })
+  },
+
+  actionBadge: async ({ extensionContext }, use) => {
+    await use(async url => readActionBadge(extensionContext, url))
   },
 
   openFixture: async ({ extensionContext }, use) => {

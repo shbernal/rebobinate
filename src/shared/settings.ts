@@ -12,8 +12,12 @@ export const SETTINGS_STORAGE_KEY = 'rebobinate:settings'
  * both are new keys, so a stored `1` object has them filled from the defaults
  * like any other missing field, and nothing an installed copy already holds is
  * reset. The bump records the shape change.
+ *
+ * `3` added `toolbarBadge`, on the same terms: a stored `2` object has no such
+ * key and normalizes to the default, so an installed copy keeps everything it
+ * had and gains the speed on its toolbar icon.
  */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export const BADGE_CORNERS = [
   'top-left',
@@ -55,6 +59,15 @@ export type Settings = {
    */
   rememberPerDomain: boolean
   badge: BadgeSettings
+  /**
+   * Whether the toolbar icon carries the tab's speed as its action badge.
+   *
+   * Flat, and deliberately not a field of `badge`: that object configures the
+   * badge drawn over the video, down to its corner and opacity, and none of it
+   * means anything in browser chrome. Two names that cannot be confused are
+   * worth more here than one grouping.
+   */
+  toolbarBadge: boolean
   keys: KeyBindings
 }
 
@@ -86,6 +99,7 @@ export const DEFAULT_SETTINGS: Settings = {
     hideAtNormalSpeed: true,
     autoHideMs: 2000,
   },
+  toolbarBadge: true,
   keys: {
     increase: ['+', '=', 'Equal', 'NumpadAdd'],
     decrease: ['-', 'Minus', 'NumpadSubtract'],
@@ -231,6 +245,10 @@ export const normalizeSettings = (value: unknown): Settings => {
       DEFAULT_SETTINGS.rememberPerDomain,
     ),
     badge: normalizeBadge(source.badge),
+    toolbarBadge: normalizeBoolean(
+      source.toolbarBadge,
+      DEFAULT_SETTINGS.toolbarBadge,
+    ),
     keys: {
       increase: normalizeBindings(
         keys.increase,

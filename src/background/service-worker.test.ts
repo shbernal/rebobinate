@@ -775,3 +775,123 @@ describe('the domain the popup shows', () => {
     )
   })
 })
+
+describe('the speed on the toolbar icon', () => {
+  const badgeText = (tabId?: number) => getChromeMock().action.badgeText(tabId)
+
+  it('shows the default on a tab nothing is known about', async () => {
+    seedSettings({ defaultSpeed: 1.5 })
+    await loadBackground()
+
+    expect(badgeText()).toBe('1.5')
+    expect(getChromeMock().action.badgeTitle()).toBe('Rebobinate — 1.5×')
+  })
+
+  it('follows the tab as the speed changes', async () => {
+    seedSettings()
+    const { send } = await loadBackground()
+
+    send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 })
+
+    expect(badgeText(7)).toBe('1.05')
+    expect(getChromeMock().action.badgeTitle(7)).toBe('Rebobinate — 1.05×')
+  })
+
+  // The number has to be right before the first keystroke, or a tab that came
+  // back at 2× says 1 until the user touches it.
+  it('shows a remembered speed as soon as the page reports in', async () => {
+    seedSettings()
+    seedDomains({ 'youtube.com': { speed: 2, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    send({ type: 'rebobinate:query' }, onSite())
+
+    expect(badgeText(7)).toBe('2')
+  })
+
+  it('goes back to the default when the tab starts loading something else', async () => {
+    seedSettings({ defaultSpeed: 1.25 })
+    const { send, chromeMock } = await loadBackground()
+
+    send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 2 })
+    expect(badgeText(7)).toBe('2.05')
+
+    chromeMock.tabs.onUpdated.emit(
+      7,
+      { status: 'loading' } as chrome.tabs.OnUpdatedInfo,
+      { id: 7 } as chrome.tabs.Tab,
+    )
+
+    expect(badgeText(7)).toBe('1.25')
+  })
+
+  it('ignores a tab update that is not the start of a load', async () => {
+    seedSettings({ defaultSpeed: 1.25 })
+    const { send, chromeMock } = await loadBackground()
+
+    send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 2 })
+
+    chromeMock.tabs.onUpdated.emit(
+      7,
+      { status: 'complete' } as chrome.tabs.OnUpdatedInfo,
+      { id: 7 } as chrome.tabs.Tab,
+    )
+
+    expect(badgeText(7)).toBe('2.05')
+  })
+
+  // A tab's override outlives the service worker that wrote it, so switching
+  // the setting off has to walk every open tab rather than just the global one.
+  it('clears every tab when the setting is switched off', async () => {
+    seedSettings()
+    getChromeMock().tabs.seed([{ id: 7, url: WATCH_URL, active: true }])
+    const { send, chromeMock } = await loadBackground()
+
+    send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 })
+    expect(badgeText(7)).toBe('1.05')
+
+    chromeMock.storage.local.set({
+      [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, toolbarBadge: false },
+    })
+
+    expect(badgeText()).toBe('')
+    expect(badgeText(7)).toBe('')
+  })
+
+  it('clears the icon when the whole extension is switched off', async () => {
+    seedSettings()
+    getChromeMock().tabs.seed([{ id: 7, url: WATCH_URL, active: true }])
+    const { send, chromeMock } = await loadBackground()
+
+    send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 })
+
+    chromeMock.storage.local.set({
+      [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, enabled: false },
+    })
+
+    expect(badgeText(7)).toBe('')
+  })
+
+  it('writes nothing while the setting is off', async () => {
+    seedSettings({ toolbarBadge: false })
+    const { send } = await loadBackground()
+
+    send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 })
+
+    expect(badgeText(7)).toBe('')
+  })
+
+  it('puts the numbers back when the setting is switched on again', async () => {
+    seedSettings({ toolbarBadge: false })
+    const { send, chromeMock } = await loadBackground()
+
+    send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 })
+
+    chromeMock.storage.local.set({
+      [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, toolbarBadge: true },
+    })
+
+    expect(badgeText()).toBe('1')
+    expect(badgeText(7)).toBe('1.05')
+  })
+})

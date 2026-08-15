@@ -102,9 +102,21 @@ const SettingsPane = ({ settings, save, speed }: SettingsPaneProps) => {
       <hr />
 
       <section className="field">
-        <span>Speed badge</span>
+        <span>Toolbar badge</span>
         <Toggle
-          label="Speed badge"
+          label="Toolbar badge"
+          checked={settings.toolbarBadge}
+          onChange={toolbarBadge => save({ ...settings, toolbarBadge })}
+        />
+      </section>
+
+      <hr />
+
+      {/* Named for where it is drawn now that there are two badges. */}
+      <section className="field">
+        <span>On-video badge</span>
+        <Toggle
+          label="On-video badge"
           checked={settings.badge.enabled}
           onChange={enabled => saveBadge({ enabled })}
         />

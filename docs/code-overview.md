@@ -165,6 +165,53 @@ The primary video is the one with the largest visible area, with a playing video
 scoring double: on a page full of preview players, the one making noise is the
 one the user means.
 
+## The speed on the toolbar icon
+
+`src/background/action-badge.ts` owns every `chrome.action` call the extension
+makes. The on-video badge answers "what is this video doing"; the action badge
+answers "what is this tab at", without opening anything, and it is drawn both
+where the icon is pinned and in the puzzle-piece overflow list.
+
+It is two layers, and both are needed for every tab to carry a number:
+
+- the **global** text, set from `defaultSpeed` at every service-worker start, is
+  what a tab the extension has never heard from renders — a `chrome://` page,
+  the Web Store, the PDF viewer, anywhere the content script cannot run;
+- a **per-tab** override sits on top of it, written wherever the service worker
+  resolves a speed. Those are the same four places that write `tabSpeeds`, plus
+  the sub-frame branch of `rebobinate:query`.
+
+Three things follow from how the browser stores that state:
+
+- A per-tab override **outlives the service worker that wrote it**, while
+  `tabSpeeds` does not. That is the right way round: the page is still playing
+  at the speed the badge claims, and the next `rebobinate:query` re-asserts it
+  anyway. It is also why switching the feature off walks every open tab through
+  `chrome.tabs.query` rather than just clearing the global text — otherwise a
+  number written by an earlier instance would sit there for the life of the tab.
+- A tab that **navigates away is showing the previous page's number**, and the
+  next page may be one the content script never runs on, so nothing would ever
+  correct it. `chrome.tabs.onUpdated` puts the default back on `status:
+'loading'`. `status` is delivered whatever the host access is, so this still
+  works under "Site access: on click". The tab's _speed_ is deliberately not
+  touched there — that is the new top frame's `rebobinate:query` to do, and
+  clearing it here would race that.
+- Nothing has to be undone when a tab closes: the browser drops a tab's action
+  state with the tab.
+
+`formatToolbarSpeed` in `src/shared/speed.ts` is a second formatter rather than
+a reuse of `formatSpeedLabel` because roughly four characters fit on an icon
+before the browser starts squeezing glyphs. It drops the `×` and, from 10×
+upwards, the decimals; below that every value the settings allow already fits.
+The full `Rebobinate — 1.05×` goes in the tooltip, which is what carries the
+speed in the overflow list where the badge is smallest.
+
+The colours are fixed in the module, not taken from `settings.badge`. Those are
+chosen to read over a video frame, which is a different problem, and the badge's
+opacity and corner have no meaning in browser chrome. White on `#111827` was
+picked against the icon: it is a deep indigo square, so an indigo badge painted
+over its corner disappears into it.
+
 ## Settings
 
 `src/shared/settings.ts` is the single contract between popup, content script,
@@ -177,7 +224,12 @@ ever sees a complete `Settings`.
 Schema `2` added `defaultSpeed` and `rememberPerDomain`. It needed no migration
 code: both are new keys, so a stored `1` object has them filled from the
 defaults like any other missing field and nothing an installed copy holds is
-reset.
+reset. Schema `3` added `toolbarBadge` on the same terms.
+
+`toolbarBadge` is a flat boolean and deliberately not a field of `badge`: that
+object configures the badge drawn over the video down to its corner and
+opacity, and none of it means anything on a toolbar icon. Two names that cannot
+be confused are worth more than one grouping.
 
 The remembered speeds live under a **second storage key**, in
 `src/shared/domains.ts`, rather than inside `Settings`. The two are written by

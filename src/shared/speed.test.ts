@@ -3,6 +3,7 @@ import {
   clampSpeed,
   formatSpeed,
   formatSpeedLabel,
+  formatToolbarSpeed,
   roundSpeed,
   speedsEqual,
   stepSpeed,
@@ -82,5 +83,30 @@ describe('formatSpeed', () => {
 
   it('appends the multiplier sign in the label', () => {
     expect(formatSpeedLabel(1.25)).toBe('1.25×')
+  })
+})
+
+describe('formatToolbarSpeed', () => {
+  it('drops the decimals that carry nothing', () => {
+    expect(formatToolbarSpeed(1)).toBe('1')
+    expect(formatToolbarSpeed(2)).toBe('2')
+    expect(formatToolbarSpeed(1.5)).toBe('1.5')
+    expect(formatToolbarSpeed(1.05)).toBe('1.05')
+    expect(formatToolbarSpeed(0.5)).toBe('0.5')
+  })
+
+  it('falls back to a whole number from ten up', () => {
+    expect(formatToolbarSpeed(10)).toBe('10')
+    expect(formatToolbarSpeed(10.25)).toBe('10')
+    expect(formatToolbarSpeed(16)).toBe('16')
+  })
+
+  // Four characters is about what the icon fits, and the widest value the
+  // settings allow has to stay inside it.
+  it('never needs more than four characters', () => {
+    // 0.1 and 16 are the ends of the range `LIMITS.speed` allows.
+    const widest = [0.1, 16, 0.99, 9.99, 9.95, 1.05].map(formatToolbarSpeed)
+
+    expect(widest.every(text => text.length <= 4)).toBe(true)
   })
 })
