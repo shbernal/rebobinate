@@ -59,6 +59,9 @@ addons.mozilla.org packages.
   `scripts/`. The same Vitest command runs them.
 - `e2e/` drives the built extension in a real Chromium.
 - `docs/` contains contributor-facing documentation.
+- `e2e/fixtures/blocker/` is a stand-in content blocker used by the ad-blocker
+  e2e tier. The real uBlock Origin cannot be loaded in Chromium at all — it is
+  Manifest V2. `docs/ad-blockers.md` has the whole picture.
 - `public/icons/` contains the icons copied into builds. `icon128.png` is also
   the AMO listing icon, which `scripts/publish-amo.mjs` uploads separately.
 - `store/` contains the long description and the screenshots both stores
@@ -86,10 +89,17 @@ lint`. Zero errors is the bar; a few warnings are expected.
 - `pnpm dev:chrome`, `pnpm dev:firefox`, `pnpm dev:zen` — build and open a
   browser with the extension loaded, for checking behavior by hand.
 - `pnpm inspect:chrome` — a JSON snapshot of the built extension running in a
-  headless Chromium. See [Debugging Reported
-  Behavior](#debugging-reported-behavior).
+  headless Chromium, including whether the badge is on screen and why not. See
+  [Debugging Reported Behavior](#debugging-reported-behavior).
+- `pnpm check:filters` — match every cosmetic filter uBlock Origin and AdGuard
+  ship against the badge the build actually renders. Exit 1 means an ad blocker
+  hides it somewhere. See [Ad Blockers](./docs/ad-blockers.md).
+- `pnpm blockers:fetch` — download the pinned content blockers into
+  `node_modules/.tmp/blockers`, for `inspect:chrome --blocker` and
+  `dev:firefox --with-ublock`.
 
-For code changes run at least `pnpm typecheck` and `pnpm test`. Run `pnpm build`
+Run `pnpm check:filters` when touching the badge's DOM or styling. For other
+code changes run at least `pnpm typecheck` and `pnpm test`. Run `pnpm build`
 and `pnpm e2e` when touching the manifest, content script, service worker,
 popup, shared settings, icons, or packaging. Also run `pnpm lint:firefox` when
 touching the manifest or packaging — Gecko rejects manifest keys Chrome accepts.
@@ -164,6 +174,13 @@ internal UUID changes every run, so check those targets by hand.
   all mean hands off.
 - Keep the badge out of the page's own DOM tree. It is a fixed-position host
   with a shadow root; re-parenting site nodes is what breaks layouts.
+- **Keep the badge host unremarkable to a filter list.** No `style` attribute,
+  no `z-index` or `position` outside the `:host` rule in its shadow root, and no
+  `ad`/`banner`/`overlay`/`sponsor` substring in its id or classes. Cosmetic
+  filters are CSS selectors injected at user origin, so a match cannot be
+  outranked — only avoided. `pnpm check:filters` is the check and
+  `docs/ad-blockers.md` is the reasoning; run it after any change to how the
+  badge is built.
 - **No `<input>` that opens a native chooser under `src/popup/`** — `type="color"`
   and `type="file"`. On Gecko the popup is a XUL panel that autohides when the
   native dialog takes focus, which tears down the popup document before the

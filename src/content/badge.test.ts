@@ -27,12 +27,23 @@ const withRect = (video: HTMLVideoElement) => {
   return video
 }
 
-const host = () => document.getElementById('rebobinate-badge-host')
+const host = () => document.getElementById('rebobinate-speed-host')
 
-const labelText = () => host()?.shadowRoot?.textContent ?? null
+const labelElement = () => host()?.shadowRoot?.querySelector('div') ?? null
 
-const labelStyle = () =>
-  host()?.shadowRoot?.firstElementChild?.getAttribute('style') ?? ''
+const labelText = () => labelElement()?.textContent ?? null
+
+const labelStyle = () => labelElement()?.getAttribute('style') ?? ''
+
+/**
+ * The host is styled from a `:host` rule inside its own shadow root rather than
+ * from a `style` attribute, so this is where its geometry has to be read from.
+ */
+const hostCss = () =>
+  host()?.shadowRoot?.querySelector('style')?.textContent ?? ''
+
+const hostDeclaration = (property: string) =>
+  new RegExp(`[{;]${property}:([^;!}]+)`).exec(hostCss())?.[1] ?? null
 
 const setReducedMotion = (reduce: boolean) => {
   window.matchMedia = ((query: string) =>
@@ -92,35 +103,53 @@ describe('createBadge', () => {
     badge.flash(1.25, badgeSettings())
 
     expect(labelText()).toBe('1.25×')
-    expect(host()?.style.left).toBe('20px')
-    expect(host()?.style.top).toBe('40px')
-    expect(host()?.style.width).toBe('640px')
-    expect(host()?.style.display).toBe('flex')
+    expect(hostDeclaration('left')).toBe('20px')
+    expect(hostDeclaration('top')).toBe('40px')
+    expect(hostDeclaration('width')).toBe('640px')
+    expect(hostDeclaration('display')).toBe('flex')
   })
 
   it('positions itself in the configured corner', () => {
     badge.flash(2, badgeSettings({ corner: 'bottom-right' }))
 
-    expect(host()?.style.alignItems).toBe('flex-end')
-    expect(host()?.style.justifyContent).toBe('flex-end')
+    expect(hostDeclaration('align-items')).toBe('flex-end')
+    expect(hostDeclaration('justify-content')).toBe('flex-end')
   })
 
   it('keeps the page safe from itself', () => {
     badge.flash(2, badgeSettings())
 
-    expect(host()?.style.pointerEvents).toBe('none')
-    expect(host()?.style.position).toBe('fixed')
+    expect(hostDeclaration('pointer-events')).toBe('none')
+    expect(hostDeclaration('position')).toBe('fixed')
     // A shadow root keeps site CSS from reaching the badge.
     expect(host()?.shadowRoot).not.toBeNull()
   })
 
+  it('leaves no inline style attribute for a filter list to match', () => {
+    badge.flash(2, badgeSettings({ autoHideMs: 0 }))
+
+    // `[style*="z-index:"]` and `div[style]:not([class])` are live EasyList
+    // filters. Neither can match an element with no style attribute at all.
+    expect(host()?.hasAttribute('style')).toBe(false)
+    expect(host()?.outerHTML).not.toContain('z-index')
+  })
+
+  it('marks its own declarations important so page CSS cannot undo them', () => {
+    badge.flash(2, badgeSettings({ autoHideMs: 0 }))
+
+    // Without this a bare `div { display: none }` on the page would win: for
+    // normal declarations the document tree outranks a `:host` rule.
+    expect(hostCss()).toContain('position:fixed!important')
+    expect(hostCss()).toContain('display:flex!important')
+  })
+
   it('fades out after the configured delay', () => {
     badge.flash(2, badgeSettings({ autoHideMs: 1000 }))
-    expect(host()?.style.display).toBe('flex')
+    expect(hostDeclaration('display')).toBe('flex')
 
     vi.advanceTimersByTime(1000)
 
-    expect(host()?.style.display).toBe('none')
+    expect(hostDeclaration('display')).toBe('none')
   })
 
   it('stays on screen when auto-hide is off', () => {
@@ -128,16 +157,16 @@ describe('createBadge', () => {
 
     vi.advanceTimersByTime(30000)
 
-    expect(host()?.style.display).toBe('flex')
+    expect(hostDeclaration('display')).toBe('flex')
   })
 
   it('hides at normal speed when asked to', () => {
     badge.flash(2, badgeSettings({ hideAtNormalSpeed: true }))
-    expect(host()?.style.display).toBe('flex')
+    expect(hostDeclaration('display')).toBe('flex')
 
     badge.flash(1, badgeSettings({ hideAtNormalSpeed: true }))
 
-    expect(host()?.style.display).toBe('none')
+    expect(hostDeclaration('display')).toBe('none')
   })
 
   it('never touches the page while the speed is normal', () => {
@@ -150,13 +179,13 @@ describe('createBadge', () => {
     badge.flash(1, badgeSettings({ hideAtNormalSpeed: false }))
 
     expect(labelText()).toBe('1.0×')
-    expect(host()?.style.display).toBe('flex')
+    expect(hostDeclaration('display')).toBe('flex')
   })
 
   it('stays out of the way when disabled', () => {
     badge.flash(2, badgeSettings({ enabled: false }))
 
-    expect(host()?.style.display ?? 'none').toBe('none')
+    expect(host()).toBeNull()
   })
 
   it('hides when the video has scrolled out of view', () => {
@@ -177,7 +206,7 @@ describe('createBadge', () => {
 
     window.dispatchEvent(new Event('scroll'))
 
-    expect(host()?.style.display).toBe('none')
+    expect(hostDeclaration('display')).toBe('none')
   })
 
   it('moves into the fullscreen element so it stays painted', () => {

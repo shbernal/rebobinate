@@ -75,6 +75,12 @@ by node, not part of a TypeScript project reference. See
   map back out of the extension's storage, which is what lets
   `e2e/specs/site-memory.spec.ts` wait for the debounced write instead of
   sleeping a fixed amount.
+- `e2e/fixtures/blocker/` is a stand-in content blocker: an MV3 extension that
+  injects cosmetic filter selectors as user-origin CSS, which is what a real
+  blocker does. `test.use({ blockers: [blockerPath] })` loads it alongside the
+  build, and `e2e/specs/ad-blockers.spec.ts` is the only spec that does.
+  [Ad Blockers](./ad-blockers.md) explains why the real uBlock Origin cannot be
+  used here.
 - `e2e/fixtures/controls.ts` provides `pressSpeedKey`, which presses and retries
   until the rate moves. crxjs loads the content script through an asynchronous
   loader, so for a short moment after a navigation the page is live but the
@@ -175,6 +181,11 @@ Real sites are deliberately not in CI. When a site misbehaves, reproduce it in a
 fixture page first; if it cannot be reproduced there, it belongs in the manual
 validation list, not in the automated suite.
 
+- Anything about an ad blocker taking the badge away: [Ad
+  Blockers](./ad-blockers.md). The filter lists move on their own, so that check
+  is a script (`pnpm check:filters`) rather than a test with a pinned answer,
+  and the e2e tier replays what the script found.
+
 ## Manual validation on real sites
 
 Everything above runs against local fixture pages, so the sites the extension
@@ -193,6 +204,10 @@ that is reused between runs so a site logged into once stays logged in, and stay
 open until the window is closed. Loading the build by hand —
 `chrome://extensions`, or `about:debugging` on Gecko — does the same thing; the
 scripts only save the trip.
+
+`pnpm dev:firefox --with-ublock` and `pnpm dev:zen --with-ublock` add the real
+uBlock Origin to the profile. Gecko is the only place it can run — see [Ad
+Blockers](./ad-blockers.md).
 
 `scripts/open-chromium.mjs` launches the same persistent Chromium the Playwright
 fixture does — a system Chromium if there is one, `channel: 'chromium'`

@@ -38,6 +38,12 @@ const PAGES: Record<string, string> = {
     '<video id="player"></video><div class="spacer"></div>',
   ),
   '/no-video': shell('No video here', '<p id="text">nothing to speed up</p>'),
+  // Served with a CSP that forbids stylesheets entirely. The badge styles
+  // itself from a `<style>` element it puts in its own shadow root, and a
+  // content script's DOM lives in an isolated world with its own CSP — this is
+  // the fixture that proves it, because a page that blocked it would leave the
+  // badge unstyled and invisible rather than absent.
+  '/strict-csp': shell('Strict CSP', '<video id="player"></video>'),
   '/shadow': shell(
     'Player inside a web component',
     `<div id="host"></div>
@@ -59,6 +65,8 @@ const PAGES: Record<string, string> = {
             preload="auto"></video>`,
   ),
 }
+
+const STRICT_CSP = "default-src 'self'; style-src 'none'; script-src 'self'"
 
 const fulfillPage = (route: Route, pathname: string) => {
   const contentType = MEDIA_TYPES[pathname]
@@ -82,6 +90,10 @@ const fulfillPage = (route: Route, pathname: string) => {
   return route.fulfill({
     status: 200,
     contentType: 'text/html; charset=utf-8',
+    headers:
+      pathname === '/strict-csp'
+        ? { 'content-security-policy': STRICT_CSP }
+        : {},
     body,
   })
 }

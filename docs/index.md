@@ -8,6 +8,9 @@ or installation copy out of this directory.
   do.
 - [Testing](./testing.md) — the Vitest setup, the Chrome API mock, the
   Playwright suite, and where to add coverage.
+- [Ad Blockers](./ad-blockers.md) — how element hiding works, what the badge
+  does to stay out of its way, and the three tiers that check it: a filter-list
+  scan, the real uBlock Origin on Gecko, and the mechanism replayed in CI.
 - [Build Targets](./build-targets.md) — the Chrome and Firefox builds, how the
   manifests differ, the callback-only `chrome.*` rule, why the popup cannot use
   a native colour picker, and the crxjs entry-name constraint.

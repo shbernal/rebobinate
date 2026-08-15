@@ -20,6 +20,8 @@
     "dev:firefox": "pnpm run build:firefox && node scripts/open-gecko.mjs firefox",
     "dev:zen": "pnpm run build:firefox && node scripts/open-gecko.mjs zen",
     "inspect:chrome": "node scripts/inspect-chromium.mjs",
+    "check:filters": "node scripts/check-filters.mjs",
+    "blockers:fetch": "node scripts/fetch-blockers.mjs",
     "build": "tsc -b && vite build",
     "build:firefox": "EXT_TARGET=firefox pnpm run build",
     "package:firefox": "pnpm run build:firefox && web-ext build --source-dir dist-firefox --artifacts-dir release --filename rebobinate-firefox-{version}.zip --overwrite-dest",

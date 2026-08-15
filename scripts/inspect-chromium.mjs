@@ -12,11 +12,19 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { chromium } from '@playwright/test'
 import { printHelpAndExit } from './help.mjs'
+import { installedBlocker } from './fetch-blockers.mjs'
+import {
+  badgeProbe,
+  extensionPath,
+  launchWithExtension,
+  resolveChromiumExecutable,
+  showBadge,
+} from './chromium.mjs'
 
 printHelpAndExit(`
-Usage: pnpm inspect:chrome [url] [--profile-only] [--help]
+Usage: pnpm inspect:chrome [url] [--profile-only] [--blocker] [--help]
+       pnpm inspect:chrome --print-probe
 
 Loads dist/ into a headless Chromium, drives it, and prints a JSON snapshot of
 what the extension looks like from the inside. Run after \`pnpm build\`.
@@ -26,6 +34,16 @@ what the extension looks like from the inside. Run after \`pnpm build\`.
                    exit, without launching. Use this while \`pnpm dev:chrome\`
                    holds the profile open, pointing REBOBINATE_PROFILE_DIR at
                    node_modules/.tmp/dev-profile.
+  --blocker        load uBlock Origin Lite alongside the extension, after
+                   \`pnpm blockers:fetch\`. uBlock Origin itself cannot be
+                   loaded: it is Manifest V2 and Chromium refuses it.
+  --complete       with --blocker, put uBOL in complete filtering mode, which
+                   is what turns on the generic cosmetic filters. Its default
+                   mode only applies the filters of hostnames in its lists.
+  --print-probe    print the badge probe as a snippet to paste into a browser
+                   console, and exit. This is how the Gecko targets get the
+                   same answer: nothing can drive them, but uBlock Origin only
+                   runs there, so the reading has to be taken by hand.
 
 Reported
   extension    id, load location, and the permissions Chromium granted, read
@@ -35,6 +53,9 @@ Reported
                extension resolves the wrong one
   popupState   the rebobinate:popup-state reply, asked twice: with the web page
                in front, and with the popup document in front
+  badge        whether the badge is on screen, per frame, and why not when it
+               is not. Computed style is the reading that matters: element
+               hiding is injected at user origin and leaves nothing in the DOM
   storage      the normalized settings and the per-site speed map
 
 Environment
@@ -48,24 +69,6 @@ Environment
 
 const defaultProfilePath = 'node_modules/.tmp/inspect-profile'
 const defaultOpenUrl = 'https://www.youtube.com/'
-const extensionPath = path.resolve(process.cwd(), 'dist')
-
-// Duplicated from `scripts/open-chromium.mjs` for the same reason it duplicates
-// the e2e fixture: these are plain Node and cannot import the TypeScript ones.
-const resolveChromiumExecutable = () => {
-  const explicitExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
-
-  if (explicitExecutable) {
-    return explicitExecutable
-  }
-
-  return [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-  ].find(candidate => fs.existsSync(candidate))
-}
 
 // Chromium's own name for how an extension got loaded. Only the ones this
 // project can produce are named; anything else is left as the raw number.
@@ -127,6 +130,9 @@ const profilePath = path.resolve(
 )
 const argv = process.argv.slice(2)
 const profileOnly = argv.includes('--profile-only')
+const withBlocker = argv.includes('--blocker')
+const printProbe = argv.includes('--print-probe')
+const completeMode = argv.includes('--complete')
 // Flags are skipped rather than taken positionally, matching the other scripts.
 const openUrl =
   argv.find(argument => !argument.startsWith('-')) ??
@@ -135,6 +141,11 @@ const openUrl =
 
 const print = value => {
   console.log(JSON.stringify(value, null, 2))
+}
+
+if (printProbe) {
+  console.log(`(${badgeProbe.toString()})()`)
+  process.exit(0)
 }
 
 if (profileOnly) {
@@ -163,23 +174,55 @@ if (process.env.REBOBINATE_PROFILE_DIR === undefined) {
 const headless = process.env.REBOBINATE_HEADLESS !== '0'
 const executablePath = resolveChromiumExecutable()
 
-const context = await chromium.launchPersistentContext(profilePath, {
-  executablePath,
-  // Playwright's default headless binary is the headless shell, which cannot
-  // load extensions at all. The full Chromium build (new headless mode) can.
-  ...(executablePath ? {} : { channel: 'chromium' }),
+const blockerDir = withBlocker ? installedBlocker('ubol') : null
+
+if (withBlocker && !blockerDir) {
+  console.error('uBO Lite is not downloaded — run `pnpm blockers:fetch` first')
+  process.exit(1)
+}
+
+const context = await launchWithExtension({
+  profilePath,
   headless,
-  viewport: { width: 1280, height: 800 },
-  args: [
-    `--disable-extensions-except=${extensionPath}`,
-    `--load-extension=${extensionPath}`,
-    '--no-sandbox',
-  ],
+  extraExtensions: blockerDir ? [blockerDir] : [],
 })
 
-const worker =
-  context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
+const isBlockerWorker = candidate =>
+  candidate.url().includes('/js/background.js')
+
+const findWorker = async predicate =>
+  context.serviceWorkers().find(predicate) ??
+  (await context.waitForEvent('serviceworker', { predicate }))
+
+const worker = await findWorker(
+  candidate =>
+    !isBlockerWorker(candidate) &&
+    candidate.url().includes('service-worker-loader'),
+)
 const extensionId = new URL(worker.url()).hostname
+
+/**
+ * uBOL defaults to filtering only the hostnames its lists name, which is why it
+ * does nothing at all on an origin nobody wrote a filter for. Complete mode is
+ * the level that also applies the generic filters; it is a setting its own
+ * dashboard writes, asked for here through the same message.
+ */
+const blockerWorker = blockerDir ? await findWorker(isBlockerWorker) : null
+
+if (blockerWorker && completeMode) {
+  await blockerWorker.evaluate(
+    () =>
+      new Promise(resolve => {
+        chrome.runtime.sendMessage(
+          { what: 'setFilteringMode', hostname: 'all-urls', level: 3 },
+          () => {
+            void chrome.runtime.lastError
+            resolve(true)
+          },
+        )
+      }),
+  )
+}
 
 /** Every tab the service worker can see, and whether it can read its URL. */
 const readTabs = () =>
@@ -231,6 +274,22 @@ const askPopupState = page =>
 const page = context.pages()[0] ?? (await context.newPage())
 await page.goto(openUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 })
 
+// The badge only exists once the speed is not 1×, so the inspector puts the tab
+// somewhere else and then looks. Every frame is asked: on a page whose player
+// is in an iframe, the badge belongs to that frame and not to the top one.
+const badgeShown = await showBadge(context, page)
+const badge = {
+  shown: badgeShown,
+  frames: await Promise.all(
+    page.frames().map(async frame => ({
+      url: frame.url(),
+      ...(await frame.evaluate(badgeProbe).catch(error => ({
+        error: error.message,
+      }))),
+    })),
+  ),
+}
+
 const popup = await context.newPage()
 await popup.goto(`chrome-extension://${extensionId}/src/popup/index.html`)
 
@@ -267,7 +326,9 @@ print({
   extensionId,
   // Read after the context closes, so the browser has flushed the profile.
   extension: readGrantedPermissions(profilePath),
+  blocker: blockerDir ? { path: blockerDir, completeMode } : null,
   withPageActive,
   withPopupActive,
+  badge,
   storage,
 })

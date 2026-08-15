@@ -2,7 +2,21 @@ import { pressSpeedKey, rateOf } from '../fixtures/controls'
 import { expect, test } from '../fixtures/extension'
 
 const badge = (page: import('@playwright/test').Page) =>
-  page.locator('#rebobinate-badge-host')
+  page.locator('#rebobinate-speed-host')
+
+/**
+ * The badge is styled from a `:host` rule inside its shadow root, so what is
+ * being asserted is the computed result rather than a style attribute. That is
+ * also the only reading an ad blocker cannot fake out: a user-origin
+ * `display: none` shows up here and nowhere else.
+ */
+const badgeDisplay = (page: import('@playwright/test').Page) =>
+  badge(page).evaluate(node => getComputedStyle(node).display)
+
+const badgeText = (page: import('@playwright/test').Page) =>
+  badge(page).evaluate(
+    node => node.shadowRoot?.querySelector('div')?.textContent ?? '',
+  )
 
 test.describe('speed badge', () => {
   test('appears with the current speed and fades out', async ({
@@ -15,20 +29,9 @@ test.describe('speed badge', () => {
     await pressSpeedKey(page, '+')
 
     await expect(badge(page)).toBeAttached()
-    await expect
-      .poll(() =>
-        badge(page).evaluate(node => node.shadowRoot?.textContent ?? ''),
-      )
-      .toBe('1.05×')
+    await expect.poll(() => badgeText(page)).toBe('1.05×')
 
-    await expect
-      .poll(
-        () => badge(page).evaluate(node => (node as HTMLElement).style.display),
-        {
-          timeout: 5000,
-        },
-      )
-      .toBe('none')
+    await expect.poll(() => badgeDisplay(page), { timeout: 5000 }).toBe('none')
   })
 
   test('sits in the configured corner, over the video', async ({
@@ -44,17 +47,22 @@ test.describe('speed badge', () => {
     await expect(badge(page)).toBeAttached()
 
     const boxes = await page.evaluate(() => {
-      const host = document.getElementById('rebobinate-badge-host')
+      const host = document.getElementById('rebobinate-speed-host')
       const video = document.querySelector('video')
+
+      const hostStyle = host ? getComputedStyle(host) : null
 
       return {
         host: host?.getBoundingClientRect().toJSON(),
         video: video?.getBoundingClientRect().toJSON(),
-        alignItems: host?.style.alignItems,
-        justifyContent: host?.style.justifyContent,
+        alignItems: hostStyle?.alignItems,
+        justifyContent: hostStyle?.justifyContent,
+        inlineStyle: host?.getAttribute('style'),
       }
     })
 
+    // No style attribute is the point: filter lists hide `[style*="z-index:"]`.
+    expect(boxes.inlineStyle).toBeNull()
     expect(boxes.alignItems).toBe('flex-end')
     expect(boxes.justifyContent).toBe('flex-end')
     expect(boxes.host?.left).toBeCloseTo(boxes.video?.left ?? -1, 0)
@@ -73,11 +81,7 @@ test.describe('speed badge', () => {
 
     await pressSpeedKey(page, '0')
 
-    await expect
-      .poll(() =>
-        badge(page).evaluate(node => (node as HTMLElement).style.display),
-      )
-      .toBe('none')
+    await expect.poll(() => badgeDisplay(page)).toBe('none')
   })
 
   test('can be turned off entirely', async ({ openFixture, seedSettings }) => {
@@ -105,7 +109,7 @@ test.describe('speed badge', () => {
     await expect
       .poll(() =>
         page.evaluate(() => {
-          const host = document.getElementById('rebobinate-badge-host')
+          const host = document.getElementById('rebobinate-speed-host')
           const video = document.querySelector('video')
 
           return Math.abs(
@@ -115,5 +119,27 @@ test.describe('speed badge', () => {
         }),
       )
       .toBeLessThan(2)
+  })
+})
+
+test.describe('under a page CSP that forbids stylesheets', () => {
+  test('the badge still styles itself', async ({
+    openFixture,
+    seedSettings,
+  }) => {
+    await seedSettings({ badge: { autoHideMs: 0 } })
+    const page = await openFixture('/strict-csp')
+
+    await pressSpeedKey(page, '+')
+    await expect(badge(page)).toBeAttached()
+
+    // A content script's DOM is attributed to its isolated world, which has its
+    // own CSP. If that ever stopped being true the badge would be attached,
+    // unstyled and invisible — which is why this asserts the computed result
+    // and not the presence of the element.
+    await expect.poll(() => badgeDisplay(page)).toBe('flex')
+    expect(
+      await badge(page).evaluate(node => getComputedStyle(node).position),
+    ).toBe('fixed')
   })
 })

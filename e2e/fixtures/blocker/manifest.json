@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Rebobinate test blocker",
+  "version": "1.0.0",
+  "description": "Injects cosmetic filter selectors as user-origin CSS, the way a content blocker does. Test fixture only.",
+  "permissions": ["scripting", "webNavigation"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "blocker.js",
+    "type": "module"
+  }
+}

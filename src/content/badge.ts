@@ -8,9 +8,22 @@ import { formatSpeedLabel } from '@/shared/speed'
  * an element inserted into the player. Re-parenting site DOM is what makes
  * overlays break layouts, and players routinely wipe children they do not own.
  * The trade-off is that the position has to be kept in sync by hand.
+ *
+ * The host carries no `style` attribute: every declaration that would sit there
+ * is written into a `:host` rule inside the shadow root instead. An inline
+ * style attribute is what ad-blocker filter lists reach for — EasyList hides
+ * `[style*="z-index:"]` and `div[style]:not([class])` on a long tail of
+ * streaming sites to kill popunder overlays, and a badge styled inline is
+ * collateral damage. `docs/ad-blockers.md` has the trace, and
+ * `pnpm check:filters` is what keeps it true against the current lists.
  */
 
-const HOST_ID = 'rebobinate-badge-host'
+/**
+ * Deliberately not the word "badge": it contains "ad", and `div[id*="ad"]` is a
+ * filter AdGuard already ships for a handful of sites. The id stays stable and
+ * says who it belongs to, so a list maintainer who wants to allow it can.
+ */
+const HOST_ID = 'rebobinate-speed-host'
 const REPOSITION_BURST_MS = 600
 const INSET_PX = 10
 
@@ -35,16 +48,52 @@ export type Badge = {
   destroy: () => void
 }
 
-const HOST_STYLE = [
+/** Where the badge sits, once it knows which box it is covering. */
+type HostPlacement = {
+  left: number
+  top: number
+  width: number
+  height: number
+  alignItems: string
+  justifyContent: string
+}
+
+const STATIC_HOST_DECLARATIONS = [
   'position:fixed',
   'margin:0',
-  'padding:0',
   'border:0',
   'pointer-events:none',
   'z-index:2147483647',
-  'display:flex',
   'contain:layout style',
-].join(';')
+  'box-sizing:border-box',
+  `padding:${INSET_PX}px`,
+]
+
+/**
+ * Every declaration is `!important`, which is what an inline style attribute
+ * used to buy. A normal `:host` declaration loses to any page rule that reaches
+ * the host — `div { display: none }` would be enough — because for normal
+ * declarations the outer tree wins. Marking them important reverses that order
+ * and puts the shadow tree back on top. It does not, and is not meant to,
+ * outrank an ad blocker: those inject at user origin, which beats every author
+ * declaration including an important inline one.
+ */
+const hostRule = (placement: HostPlacement | null) => {
+  const declarations = placement
+    ? [
+        ...STATIC_HOST_DECLARATIONS,
+        'display:flex',
+        `left:${placement.left}px`,
+        `top:${placement.top}px`,
+        `width:${placement.width}px`,
+        `height:${placement.height}px`,
+        `align-items:${placement.alignItems}`,
+        `justify-content:${placement.justifyContent}`,
+      ]
+    : [...STATIC_HOST_DECLARATIONS, 'display:none']
+
+  return `:host{${declarations.map(entry => `${entry}!important`).join(';')}}`
+}
 
 /**
  * Read at style time rather than cached: the label is restyled on every show,
@@ -64,6 +113,7 @@ export type BadgeOptions = {
 
 export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
   let host: HTMLDivElement | null = null
+  let hostStyle: HTMLStyleElement | null = null
   let label: HTMLDivElement | null = null
   let hideTimer: ReturnType<typeof setTimeout> | null = null
   let burstUntil = 0
@@ -80,17 +130,34 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
 
     host = doc.createElement('div')
     host.id = HOST_ID
-    host.setAttribute('style', HOST_STYLE)
 
     const shadow = host.attachShadow({ mode: 'open' })
+    hostStyle = doc.createElement('style')
+    hostStyle.textContent = hostRule(null)
     label = doc.createElement('div')
-    shadow.append(label)
+    shadow.append(hostStyle, label)
 
     // The badge lives on `documentElement`, not `body`: at `document_start`
     // there is no body yet, and some sites replace it wholesale.
     doc.documentElement.append(host)
 
     return host
+  }
+
+  /**
+   * Rewriting the sheet costs a parse, so identical placements are dropped —
+   * `position` runs once per frame during a burst and on every scroll event.
+   */
+  const placeHost = (placement: HostPlacement | null) => {
+    if (!hostStyle) {
+      return
+    }
+
+    const rule = hostRule(placement)
+
+    if (hostStyle.textContent !== rule) {
+      hostStyle.textContent = rule
+    }
   }
 
   const styleLabel = (settings: BadgeSettings) => {
@@ -118,10 +185,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
 
   const hide = () => {
     visible = false
-
-    if (host) {
-      host.style.display = 'none'
-    }
+    placeHost(null)
   }
 
   const position = () => {
@@ -145,7 +209,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       rect.left >= viewportWidth
 
     if (offscreen) {
-      host.style.display = 'none'
+      placeHost(null)
       return
     }
 
@@ -153,15 +217,14 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       currentSettings.corner,
     )
 
-    host.style.display = 'flex'
-    host.style.left = `${rect.left}px`
-    host.style.top = `${rect.top}px`
-    host.style.width = `${rect.width}px`
-    host.style.height = `${rect.height}px`
-    host.style.alignItems = alignItems
-    host.style.justifyContent = justifyContent
-    host.style.padding = `${INSET_PX}px`
-    host.style.boxSizing = 'border-box'
+    placeHost({
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      alignItems,
+      justifyContent,
+    })
   }
 
   const tick = () => {
@@ -323,6 +386,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     doc.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
     host?.remove()
     host = null
+    hostStyle = null
     label = null
   }
 

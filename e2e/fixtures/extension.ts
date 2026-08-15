@@ -29,6 +29,12 @@ import {
 import { FIXTURE_ORIGIN, installFixtureRoutes } from './pages'
 
 type ExtensionFixtures = {
+  /**
+   * Unpacked extensions to load alongside the build. Set per file with
+   * `test.use({ blockers: [blockerPath] })`; empty everywhere else, so the rest
+   * of the suite keeps running against the extension on its own.
+   */
+  blockers: string[]
   extensionContext: BrowserContext
   extensionId: string
   openFixture: (pathname: string) => Promise<Page>
@@ -39,10 +45,13 @@ type ExtensionFixtures = {
 }
 
 export const test = base.extend<ExtensionFixtures>({
-  extensionContext: async ({ headless }, use, testInfo) => {
+  blockers: [[], { option: true }],
+
+  extensionContext: async ({ headless, blockers }, use, testInfo) => {
     const context = await launchExtensionContext({
       userDataDir: testInfo.outputPath('chromium-profile'),
       headless,
+      extraExtensions: blockers,
     })
 
     await installFixtureRoutes(context)

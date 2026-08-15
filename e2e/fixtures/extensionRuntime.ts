@@ -10,9 +10,19 @@ import {
 type LaunchExtensionContextOptions = {
   userDataDir: string
   headless: boolean
+  /**
+   * Other unpacked extensions to load next to the build — a content blocker,
+   * for the ad-blocker checks. Chromium takes a comma-separated list, and both
+   * flags have to name every one of them: `--disable-extensions-except` is what
+   * keeps anything else out.
+   */
+  extraExtensions?: string[]
 }
 
 export const extensionPath = path.resolve(process.cwd(), 'dist')
+
+/** The stand-in content blocker. `e2e/fixtures/blocker/blocker.js` says why. */
+export const blockerPath = path.resolve(process.cwd(), 'e2e/fixtures/blocker')
 
 export const resolveChromiumExecutable = () => {
   const explicitExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
@@ -32,8 +42,10 @@ export const resolveChromiumExecutable = () => {
 export const launchExtensionContext = async ({
   userDataDir,
   headless,
+  extraExtensions = [],
 }: LaunchExtensionContextOptions) => {
   const executablePath = resolveChromiumExecutable()
+  const loaded = [extensionPath, ...extraExtensions].join(',')
 
   return chromium.launchPersistentContext(userDataDir, {
     executablePath,
@@ -43,8 +55,8 @@ export const launchExtensionContext = async ({
     headless,
     viewport: { width: 1280, height: 800 },
     args: [
-      `--disable-extensions-except=${extensionPath}`,
-      `--load-extension=${extensionPath}`,
+      `--disable-extensions-except=${loaded}`,
+      `--load-extension=${loaded}`,
       '--no-sandbox',
     ],
   })
@@ -65,8 +77,13 @@ export const closeExtensionContext = async (context: BrowserContext) => {
   }
 }
 
+// Told apart from a blocker's worker by the crxjs loader in the file name: with
+// two extensions loaded, "the first service worker" is a coin flip.
 export const isExtensionWorker = (worker: Worker) => {
-  return worker.url().startsWith('chrome-extension://')
+  return (
+    worker.url().startsWith('chrome-extension://') &&
+    worker.url().includes('service-worker-loader')
+  )
 }
 
 export const waitForExtensionWorker = async (context: BrowserContext) => {

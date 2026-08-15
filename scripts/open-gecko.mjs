@@ -11,18 +11,23 @@ import path from 'node:path'
 import process from 'node:process'
 import webExt from 'web-ext'
 import { printHelpAndExit } from './help.mjs'
+import { installedBlocker } from './fetch-blockers.mjs'
 
 printHelpAndExit(`
-Usage: pnpm dev:firefox [url] [--help]
-       pnpm dev:zen [url] [--help]
-       node scripts/open-gecko.mjs <firefox|zen> [url]
+Usage: pnpm dev:firefox [url] [--with-ublock] [--help]
+       pnpm dev:zen [url] [--with-ublock] [--help]
+       node scripts/open-gecko.mjs <firefox|zen> [url] [--with-ublock]
 
 Installs dist-firefox/ as a temporary add-on and leaves the browser open, for
 the manual validation list in docs/testing.md. Walk that list on Gecko as well
 as Chromium: the background script, the callback-only chrome.* surface, and the
 popup being a XUL panel are all places the two targets can diverge.
 
-  url   page to open (default: https://www.youtube.com/)
+  url             page to open (default: https://www.youtube.com/)
+  --with-ublock   also install uBlock Origin, after \`pnpm blockers:fetch\`.
+                  Gecko is the only target that can run it: uBO is Manifest V2
+                  and modern Chromium refuses to install it at all, so this is
+                  where the real blocker gets tested. See docs/ad-blockers.md.
 
 Each browser keeps its own profile under node_modules/.tmp/, and the profiles
 survive between runs, so a site you logged into once stays logged in and Firefox
@@ -84,6 +89,8 @@ const positionals = process.argv
   .slice(2)
   .filter(argument => !argument.startsWith('-'))
 
+const withUblock = process.argv.slice(2).includes('--with-ublock')
+
 const [browserName] = positionals
 const browser = BROWSERS[browserName]
 
@@ -114,6 +121,32 @@ const profilePath = path.resolve(
 const openUrl =
   positionals[1] ?? process.env.REBOBINATE_OPEN_URL ?? defaultOpenUrl
 
+/**
+ * uBO goes into the profile rather than being installed as a second temporary
+ * add-on: web-ext installs exactly one, and the signed XPI is accepted by a
+ * release Gecko where our own unsigned build is not. Gecko picks up an add-on
+ * from `<profile>/extensions/<id>.xpi`, and web-ext's own default of
+ * `extensions.autoDisableScopes: 10` leaves the profile scope enabled.
+ */
+const installUblock = () => {
+  const xpi = installedBlocker('ublock')
+
+  if (!xpi) {
+    console.error(
+      'uBlock Origin is not downloaded — run `pnpm blockers:fetch` first',
+    )
+    process.exit(1)
+  }
+
+  const extensionsDir = path.join(profilePath, 'extensions')
+  fs.mkdirSync(extensionsDir, { recursive: true })
+  fs.copyFileSync(xpi, path.join(extensionsDir, path.basename(xpi)))
+
+  return path.join(extensionsDir, path.basename(xpi))
+}
+
+const ublockPath = withUblock ? installUblock() : null
+
 console.log(
   JSON.stringify(
     {
@@ -122,6 +155,7 @@ console.log(
       profile: profilePath,
       executable: executablePath,
       sourceDir,
+      ublock: ublockPath,
     },
     null,
     2,
