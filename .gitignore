@@ -9,3 +9,4 @@ coverage
 !.envrc
 test-results
 playwright-report
+.tmp
