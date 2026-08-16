@@ -86,8 +86,8 @@ describe('popup tabs', () => {
     })
     render(<App />)
 
-    expect(screen.getByRole('status')).toBeDefined
-    expect(screen.getByText('1.5×')).toBeInTheDocument()
+    // The readout, not one of the preset chips, which carry the same labels.
+    expect(screen.getByRole('status')).toHaveTextContent('1.5×')
   })
 
   it('swaps the pane and leaves only the selected tab in the focus order', async () => {
@@ -136,6 +136,36 @@ describe('popup tabs', () => {
     expect(screen.getByLabelText('Enabled')).toBeInTheDocument()
   })
 
+  /**
+   * The chips exist because the step grid is a long walk: at the default 0.05
+   * step, 1.0× to 2.0× is twenty presses. They reuse the ordinary set message,
+   * so the service worker clamps them like any other.
+   */
+  it('jumps straight to a preset speed', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '2.0×' }))
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      { type: 'rebobinate:set', speed: 2 },
+      expect.any(Function),
+    )
+  })
+
+  it('marks the preset the tab is already at', () => {
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: '1.5×' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: '1.0×' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  })
+
   // The hint stops being true the moment a key is rebound.
   it('names the bound keys in the hint', () => {
     seedSettings({
@@ -177,10 +207,57 @@ describe('popup sites tab', () => {
     answerPopupState('vimeo.com')
     await openSites()
 
-    expect(screen.getByText('—')).toBeInTheDocument()
+    expect(screen.getByLabelText('Speed for vimeo.com')).toHaveValue('')
     expect(
       screen.getByRole('button', { name: 'Forget vimeo.com' }),
     ).toBeDisabled()
+  })
+
+  /**
+   * The one thing this pane is for. Before this the select only appeared once
+   * an entry existed, so a starting speed could not be chosen here until it had
+   * been set from the Speed tab first.
+   */
+  it('sets a starting speed for a site with nothing remembered yet', async () => {
+    answerPopupState('vimeo.com')
+    const user = await openSites()
+
+    await user.selectOptions(
+      screen.getByLabelText('Speed for vimeo.com'),
+      '1.5',
+    )
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      { type: 'rebobinate:set-domain-speed', domain: 'vimeo.com', speed: 1.5 },
+      expect.any(Function),
+    )
+  })
+
+  it('offers the default speed among an unset site’s choices', async () => {
+    answerPopupState('vimeo.com')
+    seedSettings({ defaultSpeed: 1.15 })
+    await openSites()
+
+    const options = within(screen.getByLabelText('Speed for vimeo.com'))
+      .getAllByRole('option')
+      .map(option => (option as HTMLOptionElement).value)
+
+    expect(options).toContain('1.15')
+  })
+
+  // The blank option is how the row says "nothing remembered", so it is gone
+  // the moment something is: the ✕ is the way back, and the select must not
+  // offer a second, differently-behaved one.
+  it('drops the blank option once the site has a speed', async () => {
+    answerPopupState('vimeo.com')
+    seedDomains({ 'vimeo.com': { speed: 1.5, updatedAt: 1 } })
+    await openSites()
+
+    const options = within(screen.getByLabelText('Speed for vimeo.com'))
+      .getAllByRole('option')
+      .map(option => (option as HTMLOptionElement).value)
+
+    expect(options).not.toContain('')
   })
 
   it('says so on a page that is not a site', async () => {
@@ -265,10 +342,20 @@ describe('popup sites tab', () => {
     await openSites()
 
     expect(screen.queryByLabelText('Speed for vimeo.com')).toBeNull()
-    expect(screen.getByText('Never')).toBeInTheDocument()
+    expect(screen.getByLabelText('Never remember vimeo.com')).toBeChecked()
     expect(
       screen.getByRole('button', { name: 'Forget vimeo.com' }),
     ).toBeDisabled()
+  })
+
+  // Every row names its switch, so the word is on screen before the switch is
+  // touched rather than only appearing in the speed column afterwards.
+  it('names the switch in a row whatever the row’s state', async () => {
+    answerPopupState('youtube.com')
+    seedDomains({ 'vimeo.com': { updatedAt: 1, never: true } })
+    await openSites()
+
+    expect(screen.getAllByText('Never')).toHaveLength(2)
   })
 
   it('filters a long list down', async () => {

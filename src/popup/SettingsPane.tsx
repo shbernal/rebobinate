@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { BackupContents } from '@/shared/backup'
 import type { DomainStore } from '@/shared/domains'
 import type { KeyBindings } from '@/shared/keys'
@@ -55,7 +55,6 @@ const SettingsPane = ({
    */
   const [stepDraft, setStepDraft] = useState<string | null>(null)
   const [openColor, setOpenColor] = useState<ColorFieldKey | null>(null)
-  const openColorField = COLOR_FIELDS.find(field => field.key === openColor)
 
   const saveBadge = (patch: Partial<BadgeSettings>) => {
     save({ ...settings, badge: { ...settings.badge, ...patch } })
@@ -124,128 +123,136 @@ const SettingsPane = ({
 
       <hr />
 
-      {/* Named for where it is drawn now that there are two badges. */}
-      <section className="field">
-        <span>On-video badge</span>
-        <Toggle
-          label="On-video badge"
-          checked={settings.badge.enabled}
-          onChange={enabled => saveBadge({ enabled })}
-        />
-      </section>
+      {/* Everything the preview previews, in one block, because the preview is
+          stuck to the bottom of it: scoped this way it stays on screen while
+          the badge is being changed and lets go once the Backup section
+          arrives, rather than covering it. */}
+      <section className="badge-settings">
+        {/* Named for where it is drawn now that there are two badges. */}
+        <section className="field">
+          <span>On-video badge</span>
+          <Toggle
+            label="On-video badge"
+            checked={settings.badge.enabled}
+            onChange={enabled => saveBadge({ enabled })}
+          />
+        </section>
 
-      <fieldset className="corners" disabled={!settings.badge.enabled}>
-        <legend>Corner</legend>
-        {BADGE_CORNERS.map(corner => (
-          <button
-            key={corner}
-            type="button"
-            aria-label={corner}
-            aria-pressed={settings.badge.corner === corner}
-            className={settings.badge.corner === corner ? 'active' : ''}
-            onClick={() => saveBadge({ corner })}
-          >
-            {CORNER_LABELS[corner]}
-          </button>
-        ))}
-      </fieldset>
-
-      <section className="field" hidden={!settings.badge.enabled}>
-        <label htmlFor="badge-size">Size</label>
-        <input
-          id="badge-size"
-          type="range"
-          min={LIMITS.fontSize.min}
-          max={LIMITS.fontSize.max}
-          value={settings.badge.fontSize}
-          onChange={event =>
-            saveBadge({ fontSize: Number(event.target.value) })
-          }
-        />
-      </section>
-
-      <section className="field" hidden={!settings.badge.enabled}>
-        <label htmlFor="badge-opacity">Opacity</label>
-        <input
-          id="badge-opacity"
-          type="range"
-          min={LIMITS.opacity.min * 100}
-          max={LIMITS.opacity.max * 100}
-          value={Math.round(settings.badge.opacity * 100)}
-          onChange={event =>
-            saveBadge({ opacity: Number(event.target.value) / 100 })
-          }
-        />
-      </section>
-
-      <section className="field" hidden={!settings.badge.enabled}>
-        <span>Colors</span>
-        <span className="colors">
-          {COLOR_FIELDS.map(field => (
+        <fieldset className="corners" disabled={!settings.badge.enabled}>
+          <legend>Corner</legend>
+          {BADGE_CORNERS.map(corner => (
             <button
-              key={field.key}
+              key={corner}
               type="button"
-              aria-label={field.label}
-              aria-expanded={openColor === field.key}
-              className={openColor === field.key ? 'swatch active' : 'swatch'}
-              style={{ background: settings.badge[field.key] }}
-              onClick={() =>
-                setOpenColor(open => (open === field.key ? null : field.key))
-              }
-            />
+              aria-label={corner}
+              aria-pressed={settings.badge.corner === corner}
+              className={settings.badge.corner === corner ? 'active' : ''}
+              onClick={() => saveBadge({ corner })}
+            >
+              {CORNER_LABELS[corner]}
+            </button>
           ))}
-        </span>
-      </section>
+        </fieldset>
 
-      {openColorField && settings.badge.enabled ? (
-        <ColorPicker
-          // Each field gets its own instance: without a key React reuses the
-          // one panel across a switch, carrying a half-typed hex with it.
-          key={openColorField.key}
-          label={openColorField.label}
-          value={settings.badge[openColorField.key]}
-          onChange={hex => saveBadge({ [openColorField.key]: hex })}
-        />
-      ) : null}
+        <section className="field" hidden={!settings.badge.enabled}>
+          <label htmlFor="badge-size">Size</label>
+          <input
+            id="badge-size"
+            type="range"
+            min={LIMITS.fontSize.min}
+            max={LIMITS.fontSize.max}
+            value={settings.badge.fontSize}
+            onChange={event =>
+              saveBadge({ fontSize: Number(event.target.value) })
+            }
+          />
+        </section>
 
-      <section className="field" hidden={!settings.badge.enabled}>
-        <label htmlFor="badge-autohide">Hide after</label>
-        <select
-          id="badge-autohide"
-          value={settings.badge.autoHideMs}
-          onChange={event =>
-            saveBadge({ autoHideMs: Number(event.target.value) })
-          }
-        >
-          <option value={0}>Never</option>
-          <option value={1000}>1s</option>
-          <option value={2000}>2s</option>
-          <option value={5000}>5s</option>
-        </select>
-      </section>
+        <section className="field" hidden={!settings.badge.enabled}>
+          <label htmlFor="badge-opacity">Opacity</label>
+          <input
+            id="badge-opacity"
+            type="range"
+            min={LIMITS.opacity.min * 100}
+            max={LIMITS.opacity.max * 100}
+            value={Math.round(settings.badge.opacity * 100)}
+            onChange={event =>
+              saveBadge({ opacity: Number(event.target.value) / 100 })
+            }
+          />
+        </section>
 
-      <section className="field" hidden={!settings.badge.enabled}>
-        <span>Hide at 1.0×</span>
-        <Toggle
-          label="Hide at 1.0×"
-          checked={settings.badge.hideAtNormalSpeed}
-          onChange={hideAtNormalSpeed => saveBadge({ hideAtNormalSpeed })}
-        />
-      </section>
+        {/* One row per colour, in the label-left/control-right shape the rest
+            of the pane uses: a bare swatch names neither which colour it is
+            nor, in the light theme, that it is a control at all. */}
+        {COLOR_FIELDS.map(field => (
+          <Fragment key={field.key}>
+            <section className="field" hidden={!settings.badge.enabled}>
+              <span>{field.label}</span>
+              <button
+                type="button"
+                aria-label={field.label}
+                aria-expanded={openColor === field.key}
+                className={openColor === field.key ? 'swatch active' : 'swatch'}
+                style={{ background: settings.badge[field.key] }}
+                onClick={() =>
+                  setOpenColor(open => (open === field.key ? null : field.key))
+                }
+              />
+            </section>
 
-      <section className="preview" hidden={!settings.badge.enabled}>
-        <span
-          className="preview-badge"
-          data-corner={settings.badge.corner}
-          style={{
-            fontSize: `${settings.badge.fontSize}px`,
-            opacity: settings.badge.opacity,
-            color: settings.badge.textColor,
-            background: settings.badge.backgroundColor,
-          }}
-        >
-          {formatSpeedLabel(speed)}
-        </span>
+            {/* One panel at a time, opening under the row it belongs to.
+                Mounting it per field is also what stops React reusing the one
+                panel across a switch and carrying a half-typed hex with it. */}
+            {openColor === field.key && settings.badge.enabled ? (
+              <ColorPicker
+                label={field.label}
+                value={settings.badge[field.key]}
+                onChange={hex => saveBadge({ [field.key]: hex })}
+              />
+            ) : null}
+          </Fragment>
+        ))}
+
+        <section className="field" hidden={!settings.badge.enabled}>
+          <label htmlFor="badge-autohide">Hide after</label>
+          <select
+            id="badge-autohide"
+            value={settings.badge.autoHideMs}
+            onChange={event =>
+              saveBadge({ autoHideMs: Number(event.target.value) })
+            }
+          >
+            <option value={0}>Never</option>
+            <option value={1000}>1s</option>
+            <option value={2000}>2s</option>
+            <option value={5000}>5s</option>
+          </select>
+        </section>
+
+        <section className="field" hidden={!settings.badge.enabled}>
+          <span>Hide at 1.0×</span>
+          <Toggle
+            label="Hide at 1.0×"
+            checked={settings.badge.hideAtNormalSpeed}
+            onChange={hideAtNormalSpeed => saveBadge({ hideAtNormalSpeed })}
+          />
+        </section>
+
+        <section className="preview" hidden={!settings.badge.enabled}>
+          <span
+            className="preview-badge"
+            data-corner={settings.badge.corner}
+            style={{
+              fontSize: `${settings.badge.fontSize}px`,
+              opacity: settings.badge.opacity,
+              color: settings.badge.textColor,
+              background: settings.badge.backgroundColor,
+            }}
+          >
+            {formatSpeedLabel(speed)}
+          </span>
+        </section>
       </section>
 
       <hr />

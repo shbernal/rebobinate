@@ -196,16 +196,17 @@ const openPopupOver = async (page: Page, popup: Page) => {
 }
 
 /**
- * Whatever the "This tab" heading is followed by — the row for the site the
- * service worker resolved, or the note saying it resolved none. Addressed
- * through the heading rather than as the first `.sites` list, because when
- * there is no row the first such list is the remembered-sites one below, which
- * names the same site and would answer for it.
+ * The row for the site the service worker resolved, under the "This tab"
+ * heading. Addressed through the heading rather than as the first `.sites`
+ * list, because when there is no row the first such list is the
+ * remembered-sites one below, which names the same site and would answer for
+ * it. The `hr` closes the section, so matching it too means an absent row
+ * resolves to something empty rather than to the list below.
  */
 const thisTabBlock = (popup: Page) =>
   popup
     .locator('h2.pane-heading', { hasText: 'This tab' })
-    .locator('xpath=following-sibling::*[1]')
+    .locator('xpath=following-sibling::*[self::ul or self::hr][1]')
 
 test.describe('popup sites tab', () => {
   test('shows the site of the tab behind it', async ({

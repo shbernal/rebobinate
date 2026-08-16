@@ -16,6 +16,14 @@
   margin: 0;
 }
 
+/* Caption and switch travel together, so `space-between` still pushes the pair
+   to the right edge rather than stranding the caption in the middle. */
+.header-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* On/off slider. The popup follows the OS theme through `color-scheme` and the
    system colour keywords, so the track, the knob and the checked accent all
    resolve per theme without a `prefers-color-scheme` block. */
@@ -116,11 +124,41 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Equal columns rather than content width, so the row reads as one scale and
+   the chips stay wide enough to hit at 320px. */
+.speed-presets {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.speed-presets button {
+  padding: 4px 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.speed-presets button[aria-pressed='true'] {
+  font-weight: 600;
+  outline: 2px solid Highlight;
+  outline-offset: 1px;
+}
+
 .field {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+/* `hidden` is a UA rule and sits below every author rule in the cascade, so the
+   `display` above defeats it: the badge rows and the preview stayed on screen
+   with the on-video badge switched off. Matching the attribute as well puts the
+   author rule on the winning side rather than reaching for `!important`. */
+.field[hidden],
+.preview[hidden] {
+  display: none;
 }
 
 .field input[type='number'] {
@@ -175,6 +213,24 @@
   gap: 8px;
   max-height: 440px;
   overflow-y: auto;
+  /* A scroll cue, in two layers and no JavaScript. The cover scrolls with the
+     content (`local`) and sits at the end of it; the shadow under it is fixed
+     to the box. So the shadow shows exactly while there is more pane below,
+     and the cover slides over it as the last row arrives. It is a background,
+     so it paints behind the pinned preview rather than on top of it.
+
+     The shadow fades back out before the bottom edge because the cover tracks
+     the scrollable area, which fractional layout leaves a pixel taller than
+     the box on a pane that does not really scroll: a shadow that ran to the
+     edge would show that pixel as a line under every short pane. */
+  background:
+    linear-gradient(transparent, Canvas) bottom / 100% 18px no-repeat local,
+    linear-gradient(
+        transparent,
+        color-mix(in srgb, CanvasText 22%, transparent) 80%,
+        transparent
+      )
+      bottom / 100% 14px no-repeat scroll;
 }
 
 .pane-heading {
@@ -217,6 +273,15 @@
 .site-speed {
   flex: none;
   font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+/* Names the switch beside it in every row, whatever the row's state — the
+   `aria-label` was the only thing saying what the track meant. The domain is
+   what gives way when the row is tight; `.site-name` ellipsises. */
+.site-never {
+  flex: none;
+  font-size: 11px;
   opacity: 0.8;
 }
 
@@ -336,11 +401,6 @@ hr {
   outline: 2px solid Highlight;
 }
 
-.colors {
-  display: flex;
-  gap: 6px;
-}
-
 /* The popup renders its own colour picker rather than `<input type="color">`,
    which on Firefox opens a toplevel dialog that steals focus and tears the
    popup down before a colour is chosen. See docs/build-targets.md. */
@@ -457,8 +517,22 @@ hr {
   border-radius: 4px;
 }
 
+/* The badge settings and their preview as one block. The block is the
+   preview's containing block, which is the whole point of it existing: the
+   preview stays pinned while anything it previews is being changed, and
+   releases at the end of the block instead of covering the Backup section. */
+.badge-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .preview {
-  position: relative;
+  position: sticky;
+  bottom: 0;
+  /* Over the picker, which otherwise scrolls out from under it. The stripes
+     are painted over an opaque base, so what passes behind stays readable. */
+  z-index: 1;
   height: 68px;
   border-radius: 6px;
   background:
@@ -526,6 +600,13 @@ hr {
   font-size: 11px;
   padding: 3px 8px;
   cursor: pointer;
+}
+
+/* Which panel is open, in the same treatment `.swatch.active` and
+   `.corners button.active` use for "this is the selected one". */
+.backup-actions button[aria-expanded='true'] {
+  outline: 2px solid Highlight;
+  outline-offset: 1px;
 }
 
 .backup-text {
