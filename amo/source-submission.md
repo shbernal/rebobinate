@@ -31,14 +31,14 @@ to Reviewer" field, so it reaches the reviewer without anyone opening the
 archive. That field is plain text: the block carries no Markdown, because
 backticks and asterisks would arrive as themselves.
 
-> Build environment: Debian 12 container, Node.js 24.18.1, pnpm 11.3.0. The same
-> build on Arch Linux under Node.js 26.4.0 produced byte-identical output, so
-> the Node.js minor version is not significant.
+> Build environment: Debian 12 container, Node.js 24.18.1. The same build on
+> Arch Linux under Node.js 26.4.0 produced byte-identical output, so the
+> Node.js minor version is not significant.
 >
 > This project uses pnpm, not npm. Do not run "npm install" — there is no
 > package-lock.json, and the dependency tree is pinned by pnpm-lock.yaml. The
-> required pnpm version is declared in package.json as
-> "packageManager": "pnpm@11.3.0", and Corepack (bundled with Node.js 24)
+> required pnpm version is declared in the packageManager field of
+> package.json, and Corepack (bundled with Node.js 24) reads that field and
 > installs and pins that exact version for you.
 >
 > From the root of the extracted source archive:
@@ -86,9 +86,16 @@ pnpm package:source
 
 ## Note On The pnpm Version
 
-`package.json` pins `pnpm@11.3.0` via `packageManager`. A newer pnpm may be
-installed globally on a given machine; both Corepack and pnpm's own version
-management honor the pin and switch to 11.3.0 inside this repository, so the
-lockfile is never resolved by a different version than it was written with. Do
-not write build instructions that name a pnpm version other than the one in
-`packageManager`.
+`packageManager` in `package.json` is the only place the pnpm version is
+pinned, and everything else derives from it. A newer pnpm may be installed
+globally on a given machine; both Corepack and pnpm's own version management
+honor the pin and switch to the pinned version inside this repository, so the
+lockfile is never resolved by a different version than it was written with.
+CI does not repeat the number either — `pnpm/action-setup` reads
+`packageManager` when given no `version` input.
+
+Do not write build instructions that name a literal pnpm version. Point at
+`packageManager` instead, so a bump stays a one-line change and no second copy
+can go stale. The versions recorded under
+[Reproducibility](#reproducibility) are the exception: those are a log of what
+a past verification actually ran, not instructions, so they stay as they are.

@@ -18,10 +18,11 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
 
+      # No version pin here on purpose: with no "version" input, action-setup
+      # reads the pnpm version from the "packageManager" field in package.json,
+      # so that field stays the single source of truth for every surface.
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 11.3.0
 
       - name: Setup Node
         uses: actions/setup-node@v4
