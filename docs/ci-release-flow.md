@@ -3,9 +3,15 @@
 ## Validation
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`:
-format check, typecheck, Vitest, Chrome build, then the Firefox build with
-`web-ext lint`. The Firefox lint step is there because Gecko rejects manifest
-keys Chrome accepts.
+format check, oxlint, typecheck, Vitest, Chrome build, then the Firefox build
+with `web-ext lint`. The Firefox lint step is there because Gecko rejects
+manifest keys Chrome accepts.
+
+The oxlint step runs with `--format github`, so a finding lands as an inline
+annotation on the diff rather than only in the log. It is the cheapest step in
+the job — tens of milliseconds over the whole tree — and it is configured to
+cover only what typecheck cannot see; [Linting](../AGENTS.md#linting) explains
+the scoping.
 
 The Playwright suite is not in CI yet. It needs a Chromium that can load
 extensions; run it locally with `pnpm e2e` before packaging.

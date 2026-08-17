@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["oxc", "typescript", "unicorn", "vitest"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    // `expect(x).toBeDefined` without the call parentheses is a green test that
+    // asserts nothing. tsc accepts it, because reading a matcher is valid.
+    "vitest/valid-expect": "error",
+
+    // Style, not correctness: it wants `vi.fn<() => void>()` at every call site
+    // in the Chrome mock, where the surrounding types already pin the shape.
+    "vitest/require-mock-type-parameters": "off"
+  },
+  "overrides": [
+    {
+      // React lives only in the popup, and the hooks rules have to be scoped to
+      // it. Playwright's fixtures take a `use` callback, which `rules-of-hooks`
+      // reads as React's `use` hook called outside a component — seven false
+      // positives in `e2e/fixtures/extension.ts` alone.
+      "files": ["src/popup/**/*.tsx", "src/popup/**/*.ts"],
+      "plugins": ["react", "react-hooks"],
+      "rules": {
+        // The reason this project lints at all. TypeScript cannot see a stale
+        // closure, so a dependency left out of an effect is invisible to
+        // `pnpm typecheck` and to every test that renders once.
+        "react-hooks/exhaustive-deps": "error",
+        "react-hooks/rules-of-hooks": "error"
+      }
+    }
+  ],
+  "ignorePatterns": ["dist/", "dist-firefox/", "release/"]
+}

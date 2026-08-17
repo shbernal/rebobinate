@@ -81,6 +81,10 @@ Use `pnpm`.
 
 - `pnpm build` — TypeScript build plus the Chrome package in `dist/`.
 - `pnpm build:firefox` — the Firefox package in `dist-firefox/`.
+- `pnpm lint` — oxlint over the whole tree; `pnpm lint:fix` applies the safe
+  fixes. Zero findings is the bar. It is scoped to what `tsc` cannot see, so it
+  stays quiet: the correctness category, the React hooks rules on
+  `src/popup/`, and `vitest/valid-expect`. See [Linting](#linting).
 - `pnpm lint:firefox` — build the Firefox target and check it with `web-ext
 lint`. Zero errors is the bar; a few warnings are expected.
 - `pnpm typecheck` — TypeScript only.
@@ -100,10 +104,36 @@ lint`. Zero errors is the bar; a few warnings are expected.
   `dev:firefox --with-ublock`.
 
 Run `pnpm check:filters` when touching the badge's DOM or styling. For other
-code changes run at least `pnpm typecheck` and `pnpm test`. Run `pnpm build`
-and `pnpm e2e` when touching the manifest, content script, service worker,
-popup, shared settings, icons, or packaging. Also run `pnpm lint:firefox` when
-touching the manifest or packaging — Gecko rejects manifest keys Chrome accepts.
+code changes run at least `pnpm lint`, `pnpm typecheck`, and `pnpm test`. Run
+`pnpm build` and `pnpm e2e` when touching the manifest, content script, service
+worker, popup, shared settings, icons, or packaging. Also run
+`pnpm lint:firefox` when touching the manifest or packaging — Gecko rejects
+manifest keys Chrome accepts.
+
+## Linting
+
+`.oxlintrc.json` configures oxlint, and it is deliberately small. `tsc` already
+runs `strict` with `noUnusedLocals`, `noUnusedParameters`, and
+`noFallthroughCasesInSwitch`, and Prettier owns everything stylistic, so a rule
+that only restates one of those is noise. The config carries what neither can
+reach, and every entry has a comment saying why it is there. Keep it that way:
+prefer leaving a rule off to suppressing it at call sites later.
+
+Two things about the shape of that file are load-bearing:
+
+- **The React hooks rules are scoped to `src/popup/`**, which is the only place
+  React lives. They cannot be global. Playwright's fixtures take a `use`
+  callback, and `rules-of-hooks` reads every one of them as React's `use` hook
+  called outside a component — seven false positives in
+  `e2e/fixtures/extension.ts` alone.
+- **`plugins` replaces the default set rather than adding to it**, so the base
+  list has to keep naming `oxc`, `typescript`, and `unicorn` even though oxlint
+  enables those on its own.
+
+The source-convention guards in `tests/` stay Vitest tests and should not be
+rewritten as lint rules. They encode reasoning specific to this extension —
+which is why they are prose with a regex rather than configuration — and the
+comments explaining what Gecko does are worth more than the enforcement.
 
 ## Debugging Reported Behavior
 

@@ -192,10 +192,14 @@ const request = async (method, endpoint, { json, form } = {}) => {
       headers['Content-Type'] = 'application/json'
     }
 
+    // Omitted rather than passed as undefined: a GET carrying a `body` key is
+    // invalid even when its value is nothing.
+    const payload = json !== undefined ? JSON.stringify(json) : form
+
     const response = await fetch(`${API}${endpoint}`, {
       method,
       headers,
-      body: json !== undefined ? JSON.stringify(json) : form,
+      ...(payload === undefined ? {} : { body: payload }),
     })
 
     const body = parse(await response.text())

@@ -86,7 +86,7 @@ describe('popup tabs', () => {
     })
     render(<App />)
 
-    expect(screen.getByRole('status')).toBeDefined
+    expect(screen.getByRole('status')).toBeInTheDocument()
     expect(screen.getByText('1.5×')).toBeInTheDocument()
   })
 

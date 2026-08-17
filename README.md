@@ -55,7 +55,7 @@ never leave your device.
 ## Verify
 
 ```sh
-pnpm typecheck && pnpm test
+pnpm lint && pnpm typecheck && pnpm test
 ```
 
 ## Contributing

@@ -31,6 +31,13 @@ jobs:
       - name: Check formatting
         run: pnpm format
 
+      # Covers what tsc cannot see. The rule that earns this step is
+      # react-hooks/exhaustive-deps: a dependency missing from a popup effect
+      # typechecks, renders, and passes every unit test that renders once.
+      # --format github turns each finding into an inline annotation on the PR.
+      - name: Lint
+        run: pnpm lint --format github
+
       - name: Typecheck
         run: pnpm typecheck
 
