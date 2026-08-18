@@ -65,6 +65,13 @@ export default {
     provider: 'openrouter',
     model: 'google/gemini-3.7-flash',
     concurrency: 4,
+
+    // The lens is mimic's — a persona, reusable across targets. What belongs
+    // here is what the thing *is*: without it, "modern web standards" invites a
+    // critique asking a 360px panel for a hero section.
+    lens: 'design',
+    notes:
+      'A browser-extension popup, about 360px wide, opened over the page the person is watching. It is a compact utility panel, not a page — judge it against other extension popups and system panels, not against a website. It sits over arbitrary video sites, so it cannot rely on anything behind it.',
   },
 
   async launch({
