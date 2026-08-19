@@ -11,6 +11,13 @@ type SpeedPaneProps = {
   onAction: (action: SpeedAction) => void
   /** A preset chip, which goes straight to a speed rather than stepping. */
   onSetSpeed: (speed: number) => void
+  /** The domain the active tab counts as, or null when there is not one. */
+  domain: string | null
+  /**
+   * Whether a speed set here is being written down against that domain. False
+   * while per-site memory is off and on a site that is marked never.
+   */
+  remembered: boolean
 }
 
 /**
@@ -28,6 +35,8 @@ const SpeedPane = ({
   keys,
   onAction,
   onSetSpeed,
+  domain,
+  remembered,
 }: SpeedPaneProps) => (
   <>
     <section className="speed">
@@ -77,6 +86,14 @@ const SpeedPane = ({
         </button>
       ))}
     </section>
+
+    {/* A receipt, not a control. Stepping the speed here writes a rule that
+        applies on every later visit to this site, and this is the only screen
+        that can say so at the moment it happens. What to do about it lives on
+        the Sites tab, one click away. */}
+    {remembered && domain !== null ? (
+      <p className="note">Remembered for {domain}</p>
+    ) : null}
 
     <p className="hint">
       <kbd>{firstBinding(keys.increase)}</kbd> faster ·{' '}

@@ -230,9 +230,11 @@ test.describe('popup sites tab', () => {
     const thisTab = thisTabBlock(popup)
 
     await expect(thisTab).toContainText('player.test')
-    await expect(thisTab.getByLabel('Speed for player.test')).toHaveValue(
-      '1.05',
-    )
+    // Exact: the row's ✕ names the same outcome as the select's `Use default`
+    // option, so its label contains this one as a substring.
+    await expect(
+      thisTab.getByLabel('Speed for player.test', { exact: true }),
+    ).toHaveValue('1.05')
   })
 
   // Chromium answers for the popup's own tab with no URL at all — the key is
@@ -283,7 +285,9 @@ test.describe('popup sites tab', () => {
     await openTab(popup, 'Sites')
     // One control carries the whole state of a row, so switching a site off is
     // an option of the same select that sets its speed.
-    await popup.getByLabel('Speed for player.test').selectOption('never')
+    await popup
+      .getByLabel('Speed for player.test', { exact: true })
+      .selectOption('never')
 
     await expect
       .poll(async () => (await rememberedSites())['player.test']?.never)

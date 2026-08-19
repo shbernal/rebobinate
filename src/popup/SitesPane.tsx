@@ -105,14 +105,17 @@ const SiteRow = ({
         ))}
       </select>
 
-      {/* A marker is still a stored entry, so the ✕ clears it too — otherwise
-          a site switched off has no way back except the select that put it
-          there. */}
+      {/* The one-click version of the select's `Use default`, which calls the
+          same `clear` — so it is named for the same outcome rather than for a
+          second vocabulary. A marker is still a stored entry, so the ✕ clears
+          that too: otherwise a site switched off has no way back except the
+          select that put it there. `disabled` says the button is about what is
+          stored, which the select's option cannot. */}
       <button
         type="button"
         className="forget"
-        aria-label={`Forget ${domain}`}
-        title={`Forget what is remembered for ${domain}`}
+        aria-label={`Back to the default speed for ${domain}`}
+        title={`Back to the default speed for ${domain}`}
         disabled={!entry}
         onClick={clear}
       >

@@ -72,13 +72,23 @@ site means "back to normal here", not "start watching me again", and the LRU cap
 counts the two kinds of entry separately — a profile with 500 remembered speeds
 must not quietly evict an opt-out and start remembering the site again.
 
+The Speed tab says when it is writing one of these. `App.tsx` hands `SpeedPane`
+the resolved domain and whether it is being remembered — memory on, a domain to
+hang it on, no marker on this one — and the pane renders _"Remembered for X"_
+under the preset row when all three hold. It is a receipt rather than a control:
+stepping the speed writes a rule that applies on every later visit, and the
+Sites tab, where that rule can be changed, is not somewhere anybody goes before
+being surprised by it.
+
 The marker only ever appears from the Sites tab, which is also where a
 remembered speed can be edited or dropped for any site rather than only the one
 in front of the user. **A row is one control.** The select carries every state
 the row can be in — `Never remember`, `Use default (N×)` with the user's own
-default in it, or a speed — and the ✕ beside it means "forget this row" and
-nothing else. It was three controls once, and two of them did the same thing: a
-blank option that meant "no entry", a `Never` switch, and a ✕ that was disabled
+default in it, or a speed — and the ✕ beside it is the one-click version of
+that select's `Use default`, named for the same outcome (_"Back to the default
+speed for X"_) because it calls the same `clear`. It was three controls once,
+and two of them did the same thing: a blank option that meant "no entry", a
+`Never` switch, and a ✕ that was disabled
 on exactly the rows a marker made unreachable. The select is offered even with
 nothing remembered yet, because deciding what a site should start at is what the
 tab is for, and requiring a video to be stepped somewhere else first made that
@@ -339,11 +349,13 @@ Three things about the panes follow from that width:
   so every switch needs a visible caption of its own in the row around it —
   the `Enabled` span in the header, the label column of a `.field`. A switch added without one is a coloured track that
   says nothing.
-- **The badge preview is pinned to its own block.** `.badge-settings` wraps
-  everything the preview previews and `.preview` is `position: sticky;
-bottom: 0`, so the preview stays on screen while the colour picker is open
-  and releases at the end of the block rather than covering the Backup section
-  below. Scoping the containing block to the block is the whole mechanism.
+- **The badge preview is pinned to the top of its own block.**
+  `.badge-settings` wraps everything the preview previews, `.preview` leads
+  that block and is `position: sticky; top: 0`. Scoping the containing block to
+  the block is what makes it release at the end rather than covering the Backup
+  section below; sticking it to the _top_ is what stops it covering Size,
+  Opacity and the colour rows, since a top-stuck element only ever paints over
+  what has already scrolled past it.
 - **Selected is a fill, focused is an outline.** `outline: 2px solid Highlight`
   used to mark the open Export panel, the chosen corner, the matching preset
   chip, the open swatch _and_ `:focus-visible`, so three different meanings were
@@ -351,21 +363,25 @@ bottom: 0`, so the preview stays on screen while the colour picker is open
   an accent border over `color-mix(in srgb, AccentColor 18%, Canvas)` and the
   outline belongs to the focus ring alone. The two colour controls keep their
   own inline background, so on those it is the border that carries it.
-- **`.pane` carries a scroll cue** as a pair of gradients — an opaque cover at
-  `background-attachment: local` over a shadow at `scroll` — so a fading bottom
-  edge appears only while there is more pane below, with no scroll listener.
-  Fractional layout leaves a short pane a pixel of scrollable overflow, which
-  is why the shadow fades back out before the bottom edge instead of running
-  into it.
+- **`.pane` carries a scroll cue at each edge** as a pair of gradients apiece —
+  an opaque cover at `background-attachment: local` over a shadow at `scroll` —
+  so a fading edge appears only while there is more pane past it, with no
+  scroll listener. Each cover turns fully opaque a third of the way in rather
+  than at its last pixel: two gradients ramping over the same rows do not
+  cancel, and the leftover shadow shows as a grey band on every pane too short
+  to scroll. Fractional layout leaves such a pane a pixel of scrollable
+  overflow, which is also why each shadow fades back out before its edge
+  instead of running into it.
 
 The badge preview shows the styling and says the rest. It renders whenever the
 on-video badge is on, which cannot be made to demonstrate `autoHideMs` or
 `hideAtNormalSpeed`: a preview that vanishes two seconds after a slider moves is
 not a preview, and honouring "show at 1.0×" would blank it for most users at
 rest, since it previews the tab's current speed. So `visibilityNote` in
-`SettingsPane.tsx` composes both settings into a sentence under it — _"Shown for
-2 seconds after a speed change, and hidden at 1.0×."_ — which updates as the
-controls move.
+`SettingsPane.tsx` composes both settings into a sentence directly under it —
+_"Shown for 2 seconds after a speed change, and hidden at 1.0×."_ — which
+updates as the controls move. The sentence sits with the sample rather than
+with the controls it reads, so the rule and the thing obeying it stay adjacent.
 
 That switch is asked as **"Show at 1.0×"** while the stored key stays
 `hideAtNormalSpeed`. Every other switch on the pane means "more visible" when it
@@ -437,12 +453,17 @@ saves as it is typed, and blur expands a three-digit one.
 `src/shared/backup.ts` turns both stores into one JSON document and back.
 `src/popup/Backup.tsx` is the panel at the bottom of the Settings pane: **Export**
 shows the document in a read-only textarea with a Copy button, **Import** takes a
-pasted one and replaces what is stored. The button that overwrites both stores is
-disabled until `parseBackup` accepts what is in the box — it is parsed as the box
-changes and `restore` reads that same result rather than parsing twice — and the
-note under it either says why the button is dead or counts what pressing it would
-replace. There is no confirmation step by design: on Gecko the popup autohides on
-focus loss, so an extra step is another way to lose the paste.
+pasted one and replaces what is stored. The two are one two-way switch over a
+single slot rather than two actions, so they are drawn as one joined segmented
+pair with the open half filled — they stay `<button>`s carrying `aria-expanded`,
+because opening and closing a region is what they do. The button that overwrites
+both stores is disabled until `parseBackup` accepts what is in the box — it is
+parsed as the box changes and `restore` reads that same result rather than
+parsing twice — and the note under it either says why the button is dead or
+counts what pressing it would replace, down to saying that nothing is remembered
+yet rather than counting zero sites. There is no confirmation step by design: on
+Gecko the popup autohides on focus loss, so an extra step is another way to lose
+the paste.
 
 It is text in a textarea on both engines because of the same Gecko constraint
 the colour picker works around: an `<input type="file">` opens a native chooser,

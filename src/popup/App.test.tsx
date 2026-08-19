@@ -205,6 +205,53 @@ describe('popup tabs', () => {
   })
 })
 
+/**
+ * Per-site memory is on out of the box, so a speed set here outlives the tab.
+ * Nothing on this pane used to say so, and the Sites tab — where it is said —
+ * is not somewhere anybody goes before being surprised by it.
+ */
+describe('popup speed tab receipt', () => {
+  beforeEach(() => {
+    seedSettings()
+  })
+
+  it('says the speed is being kept for the site behind the popup', async () => {
+    answerPopupState('youtube.com', 1.5)
+    render(<App />)
+
+    expect(
+      await screen.findByText('Remembered for youtube.com'),
+    ).toBeInTheDocument()
+  })
+
+  it('says nothing while per-site memory is off', async () => {
+    seedSettings({ rememberPerDomain: false })
+    answerPopupState('youtube.com', 1.5)
+    render(<App />)
+
+    expect(await screen.findByText(/faster/)).toBeInTheDocument()
+    expect(screen.queryByText(/^Remembered for/)).toBeNull()
+  })
+
+  it('says nothing on a page there is no domain for', async () => {
+    answerPopupState(null, 1.5)
+    render(<App />)
+
+    expect(await screen.findByText(/faster/)).toBeInTheDocument()
+    expect(screen.queryByText(/^Remembered for/)).toBeNull()
+  })
+
+  // A marker means the opposite of a receipt: this site is being left out.
+  it('says nothing on a site that is switched off', async () => {
+    answerPopupState('vimeo.com', 1.5)
+    seedDomains({ 'vimeo.com': { speed: 1, updatedAt: 1, never: true } })
+    render(<App />)
+
+    expect(await screen.findByText(/faster/)).toBeInTheDocument()
+    expect(screen.queryByText(/^Remembered for/)).toBeNull()
+  })
+})
+
 describe('popup sites tab', () => {
   beforeEach(() => {
     seedSettings()
@@ -226,7 +273,9 @@ describe('popup sites tab', () => {
     expect(screen.getByText('youtube.com')).toBeInTheDocument()
     expect(screen.getByLabelText('Speed for youtube.com')).toHaveValue('1.5')
     expect(
-      screen.getByRole('button', { name: 'Forget youtube.com' }),
+      screen.getByRole('button', {
+        name: 'Back to the default speed for youtube.com',
+      }),
     ).toBeEnabled()
   })
 
@@ -236,7 +285,9 @@ describe('popup sites tab', () => {
 
     expect(screen.getByLabelText('Speed for vimeo.com')).toHaveValue('default')
     expect(
-      screen.getByRole('button', { name: 'Forget vimeo.com' }),
+      screen.getByRole('button', {
+        name: 'Back to the default speed for vimeo.com',
+      }),
     ).toBeDisabled()
   })
 
@@ -320,7 +371,11 @@ describe('popup sites tab', () => {
     seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
     const user = await openSites()
 
-    await user.click(screen.getByRole('button', { name: 'Forget youtube.com' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Back to the default speed for youtube.com',
+      }),
+    )
 
     expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
       { type: 'rebobinate:forget-domain', domain: 'youtube.com' },
@@ -402,7 +457,11 @@ describe('popup sites tab', () => {
     seedDomains({ 'vimeo.com': { speed: 1, updatedAt: 1, never: true } })
     const user = await openSites()
 
-    await user.click(screen.getByRole('button', { name: 'Forget vimeo.com' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Back to the default speed for vimeo.com',
+      }),
+    )
 
     expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
       {
@@ -975,6 +1034,22 @@ describe('popup backup', () => {
       expect.objectContaining({ type: 'rebobinate:import-domains' }),
       expect.any(Function),
     )
+  })
+
+  // "all 0 remembered sites" on a fresh profile describes a loss that cannot
+  // happen, which is the half of the sentence a reader weighs.
+  it('does not count a list that does not exist yet', async () => {
+    getChromeMock().storage.local.seed({
+      [DOMAINS_STORAGE_KEY]: {
+        schemaVersion: DOMAINS_SCHEMA_VERSION,
+        entries: {},
+      },
+    })
+    await openBackup('Import')
+
+    expect(
+      screen.getByText('Replaces your settings. No sites are remembered yet.'),
+    ).toBeInTheDocument()
   })
 
   it('counts what a restore would replace', async () => {

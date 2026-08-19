@@ -84,6 +84,67 @@ export async function start(s: Ctx): Promise<{ video: Page; popup: Page }> {
   return { video, popup }
 }
 
+type Clip = { x: number; y: number; width: number; height: number }
+
+/**
+ * Fail the frame unless `mustShow` is really on it.
+ *
+ * A caption saying "scrolled down to the part about the marker" is only worth
+ * capturing if it can be false, and the box test alone cannot make it false: an
+ * element can sit squarely inside the clip and still be painted over by
+ * anything sticky or layered above it. So the geometry is checked, and then the
+ * pixel at the element's centre is asked what is actually on top of it. A frame
+ * that fails here is cheap; a frame that ships a true-sounding caption over the
+ * wrong screen buys a whole round of confident, wrong critique.
+ */
+async function assertShown(
+  mustShow: Locator,
+  clip: Clip,
+  name: string,
+): Promise<void> {
+  const box = await mustShow.boundingBox()
+
+  if (box === null) {
+    throw new Error(`frame "${name}": what it is about is not rendered at all`)
+  }
+
+  const inside =
+    box.x >= clip.x &&
+    box.y >= clip.y &&
+    box.x + box.width <= clip.x + clip.width &&
+    box.y + box.height <= clip.y + clip.height
+
+  if (!inside) {
+    throw new Error(
+      `frame "${name}": what it is about lies outside the captured panel`,
+    )
+  }
+
+  const covering = await mustShow.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    const hit = element.ownerDocument.elementFromPoint(
+      rect.x + rect.width / 2,
+      rect.y + rect.height / 2,
+    )
+
+    if (hit === null) return 'nothing at all'
+    if (hit === element || element.contains(hit)) return null
+
+    const classes =
+      typeof hit.className === 'string' && hit.className !== ''
+        ? `.${hit.className.trim().split(/\s+/).join('.')}`
+        : ''
+
+    return `${hit.tagName.toLowerCase()}${classes}`
+  })
+
+  if (covering !== null) {
+    throw new Error(
+      `frame "${name}": what it is about is covered by ${covering}`,
+    )
+  }
+}
+
 /**
  * Capture the frame a person would see, with its narration. One call, so the
  * caption cannot drift from the pixels.
@@ -92,16 +153,17 @@ export async function start(s: Ctx): Promise<{ video: Page; popup: Page }> {
  * the browser's viewport, so the 320px panel sits in the corner of a much wider
  * page with nothing beside it — hence the clip, since `setViewportSize` is
  * rejected outright by an extension popup target. And the panel is its own
- * scrolling container, so `scrollTo` scrolls it exactly as a person would.
+ * scrolling container, so scrolling `mustShow` into view scrolls it exactly as a
+ * person would.
  */
 export async function look(
   s: Ctx,
   popup: Page,
   says: string,
-  options: { name: string; scrollTo?: Locator },
+  options: { name: string; mustShow?: Locator },
 ): Promise<void> {
-  if (options.scrollTo !== undefined) {
-    await options.scrollTo.scrollIntoViewIfNeeded()
+  if (options.mustShow !== undefined) {
+    await options.mustShow.scrollIntoViewIfNeeded()
     await popup.waitForTimeout(200)
   }
 
@@ -112,16 +174,18 @@ export async function look(
   }))
   const x = Math.max(0, panel?.x ?? 0)
   const y = Math.max(0, panel?.y ?? 0)
+  const clip = {
+    x,
+    y,
+    width: Math.min(panel?.width ?? 320, page.width - x),
+    height: Math.min(panel?.height ?? page.height, page.height - y),
+  }
 
-  await s.show(says, {
-    name: options.name,
-    clip: {
-      x,
-      y,
-      width: Math.min(panel?.width ?? 320, page.width - x),
-      height: Math.min(panel?.height ?? page.height, page.height - y),
-    },
-  })
+  if (options.mustShow !== undefined) {
+    await assertShown(options.mustShow, clip, options.name)
+  }
+
+  await s.show(says, { name: options.name, clip })
 }
 
 /**

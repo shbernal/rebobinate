@@ -18,8 +18,8 @@ export default {
     await look(
       s,
       popup,
-      'The Settings section, scrolled down to the part about the marker that appears on top of the video. "Size" and "Opacity" are drag handles, and the four arrow buttons above them choose which corner of the video the marker sits in.',
-      { name: 'controls', scrollTo: popup.locator('#badge-size') },
+      'The Settings section, scrolled down to the part about the marker that appears on top of the video. "Size" and "Opacity" are drag handles, and the four arrow buttons above them choose which corner of the video the marker sits in. The striped box pinned to the top of the section is a live sample of the marker.',
+      { name: 'controls', mustShow: popup.locator('#badge-opacity') },
     )
 
     await popup.locator('#badge-size').fill('34')
@@ -28,8 +28,8 @@ export default {
     await look(
       s,
       popup,
-      'The "Size" handle has been dragged most of the way right and the "Opacity" handle all the way right. The box at the bottom is a live sample of the marker and has changed to match.',
-      { name: 'resized', scrollTo: popup.locator('.preview') },
+      'The "Size" handle has been dragged most of the way right and the "Opacity" handle all the way right. The sample pinned at the top of the section has changed to match, and stays there while the handles below it are dragged.',
+      { name: 'resized', mustShow: popup.locator('#badge-opacity') },
     )
 
     await popup.getByRole('button', { name: 'Text color' }).click()
@@ -38,7 +38,7 @@ export default {
       s,
       popup,
       'Clicking the first of the two coloured squares next to "Colors" opened this panel. It is how the colour of the marker is chosen.',
-      { name: 'picker', scrollTo: popup.locator('.color-picker') },
+      { name: 'picker', mustShow: popup.locator('.color-picker') },
     )
   },
 }
