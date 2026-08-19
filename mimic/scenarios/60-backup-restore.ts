@@ -16,7 +16,7 @@ export default {
       s,
       popup,
       'The very bottom of the Settings section, reached by scrolling all the way down past everything else. These two buttons are the only thing here about moving settings between computers.',
-      { name: 'backup', scrollTo: backup },
+      { name: 'backup', mustShow: backup },
     )
 
     await popup.getByRole('button', { name: 'Export', exact: true }).click()
@@ -25,7 +25,7 @@ export default {
       s,
       popup,
       'The "Export" button has been pressed. This is everything it produces.',
-      { name: 'export', scrollTo: backup },
+      { name: 'export', mustShow: backup },
     )
 
     await popup.getByRole('button', { name: 'Import', exact: true }).click()
@@ -34,7 +34,7 @@ export default {
       s,
       popup,
       'The "Import" button has been pressed instead. This is what someone doing the other half of the job — putting their settings onto a second computer — would see.',
-      { name: 'import', scrollTo: backup },
+      { name: 'import', mustShow: backup },
     )
   },
 }

@@ -91,17 +91,25 @@ export async function start(s: Ctx): Promise<{ video: Page; popup: Page }> {
  * Two things have to be undone first. Reached over CDP the popup page renders at
  * the browser's viewport, so the 320px panel sits in the corner of a much wider
  * page with nothing beside it — hence the clip, since `setViewportSize` is
- * rejected outright by an extension popup target. And the panel is its own
- * scrolling container, so `scrollTo` scrolls it exactly as a person would.
+ * rejected outright by an extension popup target. And the pane inside the panel
+ * is its own scrolling container, so `mustShow` scrolls it exactly as a person
+ * would.
+ *
+ * `mustShow` is then checked against the clip rather than trusted. A frame whose
+ * narration describes the thing it was scrolled to, taken before the scroll
+ * settled or with the thing under the fold, is the failure that costs the most:
+ * it reads as a perfectly good exhibit all the way through the judge, and the
+ * critique it buys is confident and about the wrong screen. Failing here is
+ * cheap; the caption has to be able to be false for the frame to fail.
  */
 export async function look(
   s: Ctx,
   popup: Page,
   says: string,
-  options: { name: string; scrollTo?: Locator },
+  options: { name: string; mustShow?: Locator },
 ): Promise<void> {
-  if (options.scrollTo !== undefined) {
-    await options.scrollTo.scrollIntoViewIfNeeded()
+  if (options.mustShow !== undefined) {
+    await options.mustShow.scrollIntoViewIfNeeded()
     await popup.waitForTimeout(200)
   }
 
@@ -112,16 +120,30 @@ export async function look(
   }))
   const x = Math.max(0, panel?.x ?? 0)
   const y = Math.max(0, panel?.y ?? 0)
+  const clip = {
+    x,
+    y,
+    width: Math.min(panel?.width ?? 320, page.width - x),
+    height: Math.min(panel?.height ?? page.height, page.height - y),
+  }
 
-  await s.show(says, {
-    name: options.name,
-    clip: {
-      x,
-      y,
-      width: Math.min(panel?.width ?? 320, page.width - x),
-      height: Math.min(panel?.height ?? page.height, page.height - y),
-    },
-  })
+  if (options.mustShow !== undefined) {
+    const box = await options.mustShow.boundingBox()
+    if (
+      box === null ||
+      box.x < clip.x ||
+      box.y < clip.y ||
+      box.x + box.width > clip.x + clip.width ||
+      box.y + box.height > clip.y + clip.height
+    ) {
+      throw new Error(
+        `Frame "${options.name}" would not have shown what it says it shows: ` +
+          `${JSON.stringify(box)} is not inside ${JSON.stringify(clip)}.`,
+      )
+    }
+  }
+
+  await s.show(says, { name: options.name, clip })
 }
 
 /**

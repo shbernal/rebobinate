@@ -1,4 +1,4 @@
-import { look, metaOf, start, toggle, type Ctx } from '../page.ts'
+import { look, metaOf, start, type Ctx } from '../page.ts'
 
 /**
  * Depends on live tab state: the "This tab" row only means anything if the panel
@@ -47,12 +47,16 @@ export default {
       { name: 'remembered' },
     )
 
-    await toggle(reopened, /Never remember/).click()
+    // "Never remember" is an option of the row's own dropdown rather than a
+    // switch beside it, so saying it and saying a speed are the same gesture.
+    await reopened
+      .getByRole('combobox', { name: 'Speed for player.test' })
+      .selectOption('never')
     await reopened.waitForTimeout(500)
     await look(
       s,
       reopened,
-      'The switch on that row has been turned on. It is how someone says this particular site should be left out of the memory altogether.',
+      'The dropdown on that row has been changed from a speed to "Never remember". It is the same dropdown a speed is chosen from, and it is how someone says this particular site should be left out of the memory altogether.',
       { name: 'never' },
     )
   },
