@@ -32,7 +32,7 @@ type ColorFieldKey = (typeof COLOR_FIELDS)[number]['key']
  * When the badge is on screen, in a sentence.
  *
  * The preview cannot act this out: it is pinned so that it stays visible while
- * the controls above it move, and honouring "hide at normal speed" would blank
+ * the controls below it move, and honouring "hide at normal speed" would blank
  * it for most users at rest, since the popup previews the tab's current speed.
  * So the rules are stated instead, and stating them is also what answers
  * whether the two settings interact — the sentence has to carry both.
@@ -150,9 +150,13 @@ const SettingsPane = ({
       <hr />
 
       {/* Everything the preview previews, in one block, because the preview is
-          stuck to the bottom of it: scoped this way it stays on screen while
-          the badge is being changed and lets go once the Backup section
-          arrives, rather than covering it. */}
+          stuck to the top of it: scoped this way it stays on screen for the
+          whole run of badge controls and lets go once the Backup section
+          arrives, rather than covering it. The preview leads the block for the
+          same reason — a top-stuck element covers what has already scrolled
+          past it, never a control being scrolled toward. The sentence about
+          when the badge shows travels with it, so the sample and the rule it
+          obeys stay adjacent. */}
       <section className="badge-settings">
         {/* Named for where it is drawn now that there are two badges. */}
         <section className="field">
@@ -163,6 +167,25 @@ const SettingsPane = ({
             onChange={enabled => saveBadge({ enabled })}
           />
         </section>
+
+        <section className="preview" hidden={!settings.badge.enabled}>
+          <span
+            className="preview-badge"
+            data-corner={settings.badge.corner}
+            style={{
+              fontSize: `${settings.badge.fontSize}px`,
+              opacity: settings.badge.opacity,
+              color: settings.badge.textColor,
+              background: settings.badge.backgroundColor,
+            }}
+          >
+            {formatSpeedLabel(speed)}
+          </span>
+        </section>
+
+        <p className="note" hidden={!settings.badge.enabled}>
+          {visibilityNote(settings.badge)}
+        </p>
 
         {/* The buttons are in a box of their own rather than being laid out by
             the fieldset: a `display: grid` fieldset makes its legend a grid
@@ -279,25 +302,6 @@ const SettingsPane = ({
             onChange={show => saveBadge({ hideAtNormalSpeed: !show })}
           />
         </section>
-
-        <section className="preview" hidden={!settings.badge.enabled}>
-          <span
-            className="preview-badge"
-            data-corner={settings.badge.corner}
-            style={{
-              fontSize: `${settings.badge.fontSize}px`,
-              opacity: settings.badge.opacity,
-              color: settings.badge.textColor,
-              background: settings.badge.backgroundColor,
-            }}
-          >
-            {formatSpeedLabel(speed)}
-          </span>
-        </section>
-
-        <p className="note" hidden={!settings.badge.enabled}>
-          {visibilityNote(settings.badge)}
-        </p>
       </section>
 
       <hr />

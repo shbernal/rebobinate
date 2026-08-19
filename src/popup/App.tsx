@@ -190,6 +190,15 @@ const App = () => {
             keys={settings.keys}
             onAction={act}
             onSetSpeed={jumpTo}
+            domain={domain}
+            /* The three things that have to hold for a speed set here to
+               survive the tab: the feature is on, there is a domain to hang
+               it on, and this one is not marked never. */
+            remembered={
+              settings.rememberPerDomain &&
+              domain !== null &&
+              domains.entries[domain]?.never !== true
+            }
           />
         ) : null}
 

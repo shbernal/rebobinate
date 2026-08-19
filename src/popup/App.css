@@ -114,14 +114,19 @@
   cursor: pointer;
 }
 
-/* Its own line under the stepper, at the end of the row, so it reads as a way
-   out of the scale rather than as a fourth step button. */
+/* Its own line under the stepper, so it reads as a way out of the scale rather
+   than as a fourth step button — but on the stepper's grid, so it hangs from
+   the number it resets instead of from `+`. Sizing it to the middle column
+   would give a full-width button more weight than the two steppers. */
 .speed-reset {
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  gap: 6px;
 }
 
 .speed-reset .reset {
+  grid-column: 2;
+  justify-self: center;
   font-size: 11px;
   padding: 3px 8px;
   cursor: pointer;
@@ -230,18 +235,35 @@
   gap: 8px;
   max-height: 440px;
   overflow-y: auto;
-  /* A scroll cue, in two layers and no JavaScript. The cover scrolls with the
-     content (`local`) and sits at the end of it; the shadow under it is fixed
-     to the box. So the shadow shows exactly while there is more pane below,
-     and the cover slides over it as the last row arrives. It is a background,
-     so it paints behind the pinned preview rather than on top of it.
+  /* A scroll cue at each edge, in two layers apiece and no JavaScript. Each
+     cover scrolls with the content (`local`) and sits at that end of it; the
+     shadow under it is fixed to the box. So a shadow shows exactly while there
+     is more pane past that edge, and its cover slides over it as the first or
+     last row arrives. They are backgrounds, so they paint behind the pinned
+     preview rather than on top of it.
 
-     The shadow fades back out before the bottom edge because the cover tracks
-     the scrollable area, which fractional layout leaves a pixel taller than
-     the box on a pane that does not really scroll: a shadow that ran to the
-     edge would show that pixel as a line under every short pane. */
+     Each cover reaches full Canvas a third of the way in rather than at its
+     own last pixel, and that stop is what makes the pair cancel. Two gradients
+     ramping over the same rows do not: a cover that only turns opaque at its
+     end leaves a sixth of the shadow standing, which fractional layout — see
+     below — then puts on every pane too short to scroll, as a grey band under
+     the last row. Measured at this stop a short pane is flat Canvas to within
+     one part in 255.
+
+     Each shadow fades back out before its edge because the cover tracks the
+     scrollable area, which fractional layout leaves a pixel taller than the
+     box on a pane that does not really scroll: a shadow that ran to the edge
+     would show that pixel as a line. */
   background:
-    linear-gradient(transparent, Canvas) bottom / 100% 18px no-repeat local,
+    linear-gradient(Canvas 70%, transparent) top / 100% 18px no-repeat local,
+    linear-gradient(transparent 0%, Canvas 30%) bottom / 100% 18px no-repeat
+      local,
+    linear-gradient(
+        transparent,
+        color-mix(in srgb, CanvasText 22%, transparent) 20%,
+        transparent
+      )
+      top / 100% 14px no-repeat scroll,
     linear-gradient(
         transparent,
         color-mix(in srgb, CanvasText 22%, transparent) 80%,
@@ -486,8 +508,7 @@ hr {
 .corners button.active,
 .swatch.active,
 .presets button.active,
-.speed-presets button[aria-pressed='true'],
-.backup-actions button[aria-expanded='true'] {
+.speed-presets button[aria-pressed='true'] {
   border: 1px solid AccentColor;
   background: color-mix(in srgb, AccentColor 18%, Canvas);
 }
@@ -572,11 +593,16 @@ hr {
   gap: 8px;
 }
 
+/* Stuck to the top, and first in the block, because a top-stuck element only
+   ever covers what has already scrolled past it — never Size, Opacity or the
+   colour rows, which are the controls it is a preview of.
+
+   `z-index` keeps it over the picker panel and the rows that pass beneath it;
+   the stripes are painted on an opaque base, so what passes behind stays
+   readable. */
 .preview {
   position: sticky;
-  bottom: 0;
-  /* Over the picker, which otherwise scrolls out from under it. The stripes
-     are painted over an opaque base, so what passes behind stays readable. */
+  top: 0;
   z-index: 1;
   height: 68px;
   border-radius: 6px;
@@ -645,6 +671,43 @@ hr {
   font-size: 11px;
   padding: 3px 8px;
   cursor: pointer;
+}
+
+/* Export and Import are one two-way switch over a single panel, not two
+   one-shot actions — they open and close the same slot. Joined into one
+   bordered group so that reads before the panel is opened, with the open half
+   filled rather than merely outlined: an accent border alone, at 11px, reads
+   as a button that has just been pressed. They stay buttons carrying
+   `aria-expanded`, because opening a region is what they do. */
+.backup-modes {
+  align-self: flex-start;
+  gap: 0;
+  border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.backup-modes button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.backup-modes button + button {
+  border-left: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+}
+
+.backup-modes button[aria-expanded='true'] {
+  background: AccentColor;
+  color: AccentColorText;
+}
+
+/* Inset, because the group clips its children to the shared radius and an
+   outline drawn outside the button would be cut off with them. */
+.backup-modes button:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: -2px;
 }
 
 .backup-text {

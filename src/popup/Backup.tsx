@@ -44,6 +44,20 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
 
   const siteCount = Object.keys(domains.entries).length
 
+  /**
+   * What pressing the button costs, with the count — "the whole list" is not a
+   * number anybody can weigh. A fresh profile has no list at all, and counting
+   * it as "all 0 remembered sites" describes a loss that cannot happen.
+   */
+  const replacesNote =
+    siteCount === 0
+      ? 'Replaces your settings. No sites are remembered yet.'
+      : `Replaces your settings and ${
+          siteCount === 1
+            ? 'the 1 remembered site'
+            : `all ${siteCount} remembered sites`
+        }.`
+
   const show = (next: Mode) => {
     setMode(open => (open === next ? null : next))
     setStatus(null)
@@ -77,7 +91,9 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
 
   return (
     <section className="backup">
-      <div className="backup-actions">
+      {/* One switch over one panel, so it is styled as one: the pair opens and
+          closes a shared slot rather than each doing something on its own. */}
+      <div className="backup-actions backup-modes">
         <button
           type="button"
           aria-expanded={mode === 'export'}
@@ -130,19 +146,11 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
               Replace settings
             </button>
           </div>
-          {/* Why the button is dead, or what pressing it costs — with the
-              count, since "the whole list" is not a number anybody can weigh.
-              A confirmation step is the wrong shape here: on Gecko the popup
-              autohides on focus loss, so an extra step is another way to lose
-              the paste. */}
+          {/* Why the button is dead, or what pressing it costs. A confirmation
+              step is the wrong shape here: on Gecko the popup autohides on
+              focus loss, so an extra step is another way to lose the paste. */}
           <p className="note">
-            {draft.trim() !== '' && !parsed.ok
-              ? parsed.error
-              : `Replaces your settings and ${
-                  siteCount === 1
-                    ? 'the 1 remembered site'
-                    : `all ${siteCount} remembered sites`
-                }.`}
+            {draft.trim() !== '' && !parsed.ok ? parsed.error : replacesNote}
           </p>
         </>
       ) : null}

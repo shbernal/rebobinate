@@ -25,7 +25,7 @@ export default {
     await look(
       s,
       popup,
-      'The "+" button on the right has been pressed three times in a row. Each press makes the video play a little faster.',
+      'The "+" button on the right has been pressed three times in a row. Each press makes the video play a little faster. The line under the row of speeds names the site behind the panel and says the new speed is being kept for it.',
       { name: 'faster' },
     )
 
