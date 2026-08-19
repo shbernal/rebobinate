@@ -74,7 +74,11 @@ must not quietly evict an opt-out and start remembering the site again.
 
 The marker only ever appears from the Sites tab, which is also where a
 remembered speed can be edited or dropped for any site rather than only the one
-in front of the user. Those edits go through the service worker
+in front of the user. The row for the active tab offers its speed select even
+with nothing remembered yet, with a blank option selected: deciding what a site
+should start at is what the tab is for, and requiring a video to be stepped
+somewhere else first made that the one thing it could not do. Those edits go
+through the service worker
 (`rebobinate:set-domain-speed`, `rebobinate:set-domain-never`,
 `rebobinate:forget-domain`) for the same reason: a speed change on that domain
 may still be sitting in the debounce, and only the worker can cancel it. A speed
@@ -305,6 +309,39 @@ not there.
 
 The pane scrolls rather than the popup window, so the header and the strip stay
 put on the long Settings pane. The popup is still fixed at 320px wide.
+
+`src/popup/speeds.ts` holds the handful of speeds the popup offers directly:
+`SPEEDS`, behind the Sites pane's selects and the default speed, and
+`SPEED_PRESETS`, the chip row under the Speed pane's readout. The chips are a
+shortcut past the step grid — at the default 0.05 step, 1.0× to 2.0× is twenty
+presses — and they send the same `rebobinate:set` a frame does, so
+`resolveSpeed` clamps them like anything else. With a non-default step a chip
+can land off the grid; `stepSpeed` snaps back on the next press.
+
+Three things about the panes follow from that width:
+
+- **`Toggle` names itself only to a screen reader.** `src/popup/Toggle.tsx`
+  puts its `label` prop on the checkbox's `aria-label` and renders a bare track,
+  so every switch needs a visible caption of its own in the row around it —
+  the `Enabled` span in the header, `.site-never` in a site row, the label
+  column of a `.field`. A switch added without one is a coloured track that
+  says nothing.
+- **The badge preview is pinned to its own block.** `.badge-settings` wraps
+  everything the preview previews and `.preview` is `position: sticky;
+bottom: 0`, so the preview stays on screen while the colour picker is open
+  and releases at the end of the block rather than covering the Backup section
+  below. Scoping the containing block to the block is the whole mechanism.
+- **`.pane` carries a scroll cue** as a pair of gradients — an opaque cover at
+  `background-attachment: local` over a shadow at `scroll` — so a fading bottom
+  edge appears only while there is more pane below, with no scroll listener.
+  Fractional layout leaves a short pane a pixel of scrollable overflow, which
+  is why the shadow fades back out before the bottom edge instead of running
+  into it.
+
+One cascade trap lives with them: the badge rows and the preview are hidden with
+the `hidden` attribute, whose UA rule loses to any author `display`. `.field`
+and `.preview` both set `display: flex`, so `App.css` matches the attribute
+explicitly (`.field[hidden]`) to put the author rule on the winning side.
 
 ## Rebinding a key
 

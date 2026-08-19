@@ -2,27 +2,8 @@ import { useState } from 'react'
 import type { DomainMemory, DomainStore } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
 import { formatSpeedLabel } from '@/shared/speed'
+import { speedOptions } from './speeds'
 import Toggle from './Toggle'
-
-/**
- * The speeds a site can be set to from this pane, and the same list the default
- * speed uses. It is a short list rather than a typed field for the reason the
- * step field shows: a free-form number needs a draft state, because its halfway
- * values are not valid settings, and a starting speed has only a handful of
- * useful answers. A `<select>` also keeps the popup compact.
- */
-const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
-
-/**
- * A speed set from the keyboard lands anywhere on the step grid, so the stored
- * value is usually not one of the presets. It is added rather than rounded away:
- * opening the list must not silently change what a site is remembered at.
- */
-const speedOptions = (current: number) => {
-  return SPEEDS.includes(current)
-    ? SPEEDS
-    : [...SPEEDS, current].sort((a, b) => a - b)
-}
 
 /**
  * The map holds up to 500 sites and this is a 320px popup. Past this many rows
@@ -35,6 +16,8 @@ const FILTER_FROM = 8
 type RowProps = {
   domain: string
   entry: DomainMemory | undefined
+  /** What an unset row offers, so the user's own default is in its list. */
+  defaultSpeed: number
   onSetSpeed: (domain: string, speed: number) => void
   onSetNever: (domain: string, never: boolean) => void
   onForget: (domain: string) => void
@@ -43,11 +26,27 @@ type RowProps = {
 const SiteRow = ({
   domain,
   entry,
+  defaultSpeed,
   onSetSpeed,
   onSetNever,
   onForget,
 }: RowProps) => {
   const never = entry?.never === true
+
+  /**
+   * "No speed" and "no entry" are the same state, so the blank option is routed
+   * where the ✕ goes rather than being given a meaning of its own. It is the
+   * already-selected option of an unset row, so in practice the ✕ is the way
+   * back; this is what keeps the two from drifting apart if that changes.
+   */
+  const chooseSpeed = (value: string) => {
+    if (value === '') {
+      onForget(domain)
+      return
+    }
+
+    onSetSpeed(domain, Number(value))
+  }
 
   return (
     <li className="site">
@@ -56,24 +55,30 @@ const SiteRow = ({
       </span>
 
       {never ? (
-        <span className="site-speed">Never</span>
-      ) : entry ? (
+        // No speed to show, and no second "Never": the caption on the switch
+        // below already says what this row is.
+        <span className="site-speed">—</span>
+      ) : (
+        // Offered even with nothing remembered yet, so deciding what a site
+        // starts at does not first require going and changing a video's speed.
         <select
           className="site-speed-select"
           aria-label={`Speed for ${domain}`}
-          value={entry.speed}
-          onChange={event => onSetSpeed(domain, Number(event.target.value))}
+          value={entry ? entry.speed : ''}
+          onChange={event => chooseSpeed(event.target.value)}
         >
-          {speedOptions(entry.speed).map(speed => (
+          {entry ? null : <option value="">—</option>}
+          {speedOptions(entry ? entry.speed : defaultSpeed).map(speed => (
             <option key={speed} value={speed}>
               {formatSpeedLabel(speed)}
             </option>
           ))}
         </select>
-      ) : (
-        <span className="site-speed">—</span>
       )}
 
+      {/* The switch is named in the row rather than only in its `aria-label`:
+          an unlabelled track is read as "off" without saying off what. */}
+      <span className="site-never">Never</span>
       <Toggle
         label={`Never remember ${domain}`}
         checked={never}
@@ -129,7 +134,12 @@ const SitesPane = ({
   const shown = matching.slice(0, MAX_ROWS)
   const hidden = matching.length - shown.length
 
-  const rowProps = { onSetSpeed, onSetNever, onForget }
+  const rowProps = {
+    defaultSpeed: settings.defaultSpeed,
+    onSetSpeed,
+    onSetNever,
+    onForget,
+  }
 
   return (
     <>
@@ -166,6 +176,12 @@ const SitesPane = ({
           <hr />
 
           <h2 className="pane-heading">This tab</h2>
+          {/* Under the first switch the user meets, rather than under the
+              heading below it, and naming the control it describes. */}
+          <p className="note">
+            Never: this site is left out of the memory and always starts at the
+            default speed.
+          </p>
           {domain ? (
             <ul className="sites">
               <SiteRow
@@ -185,9 +201,6 @@ const SitesPane = ({
           <h2 className="pane-heading">
             Remembered sites{others.length > 0 ? ` (${others.length})` : ''}
           </h2>
-          <p className="note">
-            The switch leaves a site out of the memory altogether.
-          </p>
 
           {others.length >= FILTER_FROM ? (
             <section className="field">

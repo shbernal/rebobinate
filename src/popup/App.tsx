@@ -108,6 +108,11 @@ const App = () => {
     )
   }
 
+  /** The preset chips. `resolveSpeed` clamps it, as it does any other set. */
+  const jumpTo = (next: number) => {
+    sendMessage({ type: 'rebobinate:set', speed: next }, setSpeed)
+  }
+
   /**
    * Every edit to the map is routed through the service worker rather than
    * written here: a speed change on that domain may still be sitting in its
@@ -156,12 +161,18 @@ const App = () => {
     <main className="popup">
       <header className="header">
         <h1>Rebobinate</h1>
-        <Toggle
-          label="Enabled"
-          size="large"
-          checked={settings.enabled}
-          onChange={enabled => save({ ...settings, enabled })}
-        />
+        {/* The switch says what it is on screen and not only to a screen
+            reader. Its scope is left to where it sits: above the tab strip,
+            where nothing per-site or per-tab lives. */}
+        <span className="header-toggle">
+          <span>Enabled</span>
+          <Toggle
+            label="Enabled"
+            size="large"
+            checked={settings.enabled}
+            onChange={enabled => save({ ...settings, enabled })}
+          />
+        </span>
       </header>
 
       <Tabs tabs={TABS} active={tab} onSelect={setTab} />
@@ -173,7 +184,12 @@ const App = () => {
         aria-labelledby={tabId(tab)}
       >
         {tab === 'speed' ? (
-          <SpeedPane speed={speed} keys={settings.keys} onAction={act} />
+          <SpeedPane
+            speed={speed}
+            keys={settings.keys}
+            onAction={act}
+            onSetSpeed={jumpTo}
+          />
         ) : null}
 
         {tab === 'sites' ? (
