@@ -28,6 +28,27 @@ const COLOR_FIELDS = [
 
 type ColorFieldKey = (typeof COLOR_FIELDS)[number]['key']
 
+/**
+ * When the badge is on screen, in a sentence.
+ *
+ * The preview cannot act this out: it is pinned so that it stays visible while
+ * the controls above it move, and honouring "hide at normal speed" would blank
+ * it for most users at rest, since the popup previews the tab's current speed.
+ * So the rules are stated instead, and stating them is also what answers
+ * whether the two settings interact — the sentence has to carry both.
+ */
+const visibilityNote = (badge: BadgeSettings): string => {
+  const seconds = badge.autoHideMs / 1000
+  const shown =
+    badge.autoHideMs > 0
+      ? `Shown for ${seconds} second${seconds === 1 ? '' : 's'} after a speed change`
+      : 'Always shown while a video is playing'
+
+  return badge.hideAtNormalSpeed
+    ? `${shown}, and hidden at ${formatSpeedLabel(1)}.`
+    : `${shown}, including at ${formatSpeedLabel(1)}.`
+}
+
 type SettingsPaneProps = {
   settings: Settings
   save: (next: Settings) => void
@@ -92,7 +113,7 @@ const SettingsPane = ({
   return (
     <>
       <section className="field">
-        <label htmlFor="step">Step</label>
+        <label htmlFor="step">Speed step</label>
         <input
           id="step"
           type="number"
@@ -104,6 +125,11 @@ const SettingsPane = ({
           onBlur={commitStep}
         />
       </section>
+      {/* The buttons and the keys this governs are on another tab, so the
+          field is the only place that can say what it moves. The unit is not
+          appended inside the input: it is a numeric field with a draft state,
+          and a suffix would fight both. */}
+      <p className="note">How far + and − move the speed.</p>
 
       <hr />
 
@@ -138,24 +164,33 @@ const SettingsPane = ({
           />
         </section>
 
+        {/* The buttons are in a box of their own rather than being laid out by
+            the fieldset: a `display: grid` fieldset makes its legend a grid
+            item, which puts "Corner" in the first cell and pushes the four
+            corners into three rows. */}
         <fieldset className="corners" disabled={!settings.badge.enabled}>
           <legend>Corner</legend>
-          {BADGE_CORNERS.map(corner => (
-            <button
-              key={corner}
-              type="button"
-              aria-label={corner}
-              aria-pressed={settings.badge.corner === corner}
-              className={settings.badge.corner === corner ? 'active' : ''}
-              onClick={() => saveBadge({ corner })}
-            >
-              {CORNER_LABELS[corner]}
-            </button>
-          ))}
+          <div className="corner-grid">
+            {BADGE_CORNERS.map(corner => (
+              <button
+                key={corner}
+                type="button"
+                aria-label={corner}
+                aria-pressed={settings.badge.corner === corner}
+                className={settings.badge.corner === corner ? 'active' : ''}
+                onClick={() => saveBadge({ corner })}
+              >
+                {CORNER_LABELS[corner]}
+              </button>
+            ))}
+          </div>
         </fieldset>
 
         <section className="field" hidden={!settings.badge.enabled}>
           <label htmlFor="badge-size">Size</label>
+          {/* The thumb position is not a value anybody can write down, copy to
+              a second machine, or come back to after experimenting. */}
+          <output htmlFor="badge-size">{settings.badge.fontSize}px</output>
           <input
             id="badge-size"
             type="range"
@@ -170,6 +205,9 @@ const SettingsPane = ({
 
         <section className="field" hidden={!settings.badge.enabled}>
           <label htmlFor="badge-opacity">Opacity</label>
+          <output htmlFor="badge-opacity">
+            {Math.round(settings.badge.opacity * 100)}%
+          </output>
           <input
             id="badge-opacity"
             type="range"
@@ -230,12 +268,15 @@ const SettingsPane = ({
           </select>
         </section>
 
+        {/* Asked the way every other switch on this pane is asked — on means
+            more visible — while the stored key stays `hideAtNormalSpeed`,
+            which installed copies hold and the content script reads. */}
         <section className="field" hidden={!settings.badge.enabled}>
-          <span>Hide at 1.0×</span>
+          <span>Show at {formatSpeedLabel(1)}</span>
           <Toggle
-            label="Hide at 1.0×"
-            checked={settings.badge.hideAtNormalSpeed}
-            onChange={hideAtNormalSpeed => saveBadge({ hideAtNormalSpeed })}
+            label={`Show at ${formatSpeedLabel(1)}`}
+            checked={!settings.badge.hideAtNormalSpeed}
+            onChange={show => saveBadge({ hideAtNormalSpeed: !show })}
           />
         </section>
 
@@ -253,6 +294,10 @@ const SettingsPane = ({
             {formatSpeedLabel(speed)}
           </span>
         </section>
+
+        <p className="note" hidden={!settings.badge.enabled}>
+          {visibilityNote(settings.badge)}
+        </p>
       </section>
 
       <hr />

@@ -5,6 +5,8 @@ import { SPEED_PRESETS } from './speeds'
 
 type SpeedPaneProps = {
   speed: number
+  /** What reset goes back to, which is not always 1.0×. */
+  defaultSpeed: number
   keys: KeyBindings
   onAction: (action: SpeedAction) => void
   /** A preset chip, which goes straight to a speed rather than stepping. */
@@ -20,7 +22,13 @@ const firstBinding = (bindings: string[]) => {
   return bindings.length > 0 ? formatBinding(bindings[0]) : '—'
 }
 
-const SpeedPane = ({ speed, keys, onAction, onSetSpeed }: SpeedPaneProps) => (
+const SpeedPane = ({
+  speed,
+  defaultSpeed,
+  keys,
+  onAction,
+  onSetSpeed,
+}: SpeedPaneProps) => (
   <>
     <section className="speed">
       <button
@@ -38,8 +46,20 @@ const SpeedPane = ({ speed, keys, onAction, onSetSpeed }: SpeedPaneProps) => (
       >
         +
       </button>
-      <button type="button" className="reset" onClick={() => onAction('reset')}>
-        Reset
+    </section>
+
+    {/* Out of the stepper row, which it made asymmetric: with a fourth column
+        the readout no longer sat on the panel's centre. And named for what it
+        goes back to — the service worker resets to the default speed, not to
+        1.0×, so "Reset" is actively wrong once that default has been moved. */}
+    <section className="speed-reset">
+      <button
+        type="button"
+        className="reset"
+        title={`Back to ${formatSpeedLabel(defaultSpeed)}`}
+        onClick={() => onAction('reset')}
+      >
+        {speedsEqual(defaultSpeed, 1) ? 'Reset' : 'Default'}
       </button>
     </section>
 
