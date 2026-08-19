@@ -186,6 +186,7 @@ const App = () => {
         {tab === 'speed' ? (
           <SpeedPane
             speed={speed}
+            defaultSpeed={settings.defaultSpeed}
             keys={settings.keys}
             onAction={act}
             onSetSpeed={jumpTo}

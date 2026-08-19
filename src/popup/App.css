@@ -99,9 +99,11 @@
   }
 }
 
+/* Symmetric on purpose: Reset used to sit in a fourth `auto` column, which ate
+   the readout's `1fr` and left the number off the panel's centre. */
 .speed {
   display: grid;
-  grid-template-columns: 36px 1fr 36px auto;
+  grid-template-columns: 36px 1fr 36px;
   gap: 6px;
   align-items: center;
 }
@@ -112,9 +114,17 @@
   cursor: pointer;
 }
 
-.speed .reset {
-  font-size: 12px;
-  padding: 6px 10px;
+/* Its own line under the stepper, at the end of the row, so it reads as a way
+   out of the scale rather than as a fourth step button. */
+.speed-reset {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.speed-reset .reset {
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
 }
 
 .readout {
@@ -141,8 +151,6 @@
 
 .speed-presets button[aria-pressed='true'] {
   font-weight: 600;
-  outline: 2px solid Highlight;
-  outline-offset: 1px;
 }
 
 .field {
@@ -167,6 +175,15 @@
 
 .field input[type='range'] {
   width: 150px;
+}
+
+/* The number beside a slider. `tabular-nums` and `flex: none` keep the track
+   from shifting as the value goes from 9% to 100%. */
+.field output {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
 }
 
 /* The tab strip. Only the selected tab is in the focus order — the arrow keys
@@ -270,21 +287,8 @@
   font-family: ui-monospace, monospace;
 }
 
-.site-speed {
-  flex: none;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.8;
-}
-
-/* Names the switch beside it in every row, whatever the row's state — the
-   `aria-label` was the only thing saying what the track meant. The domain is
-   what gives way when the row is tight; `.site-name` ellipsises. */
-.site-never {
-  flex: none;
-  font-size: 11px;
-  opacity: 0.8;
-}
-
+/* One control carries the whole row, so it is the column that must not be
+   squeezed; `.site-name` ellipsises instead. */
 .site-speed-select {
   flex: none;
   font-variant-numeric: tabular-nums;
@@ -333,20 +337,39 @@
   gap: 4px;
 }
 
+/* The pill is the chip, not the `<kbd>` inside it. With the border on the key
+   alone the ✕ sat outside as loose text, and `Faster [+] ✕ [=] ✕` reads as a
+   multiplication sign between two keys rather than as two delete buttons. */
 .chip {
   display: inline-flex;
+  align-items: stretch;
+  min-height: 20px;
+  border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, CanvasText 6%, transparent);
+  overflow: hidden;
+}
+
+.chip kbd {
+  display: flex;
   align-items: center;
-  gap: 2px;
+  border: 0;
+  border-radius: 0;
 }
 
 .chip button {
-  padding: 0 3px;
+  width: 20px;
+  padding: 0;
   border: 0;
-  border-radius: 3px;
+  border-left: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+  border-radius: 0;
   background: transparent;
   color: inherit;
   font-size: 10px;
   line-height: 1;
+  /* Visibly part of the pill at rest rather than only under the pointer, but
+     quieter than the key it removes. */
+  opacity: 0.6;
   cursor: pointer;
 }
 
@@ -355,7 +378,9 @@
   opacity: 0.3;
 }
 
-.chip button:hover:enabled {
+.chip button:hover:enabled,
+.chip button:focus-visible {
+  opacity: 1;
   background: color-mix(in srgb, CanvasText 15%, transparent);
 }
 
@@ -377,13 +402,26 @@ hr {
   margin: 2px 0;
 }
 
+/* The control picks a corner of a rectangle, so it is shaped like one. The
+   glyphs stay: at 60px across, the grid alone is not big enough to read as a
+   video frame. `BADGE_CORNERS` is ordered to match, so the DOM order a
+   keyboard walks is the order on screen.
+
+   The grid is on a box inside the fieldset, not on the fieldset: a fieldset
+   that is itself a grid container lays its legend out as a grid item, which
+   takes the first cell and leaves the four corners in three rows. */
 .corners {
-  display: flex;
-  gap: 6px;
-  align-items: center;
+  display: block;
+  width: max-content;
   border: 0;
   padding: 0;
   margin: 0;
+}
+
+.corner-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 28px);
+  gap: 4px;
 }
 
 .corners legend {
@@ -395,10 +433,6 @@ hr {
   width: 28px;
   height: 28px;
   cursor: pointer;
-}
-
-.corners button.active {
-  outline: 2px solid Highlight;
 }
 
 /* The popup renders its own colour picker rather than `<input type="color">`,
@@ -441,10 +475,21 @@ hr {
   cursor: pointer;
 }
 
+/* Selected, open, current — one vocabulary, and not the one `:focus-visible`
+   uses. `outline` used to carry both, so "this panel is open" and "this has
+   the focus" were the same ring and could not be told apart, let alone shown
+   at once on a focused selected control. Selection is a fill and a solid
+   accent border; the outline is now the focus ring's alone.
+
+   The two colour controls keep their own background — an inline swatch colour
+   wins over this rule — so on those it is the border that does the work. */
+.corners button.active,
 .swatch.active,
-.presets button.active {
-  outline: 2px solid Highlight;
-  outline-offset: 1px;
+.presets button.active,
+.speed-presets button[aria-pressed='true'],
+.backup-actions button[aria-expanded='true'] {
+  border: 1px solid AccentColor;
+  background: color-mix(in srgb, AccentColor 18%, Canvas);
 }
 
 .color-row {
@@ -600,13 +645,6 @@ hr {
   font-size: 11px;
   padding: 3px 8px;
   cursor: pointer;
-}
-
-/* Which panel is open, in the same treatment `.swatch.active` and
-   `.corners button.active` use for "this is the selected one". */
-.backup-actions button[aria-expanded='true'] {
-  outline: 2px solid Highlight;
-  outline-offset: 1px;
 }
 
 .backup-text {

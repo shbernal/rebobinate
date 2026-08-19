@@ -13,6 +13,14 @@ import Toggle from './Toggle'
 const MAX_ROWS = 40
 const FILTER_FROM = 8
 
+/**
+ * The two states a row can be in that are not a speed. They are options of the
+ * same select as the speeds are, so the whole row is one value the user reads
+ * and sets in one place; the string values cannot collide with a speed's.
+ */
+const NEVER = 'never'
+const DEFAULT = 'default'
+
 type RowProps = {
   domain: string
   entry: DomainMemory | undefined
@@ -34,19 +42,42 @@ const SiteRow = ({
   const never = entry?.never === true
 
   /**
-   * "No speed" and "no entry" are the same state, so the blank option is routed
-   * where the ✕ goes rather than being given a meaning of its own. It is the
-   * already-selected option of an unset row, so in practice the ✕ is the way
-   * back; this is what keeps the two from drifting apart if that changes.
+   * Leaving the row with no entry at all, which takes two different messages.
+   * `forgetDomain` deliberately leaves a marker standing — `0` on a site that
+   * is switched off means "back to normal here", not "start remembering me
+   * again" — so the marker is cleared by switching it off instead.
    */
-  const chooseSpeed = (value: string) => {
-    if (value === '') {
-      onForget(domain)
+  const clear = () => {
+    if (never) {
+      onSetNever(domain, false)
+      return
+    }
+
+    onForget(domain)
+  }
+
+  /**
+   * "Nothing remembered" is an entry being absent, so the option that says so
+   * goes where the ✕ goes rather than being given a write of its own. A marker
+   * carries a placeholder speed, so a never row lists the default's neighbours
+   * rather than that placeholder.
+   */
+  const chooseState = (value: string) => {
+    if (value === NEVER) {
+      onSetNever(domain, true)
+      return
+    }
+
+    if (value === DEFAULT) {
+      clear()
       return
     }
 
     onSetSpeed(domain, Number(value))
   }
+
+  const current = never ? NEVER : entry ? String(entry.speed) : DEFAULT
+  const listed = entry && !never ? entry.speed : defaultSpeed
 
   return (
     <li className="site">
@@ -54,44 +85,36 @@ const SiteRow = ({
         {domain}
       </span>
 
-      {never ? (
-        // No speed to show, and no second "Never": the caption on the switch
-        // below already says what this row is.
-        <span className="site-speed">—</span>
-      ) : (
-        // Offered even with nothing remembered yet, so deciding what a site
-        // starts at does not first require going and changing a video's speed.
-        <select
-          className="site-speed-select"
-          aria-label={`Speed for ${domain}`}
-          value={entry ? entry.speed : ''}
-          onChange={event => chooseSpeed(event.target.value)}
-        >
-          {entry ? null : <option value="">—</option>}
-          {speedOptions(entry ? entry.speed : defaultSpeed).map(speed => (
-            <option key={speed} value={speed}>
-              {formatSpeedLabel(speed)}
-            </option>
-          ))}
-        </select>
-      )}
+      {/* Offered even with nothing remembered yet, so deciding what a site
+          starts at does not first require going and changing a video's
+          speed. */}
+      <select
+        className="site-speed-select"
+        aria-label={`Speed for ${domain}`}
+        value={current}
+        onChange={event => chooseState(event.target.value)}
+      >
+        <option value={NEVER}>Never remember</option>
+        <option value={DEFAULT}>
+          Use default ({formatSpeedLabel(defaultSpeed)})
+        </option>
+        {speedOptions(listed).map(speed => (
+          <option key={speed} value={speed}>
+            {formatSpeedLabel(speed)}
+          </option>
+        ))}
+      </select>
 
-      {/* The switch is named in the row rather than only in its `aria-label`:
-          an unlabelled track is read as "off" without saying off what. */}
-      <span className="site-never">Never</span>
-      <Toggle
-        label={`Never remember ${domain}`}
-        checked={never}
-        onChange={value => onSetNever(domain, value)}
-      />
-
+      {/* A marker is still a stored entry, so the ✕ clears it too — otherwise
+          a site switched off has no way back except the select that put it
+          there. */}
       <button
         type="button"
         className="forget"
         aria-label={`Forget ${domain}`}
-        title={`Forget the speed remembered for ${domain}`}
-        disabled={!entry || never}
-        onClick={() => onForget(domain)}
+        title={`Forget what is remembered for ${domain}`}
+        disabled={!entry}
+        onClick={clear}
       >
         ✕
       </button>
@@ -176,12 +199,6 @@ const SitesPane = ({
           <hr />
 
           <h2 className="pane-heading">This tab</h2>
-          {/* Under the first switch the user meets, rather than under the
-              heading below it, and naming the control it describes. */}
-          <p className="note">
-            Never: this site is left out of the memory and always starts at the
-            default speed.
-          </p>
           {domain ? (
             <ul className="sites">
               <SiteRow

@@ -281,13 +281,9 @@ test.describe('popup sites tab', () => {
 
     const popup = await openPopup()
     await openTab(popup, 'Sites')
-    // The switch's checkbox is transparent and zero-sized — the visible control
-    // is the label around it, which is what a user clicks too.
-    await popup
-      .locator('.switch', {
-        has: popup.getByLabel('Never remember player.test'),
-      })
-      .click()
+    // One control carries the whole state of a row, so switching a site off is
+    // an option of the same select that sets its speed.
+    await popup.getByLabel('Speed for player.test').selectOption('never')
 
     await expect
       .poll(async () => (await rememberedSites())['player.test']?.never)

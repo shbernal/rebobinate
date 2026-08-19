@@ -35,6 +35,15 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
     [settings, domains],
   )
 
+  /**
+   * Parsed as the box is typed into rather than on the click, so the button
+   * that overwrites everything is live exactly while there is something valid
+   * to restore. `restore` reads this same result rather than parsing twice.
+   */
+  const parsed = useMemo(() => parseBackup(draft), [draft])
+
+  const siteCount = Object.keys(domains.entries).length
+
   const show = (next: Mode) => {
     setMode(open => (open === next ? null : next))
     setStatus(null)
@@ -55,14 +64,12 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
   }
 
   const restore = () => {
-    const result = parseBackup(draft)
-
-    if (!result.ok) {
-      setStatus(result.error)
+    if (!parsed.ok) {
+      setStatus(parsed.error)
       return
     }
 
-    onImport(result)
+    onImport(parsed)
     setDraft('')
     setMode(null)
     setStatus('Restored.')
@@ -119,12 +126,23 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
           <div className="backup-actions">
             {/* The button that actually overwrites says what it overwrites,
                 rather than repeating the name of the panel it sits in. */}
-            <button type="button" onClick={restore}>
+            <button type="button" disabled={!parsed.ok} onClick={restore}>
               Replace settings
             </button>
           </div>
+          {/* Why the button is dead, or what pressing it costs — with the
+              count, since "the whole list" is not a number anybody can weigh.
+              A confirmation step is the wrong shape here: on Gecko the popup
+              autohides on focus loss, so an extra step is another way to lose
+              the paste. */}
           <p className="note">
-            Replaces your settings and the whole list of remembered sites.
+            {draft.trim() !== '' && !parsed.ok
+              ? parsed.error
+              : `Replaces your settings and ${
+                  siteCount === 1
+                    ? 'the 1 remembered site'
+                    : `all ${siteCount} remembered sites`
+                }.`}
           </p>
         </>
       ) : null}

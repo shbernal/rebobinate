@@ -18,7 +18,7 @@ const storedSettings = (): Settings => {
   return stored[SETTINGS_STORAGE_KEY] as Settings
 }
 
-const stepField = () => screen.getByLabelText('Step') as HTMLInputElement
+const stepField = () => screen.getByLabelText('Speed step') as HTMLInputElement
 
 /**
  * The popup learns the active tab's domain from the service worker, which is
@@ -97,7 +97,7 @@ describe('popup tabs', () => {
     await openTab(user, 'Settings')
 
     expect(screen.queryByRole('button', { name: 'Faster' })).toBeNull()
-    expect(screen.getByLabelText('Step')).toBeInTheDocument()
+    expect(screen.getByLabelText('Speed step')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Speed' })).toHaveAttribute(
       'tabindex',
       '-1',
@@ -166,6 +166,33 @@ describe('popup tabs', () => {
     )
   })
 
+  // The service worker resets to the default speed, not to 1.0×, so a bare
+  // "Reset" is wrong for anyone who has moved that default.
+  it('names what reset goes back to', () => {
+    seedSettings({ defaultSpeed: 1.5 })
+    render(<App />)
+
+    const reset = screen.getByRole('button', { name: 'Default' })
+
+    expect(reset).toHaveAttribute('title', 'Back to 1.5×')
+
+    fireEvent.click(reset)
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'reset' }),
+      expect.any(Function),
+    )
+  })
+
+  it('calls it Reset while the default is 1.0×', () => {
+    render(<App />)
+
+    expect(screen.getByRole('button', { name: 'Reset' })).toHaveAttribute(
+      'title',
+      'Back to 1.0×',
+    )
+  })
+
   // The hint stops being true the moment a key is rebound.
   it('names the bound keys in the hint', () => {
     seedSettings({
@@ -207,10 +234,24 @@ describe('popup sites tab', () => {
     answerPopupState('vimeo.com')
     await openSites()
 
-    expect(screen.getByLabelText('Speed for vimeo.com')).toHaveValue('')
+    expect(screen.getByLabelText('Speed for vimeo.com')).toHaveValue('default')
     expect(
       screen.getByRole('button', { name: 'Forget vimeo.com' }),
     ).toBeDisabled()
+  })
+
+  // The row used to spell "nothing remembered" as a blank em-dash option, which
+  // said what the row was not rather than what the site would do.
+  it('names the speed an unremembered site will start at', async () => {
+    answerPopupState('vimeo.com')
+    seedSettings({ defaultSpeed: 1.5 })
+    await openSites()
+
+    expect(
+      within(screen.getByLabelText('Speed for vimeo.com')).getByRole('option', {
+        name: 'Use default (1.5×)',
+      }),
+    ).toBeInTheDocument()
   })
 
   /**
@@ -245,19 +286,22 @@ describe('popup sites tab', () => {
     expect(options).toContain('1.15')
   })
 
-  // The blank option is how the row says "nothing remembered", so it is gone
-  // the moment something is: the ✕ is the way back, and the select must not
-  // offer a second, differently-behaved one.
-  it('drops the blank option once the site has a speed', async () => {
+  // Every state a row can be in is an option of the one select, so there is no
+  // blank option meaning "nothing remembered" and no second control saying the
+  // same thing a different way.
+  it('carries the whole state of a row in one control', async () => {
     answerPopupState('vimeo.com')
     seedDomains({ 'vimeo.com': { speed: 1.5, updatedAt: 1 } })
     await openSites()
 
-    const options = within(screen.getByLabelText('Speed for vimeo.com'))
+    const row = within(screen.getByRole('listitem'))
+    const options = row
       .getAllByRole('option')
       .map(option => (option as HTMLOptionElement).value)
 
     expect(options).not.toContain('')
+    expect(options.slice(0, 2)).toEqual(['never', 'default'])
+    expect(row.queryByRole('checkbox')).toBeNull()
   })
 
   it('says so on a page that is not a site', async () => {
@@ -328,7 +372,10 @@ describe('popup sites tab', () => {
     seedDomains({ 'vimeo.com': { speed: 1.25, updatedAt: 1 } })
     const user = await openSites()
 
-    await user.click(screen.getByLabelText('Never remember vimeo.com'))
+    await user.selectOptions(
+      screen.getByLabelText('Speed for vimeo.com'),
+      'never',
+    )
 
     expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
       { type: 'rebobinate:set-domain-never', domain: 'vimeo.com', never: true },
@@ -336,26 +383,71 @@ describe('popup sites tab', () => {
     )
   })
 
-  it('offers no speed to edit or forget on a site that is switched off', async () => {
+  it('says a site is switched off in the same control that sets its speed', async () => {
     answerPopupState('youtube.com')
-    seedDomains({ 'vimeo.com': { updatedAt: 1, never: true } })
+    seedDomains({ 'vimeo.com': { speed: 1, updatedAt: 1, never: true } })
     await openSites()
 
-    expect(screen.queryByLabelText('Speed for vimeo.com')).toBeNull()
-    expect(screen.getByLabelText('Never remember vimeo.com')).toBeChecked()
-    expect(
-      screen.getByRole('button', { name: 'Forget vimeo.com' }),
-    ).toBeDisabled()
+    expect(screen.getByLabelText('Speed for vimeo.com')).toHaveValue('never')
   })
 
-  // Every row names its switch, so the word is on screen before the switch is
-  // touched rather than only appearing in the speed column afterwards.
-  it('names the switch in a row whatever the row’s state', async () => {
+  /**
+   * A marker is a stored entry like any other, and the switch that used to be
+   * the only way back is gone, so the ✕ has to clear it. It cannot do that with
+   * a forget: `forgetDomain` leaves a marker standing on purpose, so that `0`
+   * on a site that is switched off does not start remembering it again.
+   */
+  it('forgets a site that is switched off', async () => {
     answerPopupState('youtube.com')
-    seedDomains({ 'vimeo.com': { updatedAt: 1, never: true } })
-    await openSites()
+    seedDomains({ 'vimeo.com': { speed: 1, updatedAt: 1, never: true } })
+    const user = await openSites()
 
-    expect(screen.getAllByText('Never')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Forget vimeo.com' }))
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      {
+        type: 'rebobinate:set-domain-never',
+        domain: 'vimeo.com',
+        never: false,
+      },
+      expect.any(Function),
+    )
+  })
+
+  it('takes a switched-off site back to the default from the select', async () => {
+    answerPopupState('youtube.com')
+    seedDomains({ 'vimeo.com': { speed: 1, updatedAt: 1, never: true } })
+    const user = await openSites()
+
+    await user.selectOptions(
+      screen.getByLabelText('Speed for vimeo.com'),
+      'default',
+    )
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      {
+        type: 'rebobinate:set-domain-never',
+        domain: 'vimeo.com',
+        never: false,
+      },
+      expect.any(Function),
+    )
+  })
+
+  it('forgets a site when its row is put back on the default', async () => {
+    answerPopupState('youtube.com')
+    seedDomains({ 'vimeo.com': { speed: 1.25, updatedAt: 1 } })
+    const user = await openSites()
+
+    await user.selectOptions(
+      screen.getByLabelText('Speed for vimeo.com'),
+      'default',
+    )
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      { type: 'rebobinate:forget-domain', domain: 'vimeo.com' },
+      expect.any(Function),
+    )
   })
 
   it('filters a long list down', async () => {
@@ -730,6 +822,76 @@ describe('popup toolbar badge toggle', () => {
   })
 })
 
+describe('popup badge settings', () => {
+  beforeEach(() => {
+    seedSettings()
+    answerPopupState('youtube.com')
+  })
+
+  const openSettings = async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await openTab(user, 'Settings')
+
+    return user
+  }
+
+  // A thumb position is not a value anybody can write down or come back to.
+  it('writes the value of each slider next to it', async () => {
+    await openSettings()
+
+    expect(screen.getByText('14px')).toBeInTheDocument()
+    expect(screen.getByText('75%')).toBeInTheDocument()
+  })
+
+  it('follows the slider it belongs to', async () => {
+    await openSettings()
+
+    fireEvent.change(screen.getByLabelText('Size'), { target: { value: '22' } })
+
+    expect(screen.getByText('22px')).toBeInTheDocument()
+  })
+
+  // Every other switch on the pane means "more visible" when it is on.
+  it('asks whether to show the badge at 1.0×, not whether to hide it', async () => {
+    const user = await openSettings()
+
+    const toggle = screen.getByRole('checkbox', { name: 'Show at 1.0×' })
+
+    // Stored as `hideAtNormalSpeed`, which installed copies hold and the
+    // content script reads: this is a label-and-render inversion only.
+    expect(toggle).not.toBeChecked()
+
+    await user.click(toggle)
+
+    expect(storedSettings().badge.hideAtNormalSpeed).toBe(false)
+  })
+
+  /**
+   * The preview cannot act the visibility rules out — it is pinned so it stays
+   * on screen while the controls move, and honouring "hide at 1.0×" would blank
+   * it for most users at rest — so it says them instead.
+   */
+  it('says when the badge is on screen, from both settings', async () => {
+    const user = await openSettings()
+
+    expect(
+      screen.getByText(
+        'Shown for 2 seconds after a speed change, and hidden at 1.0×.',
+      ),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Show at 1.0×' }))
+    await user.selectOptions(screen.getByLabelText('Hide after'), '0')
+
+    expect(
+      screen.getByText(
+        'Always shown while a video is playing, including at 1.0×.',
+      ),
+    ).toBeInTheDocument()
+  })
+})
+
 describe('popup backup', () => {
   beforeEach(() => {
     seedSettings({ step: 0.25 })
@@ -794,13 +956,17 @@ describe('popup backup', () => {
     )
   })
 
-  it('says why nothing was restored and changes nothing', async () => {
+  // The button that overwrites both stores is live exactly while there is
+  // something valid to restore, and the note says why it is not.
+  it('says why nothing can be restored and changes nothing', async () => {
     const user = await openBackup('Import')
 
     await user.click(screen.getByLabelText('Backup to restore'))
     await user.paste('{"step":0.5}')
-    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
 
+    expect(
+      screen.getByRole('button', { name: 'Replace settings' }),
+    ).toBeDisabled()
     expect(
       screen.getByText('That is not a Rebobinate backup.'),
     ).toBeInTheDocument()
@@ -809,6 +975,17 @@ describe('popup backup', () => {
       expect.objectContaining({ type: 'rebobinate:import-domains' }),
       expect.any(Function),
     )
+  })
+
+  it('counts what a restore would replace', async () => {
+    await openBackup('Import')
+
+    expect(
+      screen.getByText('Replaces your settings and the 1 remembered site.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Replace settings' }),
+    ).toBeDisabled()
   })
 
   // The reason this pane is two textareas rather than a download and a file

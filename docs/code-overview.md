@@ -74,11 +74,23 @@ must not quietly evict an opt-out and start remembering the site again.
 
 The marker only ever appears from the Sites tab, which is also where a
 remembered speed can be edited or dropped for any site rather than only the one
-in front of the user. The row for the active tab offers its speed select even
-with nothing remembered yet, with a blank option selected: deciding what a site
-should start at is what the tab is for, and requiring a video to be stepped
-somewhere else first made that the one thing it could not do. Those edits go
-through the service worker
+in front of the user. **A row is one control.** The select carries every state
+the row can be in — `Never remember`, `Use default (N×)` with the user's own
+default in it, or a speed — and the ✕ beside it means "forget this row" and
+nothing else. It was three controls once, and two of them did the same thing: a
+blank option that meant "no entry", a `Never` switch, and a ✕ that was disabled
+on exactly the rows a marker made unreachable. The select is offered even with
+nothing remembered yet, because deciding what a site should start at is what the
+tab is for, and requiring a video to be stepped somewhere else first made that
+the one thing it could not do.
+
+Clearing a row takes two different messages, which is the one trap in that row.
+`forgetDomain` leaves a marker standing on purpose, so `rebobinate:forget-domain`
+would be a no-op on a switched-off site; the popup sends
+`rebobinate:set-domain-never` with `never: false` for those, which removes the
+entry outright. Both paths end with no entry, and both the ✕ and the
+`Use default` option go through the same `clear` in `SitesPane.tsx` so they
+cannot drift apart. Those edits go through the service worker
 (`rebobinate:set-domain-speed`, `rebobinate:set-domain-never`,
 `rebobinate:forget-domain`) for the same reason: a speed change on that domain
 may still be sitting in the debounce, and only the worker can cancel it. A speed
@@ -275,7 +287,9 @@ Speed arithmetic lives in `src/shared/speed.ts`. Steps land on the multiple of
 the step size in the direction of travel, so a site that left the video at 1.07
 does not drag that stray 0.02 through every later press.
 
-The step field in the popup is the one setting typed a character at a time, and
+The step field in the popup — labelled **Speed step**, since the buttons and
+keys it moves live on other tabs — is the one setting typed a character at a
+time, and
 its halfway states are not valid settings: going from `0.2` to `0.15` passes
 through `''`, `'0'` and `'0.'`. Normalizing each keystroke back into the field
 would rewrite it under the cursor and make those targets unreachable, so
@@ -323,20 +337,42 @@ Three things about the panes follow from that width:
 - **`Toggle` names itself only to a screen reader.** `src/popup/Toggle.tsx`
   puts its `label` prop on the checkbox's `aria-label` and renders a bare track,
   so every switch needs a visible caption of its own in the row around it —
-  the `Enabled` span in the header, `.site-never` in a site row, the label
-  column of a `.field`. A switch added without one is a coloured track that
+  the `Enabled` span in the header, the label column of a `.field`. A switch added without one is a coloured track that
   says nothing.
 - **The badge preview is pinned to its own block.** `.badge-settings` wraps
   everything the preview previews and `.preview` is `position: sticky;
 bottom: 0`, so the preview stays on screen while the colour picker is open
   and releases at the end of the block rather than covering the Backup section
   below. Scoping the containing block to the block is the whole mechanism.
+- **Selected is a fill, focused is an outline.** `outline: 2px solid Highlight`
+  used to mark the open Export panel, the chosen corner, the matching preset
+  chip, the open swatch _and_ `:focus-visible`, so three different meanings were
+  one ring and a focused selected control could not show both. Selection is now
+  an accent border over `color-mix(in srgb, AccentColor 18%, Canvas)` and the
+  outline belongs to the focus ring alone. The two colour controls keep their
+  own inline background, so on those it is the border that carries it.
 - **`.pane` carries a scroll cue** as a pair of gradients — an opaque cover at
   `background-attachment: local` over a shadow at `scroll` — so a fading bottom
   edge appears only while there is more pane below, with no scroll listener.
   Fractional layout leaves a short pane a pixel of scrollable overflow, which
   is why the shadow fades back out before the bottom edge instead of running
   into it.
+
+The badge preview shows the styling and says the rest. It renders whenever the
+on-video badge is on, which cannot be made to demonstrate `autoHideMs` or
+`hideAtNormalSpeed`: a preview that vanishes two seconds after a slider moves is
+not a preview, and honouring "show at 1.0×" would blank it for most users at
+rest, since it previews the tab's current speed. So `visibilityNote` in
+`SettingsPane.tsx` composes both settings into a sentence under it — _"Shown for
+2 seconds after a speed change, and hidden at 1.0×."_ — which updates as the
+controls move.
+
+That switch is asked as **"Show at 1.0×"** while the stored key stays
+`hideAtNormalSpeed`. Every other switch on the pane means "more visible" when it
+is on, and the block asked the user to change reading direction halfway down.
+The inversion is in the `checked` and `onChange` props only; installed copies
+hold the stored key and the content script reads it. "Hide after" is left alone,
+because "Show for" would make its `Never` option read backwards.
 
 One cascade trap lives with them: the badge rows and the preview are hidden with
 the `hidden` attribute, whose UA rule loses to any author `display`. `.field`
@@ -401,7 +437,12 @@ saves as it is typed, and blur expands a three-digit one.
 `src/shared/backup.ts` turns both stores into one JSON document and back.
 `src/popup/Backup.tsx` is the panel at the bottom of the Settings pane: **Export**
 shows the document in a read-only textarea with a Copy button, **Import** takes a
-pasted one and replaces what is stored.
+pasted one and replaces what is stored. The button that overwrites both stores is
+disabled until `parseBackup` accepts what is in the box — it is parsed as the box
+changes and `restore` reads that same result rather than parsing twice — and the
+note under it either says why the button is dead or counts what pressing it would
+replace. There is no confirmation step by design: on Gecko the popup autohides on
+focus loss, so an extra step is another way to lose the paste.
 
 It is text in a textarea on both engines because of the same Gecko constraint
 the colour picker works around: an `<input type="file">` opens a native chooser,
