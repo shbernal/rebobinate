@@ -26,7 +26,13 @@ type BackupProps = {
  * the pair symmetrical.
  */
 const Backup = ({ settings, domains, onImport }: BackupProps) => {
-  const [mode, setMode] = useState<Mode | null>(null)
+  /**
+   * Open on Export, so the pair arrives reading as a switch with one half
+   * chosen rather than as two buttons nothing has been done to. Export is the
+   * safe half — it is read-only, it is the one needed first, and nothing sits
+   * below Backup for its panel to push down. `show` still closes either half.
+   */
+  const [mode, setMode] = useState<Mode | null>('export')
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<string | null>(null)
 
@@ -47,11 +53,13 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
   /**
    * What pressing the button costs, with the count — "the whole list" is not a
    * number anybody can weigh. A fresh profile has no list at all, and counting
-   * it as "all 0 remembered sites" describes a loss that cannot happen.
+   * it as "all 0 remembered sites" describes a loss that cannot happen. Both
+   * branches stay about the loss: an empty branch that reported the state of
+   * the profile instead left the reader sorting a warning from a status line.
    */
   const replacesNote =
     siteCount === 0
-      ? 'Replaces your settings. No sites are remembered yet.'
+      ? 'Replaces your settings. You have no remembered sites to lose.'
       : `Replaces your settings and ${
           siteCount === 1
             ? 'the 1 remembered site'

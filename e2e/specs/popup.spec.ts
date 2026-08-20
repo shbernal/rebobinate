@@ -125,7 +125,11 @@ test.describe('popup backup', () => {
 
     const popup = await openPopup()
     await openTab(popup, 'Settings')
-    await popup.getByRole('button', { name: 'Export' }).click()
+    // The pair arrives on Export, so pressing it here would close the panel.
+    await expect(popup.getByRole('button', { name: 'Export' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
 
     const exported = JSON.parse(
       await popup.getByLabel('Backup').inputValue(),

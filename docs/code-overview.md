@@ -73,12 +73,18 @@ counts the two kinds of entry separately — a profile with 500 remembered speed
 must not quietly evict an opt-out and start remembering the site again.
 
 The Speed tab says when it is writing one of these. `App.tsx` hands `SpeedPane`
-the resolved domain and whether it is being remembered — memory on, a domain to
-hang it on, no marker on this one — and the pane renders _"Remembered for X"_
-under the preset row when all three hold. It is a receipt rather than a control:
-stepping the speed writes a rule that applies on every later visit, and the
-Sites tab, where that rule can be changed, is not somewhere anybody goes before
-being surprised by it.
+the resolved domain, whether it is being remembered — memory on, a domain to
+hang it on, no marker on this one — and whether that domain has an entry yet.
+The line under the preset row appears when the first three hold, and the fourth
+picks its tense: _"Kept for X from here on"_ with nothing stored, _"Remembered
+for X"_ once there is. It is a receipt rather than a control, and the split
+exists because per-site memory ships on: a receipt issued on a site nothing has
+ever been written for is the extension's only claim about where a user's speed
+goes, made false on every fresh install. Stepping the speed writes a rule that
+applies on every later visit, and the Sites tab, where that rule can be changed,
+is not somewhere anybody goes before being surprised by it. The Sites tab's own
+empty state splits on the same question: _"No other site is remembered yet."_
+only while this tab's site is the one that is.
 
 The marker only ever appears from the Sites tab, which is also where a
 remembered speed can be edited or dropped for any site rather than only the one
@@ -349,13 +355,18 @@ Three things about the panes follow from that width:
   so every switch needs a visible caption of its own in the row around it —
   the `Enabled` span in the header, the label column of a `.field`. A switch added without one is a coloured track that
   says nothing.
-- **The badge preview is pinned to the top of its own block.**
-  `.badge-settings` wraps everything the preview previews, `.preview` leads
-  that block and is `position: sticky; top: 0`. Scoping the containing block to
-  the block is what makes it release at the end rather than covering the Backup
-  section below; sticking it to the _top_ is what stops it covering Size,
-  Opacity and the colour rows, since a top-stuck element only ever paints over
-  what has already scrolled past it.
+- **The badge block pins its own header.** `.badge-settings` wraps everything
+  the preview previews; `.badge-header` leads that block, holds the On-video
+  badge switch and the `.preview` canvas, and is `position: sticky; top: 0` on
+  an opaque `Canvas`. Scoping the containing block to the block is what makes it
+  release at the end rather than covering the Backup section below; sticking it
+  to the _top_ is what stops it covering Size, Opacity and the colour rows,
+  since a top-stuck element only ever paints over what has already scrolled
+  past it. The switch travels with the canvas rather than scrolling away,
+  because a master switch off screen while its block is being edited leaves no
+  way to turn the block off, and half of one under the pane's 18px scroll cue
+  reads as a rendering fault. With the badge off, `.preview[hidden]` collapses
+  the header to the switch alone.
 - **Selected is a fill, focused is an outline.** `outline: 2px solid Highlight`
   used to mark the open Export panel, the chosen corner, the matching preset
   chip, the open swatch _and_ `:focus-visible`, so three different meanings were
@@ -448,6 +459,13 @@ The hex field repeats the step field's draft pattern above: `#ff88` is not a
 colour, so the raw text is held while it is typed, a complete six-digit value
 saves as it is typed, and blur expands a three-digit one.
 
+`SettingsPane` renders both swatch rows and then one picker beneath the pair,
+not one under whichever row is open. A badge's legibility is the contrast
+between its text and its background, so both swatches have to stay on screen
+while either is being picked. The `key={openColor}` on that single element keeps
+what the per-row mount was buying: React remounts the panel when the open field
+changes, so a half-typed hex cannot travel from one colour to the other.
+
 ## Backup and restore
 
 `src/shared/backup.ts` turns both stores into one JSON document and back.
@@ -456,12 +474,18 @@ shows the document in a read-only textarea with a Copy button, **Import** takes 
 pasted one and replaces what is stored. The two are one two-way switch over a
 single slot rather than two actions, so they are drawn as one joined segmented
 pair with the open half filled — they stay `<button>`s carrying `aria-expanded`,
-because opening and closing a region is what they do. The button that overwrites
+because opening and closing a region is what they do. The switch arrives on
+**Export**, so the pair reads as a switch with a side chosen rather than as two
+untouched buttons at the bottom of a long scroll; Export is the safe half to
+land on, being read-only and the one needed first, and nothing sits below Backup
+for its panel to push down. Pressing the open half still closes it. The button that overwrites
 both stores is disabled until `parseBackup` accepts what is in the box — it is
 parsed as the box changes and `restore` reads that same result rather than
 parsing twice — and the note under it either says why the button is dead or
-counts what pressing it would replace, down to saying that nothing is remembered
-yet rather than counting zero sites. There is no confirmation step by design: on
+counts what pressing it would replace. Both branches stay one statement about
+the loss — _"Replaces your settings. You have no remembered sites to lose."_ on
+a profile with nothing stored, rather than counting zero sites or reporting the
+profile's present state alongside the warning. There is no confirmation step by design: on
 Gecko the popup autohides on focus loss, so an extra step is another way to lose
 the paste.
 

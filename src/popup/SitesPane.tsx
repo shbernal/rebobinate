@@ -160,6 +160,18 @@ const SitesPane = ({
   const shown = matching.slice(0, MAX_ROWS)
   const hidden = matching.length - shown.length
 
+  /**
+   * "Other" is a claim about this tab's site, so it is only sayable when that
+   * site really is remembered. On a profile with nothing stored at all the word
+   * implies a first entry that does not exist.
+   */
+  const emptyNote =
+    others.length > 0
+      ? 'No site matches that filter.'
+      : domain !== null && domains.entries[domain] !== undefined
+        ? 'No other site is remembered yet.'
+        : 'No sites are remembered yet.'
+
   const rowProps = {
     defaultSpeed: settings.defaultSpeed,
     onSetSpeed,
@@ -242,11 +254,7 @@ const SitesPane = ({
               ))}
             </ul>
           ) : (
-            <p className="note">
-              {others.length > 0
-                ? 'No site matches that filter.'
-                : 'No other site is remembered yet.'}
-            </p>
+            <p className="note">{emptyNote}</p>
           )}
 
           {hidden > 0 ? (

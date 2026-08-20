@@ -215,8 +215,21 @@ describe('popup speed tab receipt', () => {
     seedSettings()
   })
 
-  it('says the speed is being kept for the site behind the popup', async () => {
+  // Per-site memory being on is not the same as this site having been
+  // remembered, and on a fresh profile the second is never true.
+  it('promises the speed will be kept for a site with nothing stored', async () => {
     answerPopupState('youtube.com', 1.5)
+    render(<App />)
+
+    expect(
+      await screen.findByText('Kept for youtube.com from here on'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/^Remembered for/)).toBeNull()
+  })
+
+  it('says the speed is being kept once the site has an entry', async () => {
+    answerPopupState('youtube.com', 1.5)
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
     render(<App />)
 
     expect(
@@ -227,10 +240,12 @@ describe('popup speed tab receipt', () => {
   it('says nothing while per-site memory is off', async () => {
     seedSettings({ rememberPerDomain: false })
     answerPopupState('youtube.com', 1.5)
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
     render(<App />)
 
     expect(await screen.findByText(/faster/)).toBeInTheDocument()
     expect(screen.queryByText(/^Remembered for/)).toBeNull()
+    expect(screen.queryByText(/^Kept for/)).toBeNull()
   })
 
   it('says nothing on a page there is no domain for', async () => {
@@ -239,6 +254,7 @@ describe('popup speed tab receipt', () => {
 
     expect(await screen.findByText(/faster/)).toBeInTheDocument()
     expect(screen.queryByText(/^Remembered for/)).toBeNull()
+    expect(screen.queryByText(/^Kept for/)).toBeNull()
   })
 
   // A marker means the opposite of a receipt: this site is being left out.
@@ -249,6 +265,7 @@ describe('popup speed tab receipt', () => {
 
     expect(await screen.findByText(/faster/)).toBeInTheDocument()
     expect(screen.queryByText(/^Remembered for/)).toBeNull()
+    expect(screen.queryByText(/^Kept for/)).toBeNull()
   })
 })
 
@@ -353,6 +370,25 @@ describe('popup sites tab', () => {
     expect(options).not.toContain('')
     expect(options.slice(0, 2)).toEqual(['never', 'default'])
     expect(row.queryByRole('checkbox')).toBeNull()
+  })
+
+  // "Other" is a claim about this tab's site, and on a profile with nothing
+  // stored it claims a first entry that does not exist.
+  it('does not say "other" when there is no other', async () => {
+    answerPopupState('vimeo.com')
+    await openSites()
+
+    expect(screen.getByText('No sites are remembered yet.')).toBeInTheDocument()
+  })
+
+  it('says "other" once this tab’s site is the only one stored', async () => {
+    answerPopupState('vimeo.com')
+    seedDomains({ 'vimeo.com': { speed: 1.5, updatedAt: 1 } })
+    await openSites()
+
+    expect(
+      screen.getByText('No other site is remembered yet.'),
+    ).toBeInTheDocument()
   })
 
   it('says so on a page that is not a site', async () => {
@@ -958,14 +994,43 @@ describe('popup backup', () => {
     answerPopupState('vimeo.com')
   })
 
+  // The pair arrives with Export already open, so a click is what a person
+  // does to get to the *other* half — clicking the open one would close it.
   const openBackup = async (button: 'Export' | 'Import') => {
     const user = userEvent.setup()
     render(<App />)
     await openTab(user, 'Settings')
-    await user.click(screen.getByRole('button', { name: button }))
+
+    const half = screen.getByRole('button', { name: button })
+
+    if (half.getAttribute('aria-expanded') !== 'true') {
+      await user.click(half)
+    }
 
     return user
   }
+
+  // Two outlined buttons at the bottom of a long scroll do not read as a
+  // switch until one of them is filled in.
+  it('arrives with the read-only half already chosen', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await openTab(user, 'Settings')
+
+    expect(screen.getByRole('button', { name: 'Export' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(screen.getByLabelText('Backup')).toBeInTheDocument()
+  })
+
+  it('closes the half that is already open', async () => {
+    const user = await openBackup('Export')
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+
+    expect(screen.queryByLabelText('Backup')).toBeNull()
+  })
 
   it('exports the settings and the site list as one document', async () => {
     await openBackup('Export')
@@ -1048,7 +1113,9 @@ describe('popup backup', () => {
     await openBackup('Import')
 
     expect(
-      screen.getByText('Replaces your settings. No sites are remembered yet.'),
+      screen.getByText(
+        'Replaces your settings. You have no remembered sites to lose.',
+      ),
     ).toBeInTheDocument()
   })
 

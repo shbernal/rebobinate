@@ -228,7 +228,21 @@
 
 /* The pane scrolls rather than the window, so the header and the tab strip stay
    put. The height is under what either browser gives a popup, and a pane
-   shorter than it does not scroll at all. */
+   shorter than it does not scroll at all.
+
+   The cap is the whole popup's, not this box's: both engines stop an action
+   popup at 600px and put a second, outer scrollbar on anything past that, which
+   is worse than scrolling one pane. The header, the tab strip and the padding
+   around them come to about 90px, so 440 puts the Settings pane — the only one
+   that reaches the cap — at 530.
+
+   Headless Chromium is not the measurement to raise this on. It clamps the
+   popup viewport at 510px whatever the content, the window size or
+   `--screen-info` say, so a 530px panel already reports a window-level
+   scrollbar there and every mimic exhibit of the Settings pane is cut 20px
+   short of what a real browser shows. Raising this trades a real 600px
+   allowance nothing here can verify against exhibits that get worse by exactly
+   the amount raised. */
 .pane {
   display: flex;
   flex-direction: column;
@@ -583,10 +597,10 @@ hr {
   border-radius: 4px;
 }
 
-/* The badge settings and their preview as one block. The block is the
-   preview's containing block, which is the whole point of it existing: the
-   preview stays pinned while anything it previews is being changed, and
-   releases at the end of the block instead of covering the Backup section. */
+/* The badge settings and their header as one block. The block is the header's
+   containing block, which is the whole point of it existing: the header stays
+   pinned while anything it governs is being changed, and releases at the end of
+   the block instead of covering the Backup section. */
 .badge-settings {
   display: flex;
   flex-direction: column;
@@ -595,15 +609,28 @@ hr {
 
 /* Stuck to the top, and first in the block, because a top-stuck element only
    ever covers what has already scrolled past it — never Size, Opacity or the
-   colour rows, which are the controls it is a preview of.
+   colour rows, which are the controls it is a header for.
 
-   `z-index` keeps it over the picker panel and the rows that pass beneath it;
-   the stripes are painted on an opaque base, so what passes behind stays
-   readable. */
-.preview {
+   The master switch is pinned with the sample rather than the sample alone:
+   left to scroll, the switch that turns the whole block off passes under the
+   pane's 18px scroll cue and stops there half-masked, which reads as a
+   rendering fault rather than as a control.
+
+   The opaque Canvas is what the rows passing beneath do not show through — the
+   sample paints its own opaque base, but the switch row and the gap below it do
+   not. `z-index` sits here rather than on the sample so the whole header stays
+   over the picker panel and those rows. */
+.badge-header {
   position: sticky;
   top: 0;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: Canvas;
+}
+
+.preview {
   height: 68px;
   border-radius: 6px;
   background:

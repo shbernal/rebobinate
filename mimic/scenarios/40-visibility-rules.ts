@@ -25,7 +25,7 @@ export default {
     await look(
       s,
       popup,
-      'The part of the Settings section about when the marker should be visible, as it comes out of the box: a dropdown for how long it stays, and a switch for whether it shows at all at normal speed. The striped box pinned to the top of the section is a live sample of the marker. The video behind the panel is playing at its normal speed and has not been sped up.',
+      'The part of the Settings section about when the marker should be visible, as it comes out of the box: a dropdown for how long it stays, and a switch for whether it shows at all at normal speed. Pinned to the top of the section are the on/off switch for the marker and, under it, a striped box holding a live sample of it. The video behind the panel is playing at its normal speed and has not been sped up.',
       { name: 'rules', mustShow: toggle(popup, 'Show at 1.0×') },
     )
 

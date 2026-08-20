@@ -18,7 +18,7 @@ export default {
     await look(
       s,
       popup,
-      'The Settings section, scrolled down to the part about the marker that appears on top of the video. "Size" and "Opacity" are drag handles, and the four arrow buttons above them choose which corner of the video the marker sits in. The striped box pinned to the top of the section is a live sample of the marker.',
+      'The Settings section, scrolled down to the part about the marker that appears on top of the video. "Size" and "Opacity" are drag handles, and the four arrow buttons above them choose which corner of the video the marker sits in. Pinned to the top of the section are the on/off switch for the marker and, under it, a striped box holding a live sample of it.',
       { name: 'controls', mustShow: popup.locator('#badge-opacity') },
     )
 
@@ -28,7 +28,7 @@ export default {
     await look(
       s,
       popup,
-      'The "Size" handle has been dragged most of the way right and the "Opacity" handle all the way right. The sample pinned at the top of the section has changed to match, and stays there while the handles below it are dragged.',
+      'The "Size" handle has been dragged most of the way right and the "Opacity" handle all the way right. The sample pinned at the top of the section has changed to match, and it and the on/off switch above it stay there while the handles below them are dragged.',
       { name: 'resized', mustShow: popup.locator('#badge-opacity') },
     )
 
@@ -37,8 +37,11 @@ export default {
     await look(
       s,
       popup,
-      'Clicking the first of the two coloured squares next to "Colors" opened this panel. It is how the colour of the marker is chosen.',
-      { name: 'picker', mustShow: popup.locator('.color-picker') },
+      'Clicking the coloured square on the "Text color" row opened this panel. It is how the colour of the marker is chosen. The panel opens under both colour rows rather than under the row it belongs to, so the two rows — the marker\'s text and its background — are both still on screen above it; the square that was clicked has an accent-coloured border around it.',
+      {
+        name: 'picker',
+        mustShow: popup.locator('.color-picker'),
+      },
     )
   },
 }

@@ -193,12 +193,15 @@ const App = () => {
             domain={domain}
             /* The three things that have to hold for a speed set here to
                survive the tab: the feature is on, there is a domain to hang
-               it on, and this one is not marked never. */
+               it on, and this one is not marked never. Whether anything is
+               stored for it yet is a separate question — it is what the pane
+               says in the present tense rather than the future. */
             remembered={
               settings.rememberPerDomain &&
               domain !== null &&
               domains.entries[domain]?.never !== true
             }
+            hasEntry={domain !== null && domains.entries[domain] !== undefined}
           />
         ) : null}
 

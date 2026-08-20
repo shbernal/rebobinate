@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import type { BackupContents } from '@/shared/backup'
 import type { DomainStore } from '@/shared/domains'
 import type { KeyBindings } from '@/shared/keys'
@@ -76,6 +76,7 @@ const SettingsPane = ({
    */
   const [stepDraft, setStepDraft] = useState<string | null>(null)
   const [openColor, setOpenColor] = useState<ColorFieldKey | null>(null)
+  const openField = COLOR_FIELDS.find(field => field.key === openColor)
 
   const saveBadge = (patch: Partial<BadgeSettings>) => {
     save({ ...settings, badge: { ...settings.badge, ...patch } })
@@ -149,39 +150,47 @@ const SettingsPane = ({
 
       <hr />
 
-      {/* Everything the preview previews, in one block, because the preview is
-          stuck to the top of it: scoped this way it stays on screen for the
-          whole run of badge controls and lets go once the Backup section
-          arrives, rather than covering it. The preview leads the block for the
-          same reason — a top-stuck element covers what has already scrolled
-          past it, never a control being scrolled toward. The sentence about
-          when the badge shows travels with it, so the sample and the rule it
-          obeys stay adjacent. */}
+      {/* Everything the preview previews, in one block, because the block's
+          header is stuck to the top of it: scoped this way the header stays on
+          screen for the whole run of badge controls and lets go once the Backup
+          section arrives, rather than covering it. The header leads the block
+          for the same reason — a top-stuck element covers what has already
+          scrolled past it, never a control being scrolled toward. The sentence
+          about when the badge shows travels with the sample, so the sample and
+          the rule it obeys stay adjacent. */}
       <section className="badge-settings">
-        {/* Named for where it is drawn now that there are two badges. */}
-        <section className="field">
-          <span>On-video badge</span>
-          <Toggle
-            label="On-video badge"
-            checked={settings.badge.enabled}
-            onChange={enabled => saveBadge({ enabled })}
-          />
-        </section>
+        {/* The switch that governs the block travels with the sample rather
+            than scrolling away under the tab strip: a master switch that is
+            off screen while its block is being edited leaves no way to turn
+            the block off, and half of one under the pane's scroll cue reads as
+            a rendering fault. With the badge off the sample is `hidden` and
+            this collapses to the switch alone. */}
+        <div className="badge-header">
+          {/* Named for where it is drawn now that there are two badges. */}
+          <section className="field">
+            <span>On-video badge</span>
+            <Toggle
+              label="On-video badge"
+              checked={settings.badge.enabled}
+              onChange={enabled => saveBadge({ enabled })}
+            />
+          </section>
 
-        <section className="preview" hidden={!settings.badge.enabled}>
-          <span
-            className="preview-badge"
-            data-corner={settings.badge.corner}
-            style={{
-              fontSize: `${settings.badge.fontSize}px`,
-              opacity: settings.badge.opacity,
-              color: settings.badge.textColor,
-              background: settings.badge.backgroundColor,
-            }}
-          >
-            {formatSpeedLabel(speed)}
-          </span>
-        </section>
+          <section className="preview" hidden={!settings.badge.enabled}>
+            <span
+              className="preview-badge"
+              data-corner={settings.badge.corner}
+              style={{
+                fontSize: `${settings.badge.fontSize}px`,
+                opacity: settings.badge.opacity,
+                color: settings.badge.textColor,
+                background: settings.badge.backgroundColor,
+              }}
+            >
+              {formatSpeedLabel(speed)}
+            </span>
+          </section>
+        </div>
 
         <p className="note" hidden={!settings.badge.enabled}>
           {visibilityNote(settings.badge)}
@@ -247,33 +256,40 @@ const SettingsPane = ({
             of the pane uses: a bare swatch names neither which colour it is
             nor, in the light theme, that it is a control at all. */}
         {COLOR_FIELDS.map(field => (
-          <Fragment key={field.key}>
-            <section className="field" hidden={!settings.badge.enabled}>
-              <span>{field.label}</span>
-              <button
-                type="button"
-                aria-label={field.label}
-                aria-expanded={openColor === field.key}
-                className={openColor === field.key ? 'swatch active' : 'swatch'}
-                style={{ background: settings.badge[field.key] }}
-                onClick={() =>
-                  setOpenColor(open => (open === field.key ? null : field.key))
-                }
-              />
-            </section>
-
-            {/* One panel at a time, opening under the row it belongs to.
-                Mounting it per field is also what stops React reusing the one
-                panel across a switch and carrying a half-typed hex with it. */}
-            {openColor === field.key && settings.badge.enabled ? (
-              <ColorPicker
-                label={field.label}
-                value={settings.badge[field.key]}
-                onChange={hex => saveBadge({ [field.key]: hex })}
-              />
-            ) : null}
-          </Fragment>
+          <section
+            key={field.key}
+            className="field"
+            hidden={!settings.badge.enabled}
+          >
+            <span>{field.label}</span>
+            <button
+              type="button"
+              aria-label={field.label}
+              aria-expanded={openColor === field.key}
+              className={openColor === field.key ? 'swatch active' : 'swatch'}
+              style={{ background: settings.badge[field.key] }}
+              onClick={() =>
+                setOpenColor(open => (open === field.key ? null : field.key))
+              }
+            />
+          </section>
         ))}
+
+        {/* Under the pair rather than under the row it belongs to. A badge's
+            legibility is the contrast between its two colours, so both swatches
+            have to stay on screen while either is being picked; opening the
+            first one used to push the second off the bottom. The filled
+            `.swatch.active` and `aria-expanded` are what say which row the
+            panel is for, and `key` still remounts on a switch so a half-typed
+            hex cannot travel between the two. */}
+        {openField !== undefined && settings.badge.enabled ? (
+          <ColorPicker
+            key={openField.key}
+            label={openField.label}
+            value={settings.badge[openField.key]}
+            onChange={hex => saveBadge({ [openField.key]: hex })}
+          />
+        ) : null}
 
         <section className="field" hidden={!settings.badge.enabled}>
           <label htmlFor="badge-autohide">Hide after</label>

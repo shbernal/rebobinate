@@ -18,6 +18,11 @@ type SpeedPaneProps = {
    * while per-site memory is off and on a site that is marked never.
    */
   remembered: boolean
+  /**
+   * Whether something is written down for it already, which is the difference
+   * between what will happen and what has.
+   */
+  hasEntry: boolean
 }
 
 /**
@@ -37,6 +42,7 @@ const SpeedPane = ({
   onSetSpeed,
   domain,
   remembered,
+  hasEntry,
 }: SpeedPaneProps) => (
   <>
     <section className="speed">
@@ -87,12 +93,20 @@ const SpeedPane = ({
       ))}
     </section>
 
-    {/* A receipt, not a control. Stepping the speed here writes a rule that
-        applies on every later visit to this site, and this is the only screen
-        that can say so at the moment it happens. What to do about it lives on
-        the Sites tab, one click away. */}
+    {/* Where the speed goes, in the tense it is actually in: a promise while
+        the site has nothing stored, a receipt once it has. Per-site memory is
+        on out of the box, so the two are one step apart on a fresh profile and
+        printing the receipt for both is the extension's only claim about a
+        user's speed being false. Stepping the speed here writes a rule that
+        applies on every later visit, and this is the only screen that can say
+        so at the moment it happens. What to do about it is on the Sites tab,
+        one click away. */}
     {remembered && domain !== null ? (
-      <p className="note">Remembered for {domain}</p>
+      <p className="note">
+        {hasEntry
+          ? `Remembered for ${domain}`
+          : `Kept for ${domain} from here on`}
+      </p>
     ) : null}
 
     <p className="hint">
