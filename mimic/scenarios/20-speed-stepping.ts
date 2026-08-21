@@ -11,7 +11,7 @@ export default {
     await look(
       s,
       popup,
-      'The panel as it opens, over a page playing a talk. The large number in the middle is how fast the video is currently playing. The line under the row of speeds names the site behind the panel and says a speed set here will be kept for it from now on. Nothing has been kept for that site yet.',
+      'The panel as it opens, over a page playing a talk. The large number in the middle is how fast the video is currently playing. Under the row of speeds is a line of underlined text naming the site behind the panel and saying that speeds set here are kept for it; clicking that line goes to the section where what is kept for a site can be changed. Nothing has been kept for that site yet, and there is no button beside the line.',
       { name: 'panel' },
     )
 
@@ -28,7 +28,7 @@ export default {
     await look(
       s,
       popup,
-      'The "+" button on the right has been pressed three times in a row. Each press makes the video play a little faster. A second after the last press the line under the row of speeds changed: it now says the new speed is remembered for the site behind the panel, where before it said the speed would be kept from now on.',
+      'The "+" button on the right has been pressed three times in a row. Each press makes the video play a little faster. A second after the last press the line under the row of speeds changed: it now says the new speed is remembered for the site behind the panel, and a button marked "Forget" has appeared beside it. Before the presses that line was the underlined sentence about speeds being kept for the site, with nothing beside it.',
       { name: 'faster' },
     )
 
@@ -46,7 +46,7 @@ export default {
     await look(
       s,
       popup,
-      'The "Reset" button has been pressed. It puts the video straight back to its normal speed, however far from normal it had got, and drops what was being remembered for the site — so the line underneath is back to what it said before anything was changed.',
+      'The "Reset" button has been pressed. It puts the video straight back to its normal speed, however far from normal it had got, and drops what was being remembered for the site — so the "Forget" button has gone and the line underneath is back to what it said before anything was changed.',
       { name: 'reset' },
     )
   },

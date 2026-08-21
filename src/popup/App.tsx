@@ -202,6 +202,17 @@ const App = () => {
               domains.entries[domain]?.never !== true
             }
             hasEntry={domain !== null && domains.entries[domain] !== undefined}
+            /* The receipt's Forget is the Sites row's ✕ under another name:
+               same message, same outcome, offered where the write was
+               announced rather than a tab away. `remembered` already rules out
+               a marker, so the plain forget is the right one of the two
+               clears. */
+            onForget={() => {
+              if (domain !== null) {
+                forgetSite(domain)
+              }
+            }}
+            onShowSites={() => setTab('sites')}
           />
         ) : null}
 

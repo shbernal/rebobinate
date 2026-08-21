@@ -168,13 +168,13 @@ describe('popup tabs', () => {
 
   // The service worker resets to the default speed, not to 1.0×, so a bare
   // "Reset" is wrong for anyone who has moved that default.
-  it('names what reset goes back to', () => {
+  it('names what reset goes back to', async () => {
     seedSettings({ defaultSpeed: 1.5 })
     render(<App />)
 
     const reset = screen.getByRole('button', { name: 'Default' })
 
-    expect(reset).toHaveAttribute('title', 'Back to 1.5×')
+    expect(await screen.findByTitle(/^Back to 1\.5×/)).toBe(reset)
 
     fireEvent.click(reset)
 
@@ -187,10 +187,34 @@ describe('popup tabs', () => {
   it('calls it Reset while the default is 1.0×', () => {
     render(<App />)
 
-    expect(screen.getByRole('button', { name: 'Reset' })).toHaveAttribute(
-      'title',
-      'Back to 1.0×',
-    )
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument()
+  })
+
+  /**
+   * Reset and the 1.0× chip land on the same number and do opposite things to
+   * the map: the chip is an ordinary set and the service worker treats a reset
+   * as the signal to drop the entry. Nothing on screen distinguishes them, so
+   * the tooltip is what has to.
+   */
+  it('says that reset also drops what the site remembers', async () => {
+    render(<App />)
+
+    expect(
+      await screen.findByTitle(
+        'Back to 1.0×, and stops remembering a speed for youtube.com',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('promises reset no more than it can deliver on an unremembered site', async () => {
+    seedSettings({ rememberPerDomain: false, defaultSpeed: 1.5 })
+    render(<App />)
+
+    // The relabel is what says the seeded settings have arrived; the title is
+    // read from the same object.
+    expect(
+      await screen.findByRole('button', { name: 'Default' }),
+    ).toHaveAttribute('title', 'Back to 1.5×')
   })
 
   // The hint stops being true the moment a key is rebound.
@@ -216,15 +240,37 @@ describe('popup speed tab receipt', () => {
   })
 
   // Per-site memory being on is not the same as this site having been
-  // remembered, and on a fresh profile the second is never true.
+  // remembered, and on a fresh profile the second is never true. The promise
+  // states the rule rather than describing a state, so it cannot be read as a
+  // claim that something is already stored.
   it('promises the speed will be kept for a site with nothing stored', async () => {
     answerPopupState('youtube.com', 1.5)
     render(<App />)
 
     expect(
-      await screen.findByText('Kept for youtube.com from here on'),
+      await screen.findByText('Speeds set here are kept for youtube.com'),
     ).toBeInTheDocument()
     expect(screen.queryByText(/^Remembered for/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Forget' })).toBeNull()
+  })
+
+  // "From here on" has to lead somewhere: the tab where the rule can be
+  // changed for this site and every other one.
+  it('takes the promise to the Sites tab', async () => {
+    const user = userEvent.setup()
+    answerPopupState('youtube.com', 1.5)
+    render(<App />)
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Speeds set here are kept for youtube.com',
+      }),
+    )
+
+    expect(screen.getByRole('tab', { name: 'Sites' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
   })
 
   it('says the speed is being kept once the site has an entry', async () => {
@@ -237,6 +283,25 @@ describe('popup speed tab receipt', () => {
     ).toBeInTheDocument()
   })
 
+  /**
+   * The write is announced here and used to be undoable only from another tab,
+   * where the user then had to work out which control reversed it. The Forget
+   * beside the receipt sends what the Sites row's ✕ sends.
+   */
+  it('forgets the site from the receipt itself', async () => {
+    const user = userEvent.setup()
+    answerPopupState('youtube.com', 1.5)
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Forget' }))
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      { type: 'rebobinate:forget-domain', domain: 'youtube.com' },
+      expect.any(Function),
+    )
+  })
+
   it('says nothing while per-site memory is off', async () => {
     seedSettings({ rememberPerDomain: false })
     answerPopupState('youtube.com', 1.5)
@@ -245,7 +310,7 @@ describe('popup speed tab receipt', () => {
 
     expect(await screen.findByText(/faster/)).toBeInTheDocument()
     expect(screen.queryByText(/^Remembered for/)).toBeNull()
-    expect(screen.queryByText(/^Kept for/)).toBeNull()
+    expect(screen.queryByText(/are kept for/)).toBeNull()
   })
 
   it('says nothing on a page there is no domain for', async () => {
@@ -254,7 +319,7 @@ describe('popup speed tab receipt', () => {
 
     expect(await screen.findByText(/faster/)).toBeInTheDocument()
     expect(screen.queryByText(/^Remembered for/)).toBeNull()
-    expect(screen.queryByText(/^Kept for/)).toBeNull()
+    expect(screen.queryByText(/are kept for/)).toBeNull()
   })
 
   // A marker means the opposite of a receipt: this site is being left out.
@@ -265,7 +330,7 @@ describe('popup speed tab receipt', () => {
 
     expect(await screen.findByText(/faster/)).toBeInTheDocument()
     expect(screen.queryByText(/^Remembered for/)).toBeNull()
-    expect(screen.queryByText(/^Kept for/)).toBeNull()
+    expect(screen.queryByText(/are kept for/)).toBeNull()
   })
 })
 

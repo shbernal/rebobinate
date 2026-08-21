@@ -23,6 +23,10 @@ type SpeedPaneProps = {
    * between what will happen and what has.
    */
   hasEntry: boolean
+  /** Drops the entry this pane has just said it wrote. */
+  onForget: () => void
+  /** Where the rule can be changed for every site, not only this one. */
+  onShowSites: () => void
 }
 
 /**
@@ -43,6 +47,8 @@ const SpeedPane = ({
   domain,
   remembered,
   hasEntry,
+  onForget,
+  onShowSites,
 }: SpeedPaneProps) => (
   <>
     <section className="speed">
@@ -71,7 +77,11 @@ const SpeedPane = ({
       <button
         type="button"
         className="reset"
-        title={`Back to ${formatSpeedLabel(defaultSpeed)}`}
+        title={
+          remembered && domain !== null
+            ? `Back to ${formatSpeedLabel(defaultSpeed)}, and stops remembering a speed for ${domain}`
+            : `Back to ${formatSpeedLabel(defaultSpeed)}`
+        }
         onClick={() => onAction('reset')}
       >
         {speedsEqual(defaultSpeed, 1) ? 'Reset' : 'Default'}
@@ -97,16 +107,40 @@ const SpeedPane = ({
         the site has nothing stored, a receipt once it has. Per-site memory is
         on out of the box, so the two are one step apart on a fresh profile and
         printing the receipt for both is the extension's only claim about a
-        user's speed being false. Stepping the speed here writes a rule that
-        applies on every later visit, and this is the only screen that can say
-        so at the moment it happens. What to do about it is on the Sites tab,
-        one click away. */}
+        user's speed being false.
+
+        Neither tense is only a sentence. Stepping the speed here writes a rule
+        that applies on every later visit, this is the only screen that says so
+        at the moment it happens, and passive text is no way to say it: the
+        receipt carries the Forget that undoes the write where it was
+        announced, and the promise is the button that leads to the tab where
+        the rule is set for every site. A control appearing is also a louder
+        change of state than a verb changing. */}
     {remembered && domain !== null ? (
-      <p className="note">
-        {hasEntry
-          ? `Remembered for ${domain}`
-          : `Kept for ${domain} from here on`}
-      </p>
+      hasEntry ? (
+        <section className="memory">
+          <p className="note">{`Remembered for ${domain}`}</p>
+          <button
+            type="button"
+            className="forget"
+            title={`Back to the default speed for ${domain}`}
+            onClick={onForget}
+          >
+            Forget
+          </button>
+        </section>
+      ) : (
+        <section className="memory">
+          <button
+            type="button"
+            className="note memory-link"
+            title="Change this on the Sites tab"
+            onClick={onShowSites}
+          >
+            {`Speeds set here are kept for ${domain}`}
+          </button>
+        </section>
+      )
     ) : null}
 
     <p className="hint">

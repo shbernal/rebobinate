@@ -37,7 +37,7 @@ export default {
     await look(
       s,
       popup,
-      'Clicking the coloured square on the "Text color" row opened this panel. It is how the colour of the marker is chosen. The panel opens under both colour rows rather than under the row it belongs to, so the two rows — the marker\'s text and its background — are both still on screen above it; the square that was clicked has an accent-coloured border around it.',
+      'Clicking the coloured square on the "Text color" row opened this panel. It is how the colour of the marker is chosen. The panel opens under both colour rows rather than under the row it belongs to, so the two rows — the marker\'s text and its background — are both still on screen above it. Which of the two it edits is written across the top of the panel, and the square that was clicked is ringed in the accent colour.',
       {
         name: 'picker',
         mustShow: popup.locator('.color-picker'),

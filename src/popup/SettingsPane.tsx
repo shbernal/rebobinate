@@ -36,6 +36,12 @@ type ColorFieldKey = (typeof COLOR_FIELDS)[number]['key']
  * it for most users at rest, since the popup previews the tab's current speed.
  * So the rules are stated instead, and stating them is also what answers
  * whether the two settings interact — the sentence has to carry both.
+ *
+ * It is rendered last in the block, under the two controls it reads. Under the
+ * sample it was the first thing to pass beneath the pinned header, so by the
+ * time "Hide after" and "Show at 1.0×" were on screen the sentence describing
+ * what they had just done was not — and feedback out of reach at the moment it
+ * is needed cannot be told apart from no feedback at all.
  */
 const visibilityNote = (badge: BadgeSettings): string => {
   const seconds = badge.autoHideMs / 1000
@@ -155,9 +161,7 @@ const SettingsPane = ({
           screen for the whole run of badge controls and lets go once the Backup
           section arrives, rather than covering it. The header leads the block
           for the same reason — a top-stuck element covers what has already
-          scrolled past it, never a control being scrolled toward. The sentence
-          about when the badge shows travels with the sample, so the sample and
-          the rule it obeys stay adjacent. */}
+          scrolled past it, never a control being scrolled toward. */}
       <section className="badge-settings">
         {/* The switch that governs the block travels with the sample rather
             than scrolling away under the tab strip: a master switch that is
@@ -192,14 +196,11 @@ const SettingsPane = ({
           </section>
         </div>
 
-        <p className="note" hidden={!settings.badge.enabled}>
-          {visibilityNote(settings.badge)}
-        </p>
-
         {/* The buttons are in a box of their own rather than being laid out by
-            the fieldset: a `display: grid` fieldset makes its legend a grid
-            item, which puts "Corner" in the first cell and pushes the four
-            corners into three rows. */}
+            the fieldset: a fieldset lays its rendered legend out itself, above
+            the box its `display` applies to, so a grid fieldset puts "Corner"
+            on a line of its own above the corners rather than beside them. The
+            legend is floated back out of that path in App.css. */}
         <fieldset className="corners" disabled={!settings.badge.enabled}>
           <legend>Corner</legend>
           <div className="corner-grid">
@@ -278,10 +279,15 @@ const SettingsPane = ({
         {/* Under the pair rather than under the row it belongs to. A badge's
             legibility is the contrast between its two colours, so both swatches
             have to stay on screen while either is being picked; opening the
-            first one used to push the second off the bottom. The filled
-            `.swatch.active` and `aria-expanded` are what say which row the
-            panel is for, and `key` still remounts on a switch so a half-typed
-            hex cannot travel between the two. */}
+            first one used to push the second off the bottom. Which row it is
+            for is said three ways, because none of them is the panel's
+            position: the panel captions itself with the field's name, the open
+            swatch wears an accent ring, and `aria-expanded` carries the same
+            thing to a screen reader. The ring is a ring rather than a fill
+            because the swatch paints the chosen colour inline, and an inline
+            background beats any fill a stylesheet can set. `key` still
+            remounts on a switch so a half-typed hex cannot travel between the
+            two. */}
         {openField !== undefined && settings.badge.enabled ? (
           <ColorPicker
             key={openField.key}
@@ -318,6 +324,12 @@ const SettingsPane = ({
             onChange={show => saveBadge({ hideAtNormalSpeed: !show })}
           />
         </section>
+
+        {/* Last in the block, so it sits under both of the controls it reads
+            rather than above them under the pinned header. */}
+        <p className="note" hidden={!settings.badge.enabled}>
+          {visibilityNote(settings.badge)}
+        </p>
       </section>
 
       <hr />

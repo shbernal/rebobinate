@@ -460,9 +460,20 @@ hr {
   gap: 4px;
 }
 
+/* Level with the middle of the grid rather than against its top row, which
+   made this the only label on the pane not level with its control.
+
+   Not by making the fieldset a flex row: measured in both engines, a
+   fieldset's rendered legend is laid out by the fieldset itself and never as
+   an item of whatever its `display` sets up, so `align-items: center` has
+   nothing to centre and the legend lands above the grid instead of beside it.
+   The float is what takes it out of that path, and a line box the height of
+   the 2x28 + 4 grid is what centres the text in it — exact in both engines,
+   where a `padding-top` guess would be a font metric away. */
 .corners legend {
   float: left;
   margin-right: 8px;
+  line-height: 60px;
 }
 
 .corners button {
@@ -497,6 +508,16 @@ hr {
   box-sizing: border-box;
 }
 
+/* Which of the two colour rows the panel edits, in words. It sits over the
+   panel rather than beside the swatch that opened it, because the panel is
+   shared and its position cannot say. */
+.picker-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
 .presets {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -517,14 +538,26 @@ hr {
    at once on a focused selected control. Selection is a fill and a solid
    accent border; the outline is now the focus ring's alone.
 
-   The two colour controls keep their own background — an inline swatch colour
-   wins over this rule — so on those it is the border that does the work. */
+   The preset grid keeps its own inline background — a swatch colour wins over
+   this rule — so on those it is the border alone that does the work. */
 .corners button.active,
-.swatch.active,
 .presets button.active,
 .speed-presets button[aria-pressed='true'] {
   border: 1px solid AccentColor;
   background: color-mix(in srgb, AccentColor 18%, Canvas);
+}
+
+/* The open swatch is the exception, and it earns it: it is 44x24 of a colour
+   the user chose, painted inline, so the fill above never rendered on it and a
+   1px border was the whole signal that this row's panel is the one open. A ring
+   set off the edge survives any inline background. It is drawn as an outline,
+   which the focus ring replaces while the swatch has keyboard focus — the ring
+   stays a ring either way, and the panel's own caption says which row it is
+   for. */
+.swatch.active {
+  border: 1px solid AccentColor;
+  outline: 2px solid AccentColor;
+  outline-offset: 2px;
 }
 
 .color-row {
@@ -619,7 +652,17 @@ hr {
    The opaque Canvas is what the rows passing beneath do not show through — the
    sample paints its own opaque base, but the switch row and the gap below it do
    not. `z-index` sits here rather than on the sample so the whole header stays
-   over the picker panel and those rows. */
+   over the picker panel and those rows.
+
+   That Canvas has to reach past the header's own content, because the 8px
+   `.badge-settings` gap under it belongs to no child and so paints nothing:
+   whatever was scrolling underneath showed through an 8px band directly below
+   the sample — the top of the corner grid, the Size slider's filled track, the
+   middle of a sentence — and read as a rendering fault. The padding extends the
+   background over the band and the negative margin gives the space back, so
+   nothing moves. 7px and a 1px hairline rather than 8px and none: the boundary
+   then reads as the bottom edge of the header rather than as a cut through
+   whatever is passing under it. */
 .badge-header {
   position: sticky;
   top: 0;
@@ -627,6 +670,9 @@ hr {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-bottom: 7px;
+  margin-bottom: -8px;
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
   background: Canvas;
 }
 
@@ -671,6 +717,44 @@ hr {
 .preview:has([data-corner='bottom-right']) {
   align-items: flex-end;
   justify-content: flex-end;
+}
+
+/* Where the speed goes, and what to do about it, on one row: the receipt in the
+   pane's label-left/control-right shape with the Forget that undoes it, and the
+   promise as a full-width button leading to the tab where the rule is set. */
+.memory {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.memory .forget {
+  flex: none;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* Text that goes somewhere, so it is underlined and not made to look like a
+   button: the row's own button is the one on the receipt, and two buttons of
+   equal weight would be two offers rather than one. `.note` sets the size and
+   the opacity; only what the UA gives a button is overridden here. */
+.memory-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.memory-link:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
 }
 
 .hint {

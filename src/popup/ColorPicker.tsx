@@ -117,6 +117,13 @@ const ColorPicker = ({ label, value, onChange }: ColorPickerProps) => {
 
   return (
     <div className="color-picker" role="group" aria-label={`${label} picker`}>
+      {/* The panel names its own subject. One panel is shared by both colour
+          rows and it opens under the pair rather than under the row that
+          opened it, so its position says nothing about which of the two it
+          edits; without the caption, `label` reached a screen reader through
+          `aria-label` and nobody else. */}
+      <p className="picker-label">{label}</p>
+
       <div className="presets">
         {PRESET_COLORS.map(preset => (
           <button

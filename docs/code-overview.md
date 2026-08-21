@@ -72,17 +72,27 @@ site means "back to normal here", not "start watching me again", and the LRU cap
 counts the two kinds of entry separately — a profile with 500 remembered speeds
 must not quietly evict an opt-out and start remembering the site again.
 
-The Speed tab says when it is writing one of these. `App.tsx` hands `SpeedPane`
-the resolved domain, whether it is being remembered — memory on, a domain to
-hang it on, no marker on this one — and whether that domain has an entry yet.
-The line under the preset row appears when the first three hold, and the fourth
-picks its tense: _"Kept for X from here on"_ with nothing stored, _"Remembered
-for X"_ once there is. It is a receipt rather than a control, and the split
-exists because per-site memory ships on: a receipt issued on a site nothing has
-ever been written for is the extension's only claim about where a user's speed
-goes, made false on every fresh install. Stepping the speed writes a rule that
-applies on every later visit, and the Sites tab, where that rule can be changed,
-is not somewhere anybody goes before being surprised by it. The Sites tab's own
+The Speed tab says when it is writing one of these, and gives the user something
+to do about it. `App.tsx` hands `SpeedPane` the resolved domain, whether it is
+being remembered — memory on, a domain to hang it on, no marker on this one —
+and whether that domain has an entry yet. The row under the presets appears when
+the first three hold, and the fourth picks its tense: _"Speeds set here are kept
+for X"_ with nothing stored, _"Remembered for X"_ once there is. The split exists
+because per-site memory ships on: a receipt issued on a site nothing has ever
+been written for is the extension's only claim about where a user's speed goes,
+made false on every fresh install. The promise states the rule rather than
+describing a state, for the same reason — the Sites tab says _"No sites are
+remembered yet"_ at that moment, and both have to be true at once.
+
+**Neither tense is only a sentence.** Stepping the speed writes a rule that
+applies on every later visit and this is the only screen that says so as it
+happens, so each half of the row carries the control its words imply: the
+receipt is followed by a **Forget** button sending the same
+`rebobinate:forget-domain` the Sites row's ✕ sends, and the promise is itself a
+button that switches to the Sites tab, where the rule can be set for this site
+and every other one. Undoing the write where it was announced is one click, and
+a control appearing is also a louder change of state than a verb changing —
+which is what the tense switch alone amounted to. The Sites tab's own
 empty state splits on the same question: _"No other site is remembered yet."_
 only while this tab's site is the one that is.
 
@@ -367,13 +377,30 @@ Three things about the panes follow from that width:
   way to turn the block off, and half of one under the pane's 18px scroll cue
   reads as a rendering fault. With the badge off, `.preview[hidden]` collapses
   the header to the switch alone.
+
+  Its opaque `Canvas` has to reach past its own content. `.badge-settings`
+  separates its children with `gap: 8px`, a flex gap belongs to no child and so
+  paints nothing, and whatever was scrolling underneath showed through an 8px
+  band right below the sample — the top of the corner grid, the Size slider's
+  filled track, the middle of a sentence, all of which read as a rendering
+  fault rather than as a scroll. `padding-bottom: 7px` plus a 1px hairline
+  extends the background across the band and `margin-bottom: -8px` gives the
+  space back, so nothing moves and the content passing under it stops at an
+  edge instead of being cut.
+
 - **Selected is a fill, focused is an outline.** `outline: 2px solid Highlight`
   used to mark the open Export panel, the chosen corner, the matching preset
   chip, the open swatch _and_ `:focus-visible`, so three different meanings were
   one ring and a focused selected control could not show both. Selection is now
   an accent border over `color-mix(in srgb, AccentColor 18%, Canvas)` and the
-  outline belongs to the focus ring alone. The two colour controls keep their
-  own inline background, so on those it is the border that carries it.
+  outline belongs to the focus ring alone. The colour presets keep their own
+  inline background, so on those it is the border that carries it — and the open
+  swatch is the one place where a border could not: 44x24 of a user-chosen
+  colour with a 1px accent edge was the entire signal that this row's panel was
+  the one open, and the fill the rule set never rendered on it, because an
+  inline `style` beats a stylesheet. `.swatch.active` is split out of that rule
+  block for an offset `outline: 2px solid AccentColor`, a ring no inline
+  background can paint over.
 - **`.pane` carries a scroll cue at each edge** as a pair of gradients apiece —
   an opaque cover at `background-attachment: local` over a shadow at `scroll` —
   so a fading edge appears only while there is more pane past it, with no
@@ -389,10 +416,16 @@ on-video badge is on, which cannot be made to demonstrate `autoHideMs` or
 `hideAtNormalSpeed`: a preview that vanishes two seconds after a slider moves is
 not a preview, and honouring "show at 1.0×" would blank it for most users at
 rest, since it previews the tab's current speed. So `visibilityNote` in
-`SettingsPane.tsx` composes both settings into a sentence directly under it —
+`SettingsPane.tsx` composes both settings into a sentence —
 _"Shown for 2 seconds after a speed change, and hidden at 1.0×."_ — which
-updates as the controls move. The sentence sits with the sample rather than
-with the controls it reads, so the rule and the thing obeying it stay adjacent.
+updates as the controls move.
+
+**It is rendered last in the block**, under both controls it reads. Under the
+sample it was the first thing to pass beneath the pinned header, so at any
+scroll position that reached "Hide after" and "Show at 1.0×" the sentence
+describing what they had just done was off screen — and feedback out of reach
+at the moment it is needed cannot be told apart from no feedback at all. Last in
+the block, the two settings and their result are on screen together.
 
 That switch is asked as **"Show at 1.0×"** while the stored key stays
 `hideAtNormalSpeed`. Every other switch on the pane means "more visible" when it
@@ -465,6 +498,12 @@ between its text and its background, so both swatches have to stay on screen
 while either is being picked. The `key={openColor}` on that single element keeps
 what the per-row mount was buying: React remounts the panel when the open field
 changes, so a half-typed hex cannot travel from one colour to the other.
+
+Because the panel's position cannot say which row it edits, **it captions
+itself**: `label` is rendered at the top of `.color-picker` as well as going
+into the group's `aria-label`, so the answer is on screen and not only in the
+accessibility tree. That plus the open swatch's accent ring and `aria-expanded`
+is what carries ownership.
 
 ## Backup and restore
 
