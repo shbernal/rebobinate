@@ -61,3 +61,4 @@ addons.mozilla.org package; only manifest keys differ.
   - Minimal attention when model implements without errors, we document in more detail when model struggles.
   - Do not expect the user to have read each line, don't lose him on the internals, give visibility on a higher-architectural level.
   - No journaling: code comments / documentation describe current state, they don't carry a log of their own edit history.
+  - Commit messages never name a branch: branches are deleted after merge, so `Merge branch 'foo'` points at nothing. Say what the merge brought in.
