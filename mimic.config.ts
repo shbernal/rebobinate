@@ -63,7 +63,7 @@ export default {
 
   judge: {
     provider: 'openrouter',
-    model: 'google/gemini-3.7-flash',
+    model: 'openai/gpt-5.6-sol-pro',
     concurrency: 4,
 
     // The lens is mimic's — a persona, reusable across targets. What belongs
