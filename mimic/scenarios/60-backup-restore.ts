@@ -15,7 +15,7 @@ export default {
     await look(
       s,
       popup,
-      'The very bottom of the Settings section, reached by scrolling all the way down past everything else. "Export" and "Import" are joined into one pair, and that pair is the only thing here about moving settings between computers. Nothing has been pressed: "Export" arrives already filled in, and the box of text under it is what that half opens onto.',
+      'The very bottom of the Settings section, reached by scrolling all the way down past everything else. "Export" and "Import" are joined into one pair, and that pair is the only thing here about moving settings between computers. Nothing has been pressed: "Export" arrives already filled in, and the box of text under it is what that half shows. The line under the box says what is in that text and where it is meant to go.',
       { name: 'export', mustShow: backup },
     )
 
@@ -33,8 +33,8 @@ export default {
     await look(
       s,
       popup,
-      'The "Import" half has been pressed a second time. Pressing the half that is already filled in puts it out again, so neither half is filled and the box below the pair has gone.',
-      { name: 'closed', mustShow: backup },
+      'The "Import" half has been pressed a second time, and nothing has changed. One of the two halves is always the filled-in one, so pressing the half that is already filled leaves it filled and the box below the pair in place.',
+      { name: 'unchanged', mustShow: backup },
     )
   },
 }

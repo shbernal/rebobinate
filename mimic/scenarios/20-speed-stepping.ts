@@ -28,7 +28,7 @@ export default {
     await look(
       s,
       popup,
-      'The "+" button on the right has been pressed three times in a row. Each press makes the video play a little faster. A second after the last press the line under the row of speeds changed: it now says the new speed is remembered for the site behind the panel, and a button marked "Forget" has appeared beside it. Before the presses that line was the underlined sentence about speeds being kept for the site, with nothing beside it.',
+      'The "+" button on the right has been pressed three times in a row. Each press makes the video play a little faster. A second after the last press the line under the row of speeds changed: it now names a speed and the site behind the panel, saying that speed is what is remembered for it, and a button marked "Forget" has appeared beside it. Before the presses that line was the underlined sentence about speeds being kept for the site, with nothing beside it.',
       { name: 'faster' },
     )
 

@@ -27,12 +27,15 @@ type BackupProps = {
  */
 const Backup = ({ settings, domains, onImport }: BackupProps) => {
   /**
-   * Open on Export, so the pair arrives reading as a switch with one half
-   * chosen rather than as two buttons nothing has been done to. Export is the
-   * safe half — it is read-only, it is the one needed first, and nothing sits
-   * below Backup for its panel to push down. `show` still closes either half.
+   * Which half of the pair is chosen — always one of the two, never neither.
+   * It is styled as a segmented control, which is the grammar of a choice that
+   * always has an answer, and it used to behave like a disclosure: pressing
+   * the open half a second time left both halves out and the panel gone. The
+   * collapse bought nothing either, since Backup is the last section in the
+   * pane. Export is the half it arrives on — read-only, and the one needed
+   * first.
    */
-  const [mode, setMode] = useState<Mode | null>('export')
+  const [mode, setMode] = useState<Mode>('export')
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<string | null>(null)
 
@@ -66,8 +69,8 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
             : `all ${siteCount} remembered sites`
         }.`
 
-  const show = (next: Mode) => {
-    setMode(open => (open === next ? null : next))
+  const choose = (next: Mode) => {
+    setMode(next)
     setStatus(null)
   }
 
@@ -93,26 +96,30 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
 
     onImport(parsed)
     setDraft('')
-    setMode(null)
+    // Back to Export rather than to nothing, which also leaves the freshly
+    // restored settings on screen as the backup they now are.
+    setMode('export')
     setStatus('Restored.')
   }
 
   return (
     <section className="backup">
-      {/* One switch over one panel, so it is styled as one: the pair opens and
-          closes a shared slot rather than each doing something on its own. */}
+      {/* One two-way switch over one panel: the pair chooses which direction
+          the shared slot is showing, and one of them is always chosen.
+          `aria-pressed` rather than `aria-expanded`, because neither button
+          opens or closes anything. */}
       <div className="backup-actions backup-modes">
         <button
           type="button"
-          aria-expanded={mode === 'export'}
-          onClick={() => show('export')}
+          aria-pressed={mode === 'export'}
+          onClick={() => choose('export')}
         >
           Export
         </button>
         <button
           type="button"
-          aria-expanded={mode === 'import'}
-          onClick={() => show('import')}
+          aria-pressed={mode === 'import'}
+          onClick={() => choose('import')}
         >
           Import
         </button>
@@ -134,7 +141,15 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
               Copy
             </button>
           </div>
-          <p className="note">Your settings and every remembered site.</p>
+          {/* Names where the text goes, which is the half of the job the
+              pair's two words do not say: this is a backup you paste into the
+              other computer's Import, not a file the browser puts somewhere.
+              A paste is also the only import a popup can offer — a file
+              picker tears the popup down on Gecko. */}
+          <p className="note">
+            Your settings and every remembered site. Paste it into Import on
+            your other computer.
+          </p>
         </>
       ) : null}
 
@@ -143,7 +158,7 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
           <textarea
             className="backup-text"
             aria-label="Backup to restore"
-            placeholder="Paste a backup"
+            placeholder="Paste a backup from Export on your other computer"
             value={draft}
             onChange={event => setDraft(event.target.value)}
           />
@@ -157,7 +172,7 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
           {/* Why the button is dead, or what pressing it costs. A confirmation
               step is the wrong shape here: on Gecko the popup autohides on
               focus loss, so an extra step is another way to lose the paste. */}
-          <p className="note">
+          <p className="rule">
             {draft.trim() !== '' && !parsed.ok ? parsed.error : replacesNote}
           </p>
         </>

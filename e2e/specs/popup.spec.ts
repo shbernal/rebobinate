@@ -125,9 +125,9 @@ test.describe('popup backup', () => {
 
     const popup = await openPopup()
     await openTab(popup, 'Settings')
-    // The pair arrives on Export, so pressing it here would close the panel.
+    // The pair arrives on Export, so there is nothing to press to read it.
     await expect(popup.getByRole('button', { name: 'Export' })).toHaveAttribute(
-      'aria-expanded',
+      'aria-pressed',
       'true',
     )
 

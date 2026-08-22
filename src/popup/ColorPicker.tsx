@@ -56,9 +56,11 @@ type ColorPickerProps = {
   label: string
   value: string
   onChange: (hex: string) => void
+  /** The way out that is not "click the swatch you came in by". */
+  onClose: () => void
 }
 
-const ColorPicker = ({ label, value, onChange }: ColorPickerProps) => {
+const ColorPicker = ({ label, value, onChange, onClose }: ColorPickerProps) => {
   const hex = toHex(value)
   /**
    * The HSL is state rather than a value derived from `hex` on every render.
@@ -121,8 +123,25 @@ const ColorPicker = ({ label, value, onChange }: ColorPickerProps) => {
           rows and it opens under the pair rather than under the row that
           opened it, so its position says nothing about which of the two it
           edits; without the caption, `label` reached a screen reader through
-          `aria-label` and nobody else. */}
-      <p className="picker-label">{label}</p>
+          `aria-label` and nobody else.
+
+          The caption row carries the way out. Clicking the open swatch again
+          closes the panel, but the ring on that swatch reads as "this is the
+          one being edited" rather than as "press me again", and the panel is
+          about 200px of a 440px pane. Not a "Done": nothing here is pending,
+          every change is already saved, and Done would imply an edit that
+          could still be cancelled. */}
+      <div className="picker-label">
+        <span>{label}</span>
+        <button
+          type="button"
+          className="picker-close"
+          aria-label={`Close ${label} picker`}
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </div>
 
       <div className="presets">
         {PRESET_COLORS.map(preset => (
@@ -138,8 +157,14 @@ const ColorPicker = ({ label, value, onChange }: ColorPickerProps) => {
         ))}
       </div>
 
+      {/* Each track is labelled in words as well as to a screen reader. The
+          gradients normally describe themselves, and at the default text
+          colour they do not: at #ffffff the saturation track runs white to
+          white and renders as an empty bar with a dot on it, which is the
+          first thing anyone opening this panel sees. */}
       {CHANNELS.map(channel => (
         <div key={channel.key} className="color-row">
+          <span className="channel-label">{channel.label}</span>
           <input
             type="range"
             aria-label={channel.label}
@@ -152,7 +177,14 @@ const ColorPicker = ({ label, value, onChange }: ColorPickerProps) => {
         </div>
       ))}
 
+      {/* The hex, and no sample square beside it. The square painted the
+          colour flat with nothing behind it, so at the default #ffffff it was
+          a second empty box in a panel that already had one — and it was
+          duplicating the swatch on the row above, which the panel deliberately
+          keeps on screen. The tracks and the preset grid show the colour
+          live. */}
       <div className="color-row">
+        <span className="channel-label">Hex</span>
         <input
           type="text"
           aria-label={`${label} hex`}
@@ -162,7 +194,6 @@ const ColorPicker = ({ label, value, onChange }: ColorPickerProps) => {
           onChange={event => editHex(event.target.value)}
           onBlur={commitHex}
         />
-        <span className="color-preview" style={{ background: hex }} />
       </div>
     </div>
   )

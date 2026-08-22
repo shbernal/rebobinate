@@ -163,12 +163,16 @@ const SitesPane = ({
   /**
    * "Other" is a claim about this tab's site, so it is only sayable when that
    * site really is remembered. On a profile with nothing stored at all the word
-   * implies a first entry that does not exist.
+   * implies a first entry that does not exist — and a marker is not a memory,
+   * so choosing "Never remember" for this tab used to flip the message into
+   * claiming the site was remembered at the moment the user asked for the
+   * opposite.
    */
+  const current = domain !== null ? domains.entries[domain] : undefined
   const emptyNote =
     others.length > 0
       ? 'No site matches that filter.'
-      : domain !== null && domains.entries[domain] !== undefined
+      : current !== undefined && !current.never
         ? 'No other site is remembered yet.'
         : 'No sites are remembered yet.'
 
@@ -230,8 +234,13 @@ const SitesPane = ({
 
           <hr />
 
+          {/* Counted and named for what is listed, which is every site with a
+              stored decision — a speed, or a "never" that leaves the site out.
+              The markers are listed because the list is how an exclusion is
+              undone, and "Remembered sites (3)" over three rows two of which
+              say "Never remember" counted them as memories. */}
           <h2 className="pane-heading">
-            Remembered sites{others.length > 0 ? ` (${others.length})` : ''}
+            Other sites{others.length > 0 ? ` (${others.length})` : ''}
           </h2>
 
           {others.length >= FILTER_FROM ? (

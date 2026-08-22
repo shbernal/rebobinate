@@ -19,10 +19,11 @@ type SpeedPaneProps = {
    */
   remembered: boolean
   /**
-   * Whether something is written down for it already, which is the difference
-   * between what will happen and what has.
+   * The speed written down for it already, or null while nothing is — the
+   * difference between what will happen and what has. The number rather than a
+   * flag, because the receipt says which speed is stored.
    */
-  hasEntry: boolean
+  rememberedSpeed: number | null
   /** Drops the entry this pane has just said it wrote. */
   onForget: () => void
   /** Where the rule can be changed for every site, not only this one. */
@@ -46,7 +47,7 @@ const SpeedPane = ({
   onSetSpeed,
   domain,
   remembered,
-  hasEntry,
+  rememberedSpeed,
   onForget,
   onShowSites,
 }: SpeedPaneProps) => (
@@ -89,14 +90,26 @@ const SpeedPane = ({
     </section>
 
     {/* A shortcut past the grid, not a replacement for it: at the default 0.05
-        step, walking from 1.0× to 2.0× on the buttons is twenty presses. */}
+        step, walking from 1.0× to 2.0× on the buttons is twenty presses.
+
+        The chip that lands on the default speed is Reset under another name,
+        so it sends what Reset sends. As an ordinary set it wrote an entry at
+        the default speed while the button four pixels above it dropped that
+        entry — two controls arriving at the same number and leaving opposite
+        stored state, with nothing on screen to tell them apart. A map full of
+        entries repeating the default is also the waste `remember` in the
+        service worker exists to avoid. */}
     <section className="speed-presets">
       {SPEED_PRESETS.map(preset => (
         <button
           key={preset}
           type="button"
           aria-pressed={speedsEqual(speed, preset)}
-          onClick={() => onSetSpeed(preset)}
+          onClick={() =>
+            speedsEqual(preset, defaultSpeed)
+              ? onAction('reset')
+              : onSetSpeed(preset)
+          }
         >
           {formatSpeedLabel(preset)}
         </button>
@@ -115,11 +128,16 @@ const SpeedPane = ({
         receipt carries the Forget that undoes the write where it was
         announced, and the promise is the button that leads to the tab where
         the rule is set for every site. A control appearing is also a louder
-        change of state than a verb changing. */}
+        change of state than a verb changing.
+
+        The receipt names the stored speed rather than only the site. The
+        service worker debounces the write by a second, so for that second the
+        number here trails the readout above — which is the honest reading of
+        what is stored, and makes the delay legible without a spinner. */}
     {remembered && domain !== null ? (
-      hasEntry ? (
+      rememberedSpeed !== null ? (
         <section className="memory">
-          <p className="note">{`Remembered for ${domain}`}</p>
+          <p className="rule">{`${formatSpeedLabel(rememberedSpeed)} remembered for ${domain}`}</p>
           <button
             type="button"
             className="forget"
@@ -133,7 +151,7 @@ const SpeedPane = ({
         <section className="memory">
           <button
             type="button"
-            className="note memory-link"
+            className="rule memory-link"
             title="Change this on the Sites tab"
             onClick={onShowSites}
           >

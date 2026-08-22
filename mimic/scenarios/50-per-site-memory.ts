@@ -56,7 +56,7 @@ export default {
     await look(
       s,
       reopened,
-      'The dropdown on that row has been changed from a speed to "Never remember". It is the same dropdown a speed is chosen from, and it is how someone says this particular site should be left out of the memory altogether.',
+      'The dropdown on that row has been changed from a speed to "Never remember". It is the same dropdown a speed is chosen from, and it is how someone says this particular site should be left out of the memory altogether. Under it, the list of other sites says no sites are remembered yet, which is now true of player.test as well.',
       { name: 'never' },
     )
   },

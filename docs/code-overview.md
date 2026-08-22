@@ -75,9 +75,13 @@ must not quietly evict an opt-out and start remembering the site again.
 The Speed tab says when it is writing one of these, and gives the user something
 to do about it. `App.tsx` hands `SpeedPane` the resolved domain, whether it is
 being remembered — memory on, a domain to hang it on, no marker on this one —
-and whether that domain has an entry yet. The row under the presets appears when
-the first three hold, and the fourth picks its tense: _"Speeds set here are kept
-for X"_ with nothing stored, _"Remembered for X"_ once there is. The split exists
+and the speed stored against that domain, or null while none is. The row under
+the presets appears when the first three hold, and the fourth picks its tense:
+_"Speeds set here are kept for X"_ with nothing stored, _"1.25× remembered for
+X"_ once there is. The receipt names the stored speed rather than only the site,
+which is also what makes the write's one-second debounce legible without a
+spinner: for that second the number in the receipt trails the readout above it,
+and that is the honest reading of what is in the map. The split exists
 because per-site memory ships on: a receipt issued on a site nothing has ever
 been written for is the extension's only claim about where a user's speed goes,
 made false on every fresh install. The promise states the rule rather than
@@ -94,7 +98,12 @@ and every other one. Undoing the write where it was announced is one click, and
 a control appearing is also a louder change of state than a verb changing —
 which is what the tense switch alone amounted to. The Sites tab's own
 empty state splits on the same question: _"No other site is remembered yet."_
-only while this tab's site is the one that is.
+only while this tab's site really is remembered — a `never` marker is a stored
+entry and the opposite of a memory, so it takes the _"No sites are remembered
+yet."_ branch. For the same reason the list below is headed **Other sites (n)**:
+it lists every site with a stored decision, including the ones switched off,
+because the list is how an exclusion is undone, and counting those as
+remembered was a claim about them that the rows themselves contradict.
 
 The marker only ever appears from the Sites tab, which is also where a
 remembered speed can be edited or dropped for any site rather than only the one
@@ -358,6 +367,14 @@ presses — and they send the same `rebobinate:set` a frame does, so
 `resolveSpeed` clamps them like anything else. With a non-default step a chip
 can land off the grid; `stepSpeed` snaps back on the next press.
 
+The one chip that is not a set is the one whose speed equals `defaultSpeed`:
+it sends the reset intent, because that is what the Reset button four pixels
+above it sends and both land on the same number. As an ordinary set it wrote an
+entry at the default speed while Reset dropped that entry, so two controls
+reaching the same speed left opposite stored state with nothing on screen
+saying so — and a map full of entries repeating the default is the waste
+`remember` exists to avoid.
+
 Three things about the panes follow from that width:
 
 - **`Toggle` names itself only to a screen reader.** `src/popup/Toggle.tsx`
@@ -368,7 +385,13 @@ Three things about the panes follow from that width:
 - **The badge block pins its own header.** `.badge-settings` wraps everything
   the preview previews; `.badge-header` leads that block, holds the On-video
   badge switch and the `.preview` canvas, and is `position: sticky; top: 0` on
-  an opaque `Canvas`. Scoping the containing block to the block is what makes it
+  an opaque `Canvas`. The canvas is sized from the sample rather than around
+  the largest possible one: `SettingsPane` passes the badge's font size in as
+  `--sample-size` and the floor is 44px at the default, keeping roughly the
+  same slack over the badge at every size. A pinned block is paid for on every
+  visit to the pane, and a flat box tall enough for a 48px badge held about
+  110px of a 440px pane in order to show a 14px one, which is what let a
+  half-scrolled control be orphaned underneath it. Scoping the containing block to the block is what makes it
   release at the end rather than covering the Backup section below; sticking it
   to the _top_ is what stops it covering Size, Opacity and the colour rows,
   since a top-stuck element only ever paints over what has already scrolled
@@ -388,6 +411,15 @@ Three things about the panes follow from that width:
   space back, so nothing moves and the content passing under it stops at an
   edge instead of being cut.
 
+- **Small text comes in two tiers, and the split is load-bearing.** `.note` is
+  11px at `opacity: 0.7` and belongs to asides — what the step field moves, "No
+  sites are remembered yet.", "n more not shown". `.rule` is 12px at `0.9` and
+  takes the sentences that are the only statement of a consequence: the Speed
+  pane's receipt and promise, the badge's visibility sentence, and the note
+  under Import that counts what a restore would overwrite. Those are the rule
+  and not a footnote to it, and painted at the aside's weight they were quieter
+  than the field labels beside them, which merely name a control already on
+  screen. Keeping them apart is what leaves the quiet tier meaning something.
 - **Selected is a fill, focused is an outline.** `outline: 2px solid Highlight`
   used to mark the open Export panel, the chosen corner, the matching preset
   chip, the open swatch _and_ `:focus-visible`, so three different meanings were
@@ -503,7 +535,22 @@ Because the panel's position cannot say which row it edits, **it captions
 itself**: `label` is rendered at the top of `.color-picker` as well as going
 into the group's `aria-label`, so the answer is on screen and not only in the
 accessibility tree. That plus the open swatch's accent ring and `aria-expanded`
-is what carries ownership.
+is what carries ownership. The caption row also carries the way out — a ✕
+calling `setOpenColor(null)`, `aria-label`ed with the field it closes, because
+the ring on the open swatch reads as "this is the one being edited" rather than
+as "press me again", and the panel is about 200px of a 440px pane.
+
+**Everything in the colour rows states its value in words**, which the default
+settings are what force. `badge.textColor` ships `#ffffff` and the pane paints
+on `Canvas`, so a swatch showing that colour is a white rectangle inside a
+faint border — the same shape as a text input, carrying nothing. Each row in
+`COLOR_FIELDS` renders its hex beside the label in the type the Size and
+Opacity `<output>`s use, and inside the picker each slider renders its channel
+name: at `#ffffff` the saturation track runs white to white, so the gradient
+that normally describes itself describes nothing on the first colour anyone
+opens. The hex field's sample square is gone for the same reason — flat white
+on white, beside a field already spelling the value, under a swatch already
+showing the colour.
 
 ## Backup and restore
 
@@ -512,12 +559,15 @@ is what carries ownership.
 shows the document in a read-only textarea with a Copy button, **Import** takes a
 pasted one and replaces what is stored. The two are one two-way switch over a
 single slot rather than two actions, so they are drawn as one joined segmented
-pair with the open half filled — they stay `<button>`s carrying `aria-expanded`,
-because opening and closing a region is what they do. The switch arrives on
+pair with the chosen half filled and carry `aria-pressed`: one of the two is
+always chosen and neither opens or closes anything. The switch arrives on
 **Export**, so the pair reads as a switch with a side chosen rather than as two
 untouched buttons at the bottom of a long scroll; Export is the safe half to
 land on, being read-only and the one needed first, and nothing sits below Backup
-for its panel to push down. Pressing the open half still closes it. The button that overwrites
+for its panel to push down. A restore returns the pair to Export, which leaves
+the settings that were just restored on screen. Each half also names the other,
+since the two are used on different computers: Export's note says to paste it
+into Import there, and Import's placeholder says where the text comes from. The button that overwrites
 both stores is disabled until `parseBackup` accepts what is in the box — it is
 parsed as the box changes and `restore` reads that same result rather than
 parsing twice — and the note under it either says why the button is dead or

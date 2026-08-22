@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import type { BackupContents } from '@/shared/backup'
 import type { DomainStore } from '@/shared/domains'
 import type { KeyBindings } from '@/shared/keys'
@@ -180,7 +180,19 @@ const SettingsPane = ({
             />
           </section>
 
-          <section className="preview" hidden={!settings.badge.enabled}>
+          {/* The sample's own size reaches the stylesheet, which sizes the box
+              around it: the corner buttons only mean anything while the box is
+              taller than what sits in it. The cast is what a custom property
+              costs in a typed style object. */}
+          <section
+            className="preview"
+            hidden={!settings.badge.enabled}
+            style={
+              {
+                '--sample-size': `${settings.badge.fontSize}px`,
+              } as CSSProperties
+            }
+          >
             <span
               className="preview-badge"
               data-corner={settings.badge.corner}
@@ -263,6 +275,13 @@ const SettingsPane = ({
             hidden={!settings.badge.enabled}
           >
             <span>{field.label}</span>
+            {/* The value in words, the way Size and Opacity state theirs. A
+                swatch alone states nothing: the default text colour is white
+                on a Canvas pane, so the control that is meant to be showing a
+                colour renders as an empty box the same shape as a text input.
+                The hex is what makes it legible as a colour, and it survives
+                the row being half-clipped by the pinned header above. */}
+            <span className="field-value">{settings.badge[field.key]}</span>
             <button
               type="button"
               aria-label={field.label}
@@ -294,6 +313,7 @@ const SettingsPane = ({
             label={openField.label}
             value={settings.badge[openField.key]}
             onChange={hex => saveBadge({ [openField.key]: hex })}
+            onClose={() => setOpenColor(null)}
           />
         ) : null}
 
@@ -327,7 +347,7 @@ const SettingsPane = ({
 
         {/* Last in the block, so it sits under both of the controls it reads
             rather than above them under the pinned header. */}
-        <p className="note" hidden={!settings.badge.enabled}>
+        <p className="rule" hidden={!settings.badge.enabled}>
           {visibilityNote(settings.badge)}
         </p>
       </section>

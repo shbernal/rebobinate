@@ -182,9 +182,13 @@
   width: 150px;
 }
 
-/* The number beside a slider. `tabular-nums` and `flex: none` keep the track
-   from shifting as the value goes from 9% to 100%. */
-.field output {
+/* The number beside a slider, and the hex beside a swatch. `tabular-nums` and
+   `flex: none` keep the track from shifting as the value goes from 9% to 100%.
+   The colour rows are not `<output>` — their control is a button with no id to
+   point at — but they state their value in the same type, which is what makes
+   a white swatch read as a colour rather than as an empty text input. */
+.field output,
+.field-value {
   flex: none;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -299,6 +303,19 @@
   opacity: 0.7;
 }
 
+/* The tier above the aside, for the sentences that are the only statement of a
+   consequence: where a speed goes and for how long, when the badge is on
+   screen, what a restore overwrites. Those are the rule, not a footnote to it,
+   and at `.note`'s 11px/0.7 they were painted as one — while the field labels
+   beside them, which name a control the user is already looking at, were
+   louder. Still under the 13px root, because none of them is a heading; the
+   split is what keeps the quiet tier meaning something. */
+.rule {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
 .sites {
   display: flex;
   flex-direction: column;
@@ -367,10 +384,13 @@
   font-size: 12px;
 }
 
+/* Wider apart than the divider inside a chip is, which is the whole job: at a
+   4px gap against a 1px divider a key sat closer to the next chip's remove
+   button than to its own, and the row read as one string. */
 .key-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 8px;
 }
 
 /* The pill is the chip, not the `<kbd>` inside it. With the border on the key
@@ -380,7 +400,7 @@
   display: inline-flex;
   align-items: stretch;
   min-height: 20px;
-  border: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
+  border: 1px solid color-mix(in srgb, CanvasText 45%, transparent);
   border-radius: 3px;
   background: color-mix(in srgb, CanvasText 6%, transparent);
   overflow: hidden;
@@ -508,14 +528,38 @@ hr {
   box-sizing: border-box;
 }
 
-/* Which of the two colour rows the panel edits, in words. It sits over the
-   panel rather than beside the swatch that opened it, because the panel is
-   shared and its position cannot say. */
+/* Which of the two colour rows the panel edits, in words, and the way out. It
+   sits over the panel rather than beside the swatch that opened it, because
+   the panel is shared and its position cannot say. The row already existed, so
+   the close control costs no height. */
 .picker-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   margin: 0;
   font-size: 11px;
   font-weight: 600;
   opacity: 0.8;
+}
+
+.picker-close {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.picker-close:hover,
+.picker-close:focus-visible {
+  background: color-mix(in srgb, CanvasText 15%, transparent);
 }
 
 .presets {
@@ -564,6 +608,19 @@ hr {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* The channel a track is for, in words beside it. The gradients describe
+   themselves at most colours and not at the one the picker opens on: at
+   #ffffff the saturation track runs white to white. Fixed width so the three
+   tracks start on the same line, and narrow enough to leave the tracks a full
+   thumb's travel at 320px. */
+.channel-label {
+  flex: none;
+  width: 56px;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.8;
 }
 
 /* The gradient lives on the input itself so each channel's track can show the
@@ -622,14 +679,6 @@ hr {
   font-family: ui-monospace, monospace;
 }
 
-.color-preview {
-  flex: none;
-  width: 32px;
-  height: 22px;
-  border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
-  border-radius: 4px;
-}
-
 /* The badge settings and their header as one block. The block is the header's
    containing block, which is the whole point of it existing: the header stays
    pinned while anything it governs is being changed, and releases at the end of
@@ -676,8 +725,18 @@ hr {
   background: Canvas;
 }
 
+/* Sized from the sample rather than fixed around the largest one. At a flat
+   68px the pinned header held about 110px of a 440px pane in order to show a
+   14px badge, which is what let a half-scrolled control be orphaned under it.
+
+   44px at the default size, and the same 20-odd pixels of slack over the badge
+   at every other size: the box is what shows which corner the badge sits in,
+   so it has to stay taller than the badge, and the size slider goes to 48px —
+   a fixed 44px box would have the sample hanging out of its own striped
+   backdrop, and a fixed box tall enough for 48px is the 68px this replaced.
+   `--sample-size` is the badge's font size, set inline by SettingsPane. */
 .preview {
-  height: 68px;
+  min-height: calc(44px + (var(--sample-size, 14px) - 14px) * 1.2);
   border-radius: 6px;
   background:
     repeating-linear-gradient(
@@ -738,7 +797,7 @@ hr {
 
 /* Text that goes somewhere, so it is underlined and not made to look like a
    button: the row's own button is the one on the receipt, and two buttons of
-   equal weight would be two offers rather than one. `.note` sets the size and
+   equal weight would be two offers rather than one. `.rule` sets the size and
    the opacity; only what the UA gives a button is overridden here. */
 .memory-link {
   padding: 0;
@@ -785,11 +844,12 @@ hr {
 }
 
 /* Export and Import are one two-way switch over a single panel, not two
-   one-shot actions — they open and close the same slot. Joined into one
-   bordered group so that reads before the panel is opened, with the open half
-   filled rather than merely outlined: an accent border alone, at 11px, reads
-   as a button that has just been pressed. They stay buttons carrying
-   `aria-expanded`, because opening a region is what they do. */
+   one-shot actions — they choose which way the same slot faces, and one of
+   them is always chosen. Joined into one bordered group so that reads before
+   either is pressed, with the chosen half filled rather than merely outlined:
+   an accent border alone, at 11px, reads as a button that has just been
+   pressed. They carry `aria-pressed`, since neither opens or closes
+   anything. */
 .backup-modes {
   align-self: flex-start;
   gap: 0;
@@ -809,7 +869,7 @@ hr {
   border-left: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
 }
 
-.backup-modes button[aria-expanded='true'] {
+.backup-modes button[aria-pressed='true'] {
   background: AccentColor;
   color: AccentColorText;
 }

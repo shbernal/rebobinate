@@ -26,7 +26,7 @@ export default {
 
     // The sentence that states both rules, and the last thing in the block, so
     // scrolling to it brings the two controls it reads along with it.
-    const rule = popup.locator('.badge-settings > .note')
+    const rule = popup.locator('.badge-settings > .rule')
 
     await look(
       s,

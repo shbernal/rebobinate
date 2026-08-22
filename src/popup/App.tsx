@@ -201,7 +201,13 @@ const App = () => {
               domain !== null &&
               domains.entries[domain]?.never !== true
             }
-            hasEntry={domain !== null && domains.entries[domain] !== undefined}
+            /* The stored speed itself, so the receipt can name it. Read from
+               the same subscribed map the Sites tab follows, so it costs no
+               extra read and trails the readout by exactly the service
+               worker's debounce. */
+            rememberedSpeed={
+              domain !== null ? (domains.entries[domain]?.speed ?? null) : null
+            }
             /* The receipt's Forget is the Sites row's ✕ under another name:
                same message, same outcome, offered where the write was
                announced rather than a tab away. `remembered` already rules out

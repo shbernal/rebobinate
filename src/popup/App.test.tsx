@@ -153,6 +153,52 @@ describe('popup tabs', () => {
     )
   })
 
+  /**
+   * The chip that lands on the default speed is Reset under another name. As
+   * an ordinary set it wrote an entry at the default speed while the button
+   * above it dropped that entry, so two controls arriving at the same number
+   * left opposite stored state.
+   */
+  it('forgets the site from the chip that lands on the default speed', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '1.0×' }))
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      { type: 'rebobinate:intent', action: 'reset', currentSpeed: 1.5 },
+      expect.any(Function),
+    )
+    expect(getChromeMock().runtime.sendMessage).not.toHaveBeenCalledWith(
+      { type: 'rebobinate:set', speed: 1 },
+      expect.any(Function),
+    )
+  })
+
+  // It follows the default rather than the number 1: once the default has been
+  // moved, 1.0× is an ordinary speed and setting it is an ordinary set.
+  it('sends a plain set from a chip the default has moved off', async () => {
+    const user = userEvent.setup()
+    seedSettings({ defaultSpeed: 1.25 })
+    render(<App />)
+
+    // The relabel is what says the seeded settings have arrived.
+    await screen.findByRole('button', { name: 'Default' })
+    await user.click(screen.getByRole('button', { name: '1.0×' }))
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      { type: 'rebobinate:set', speed: 1 },
+      expect.any(Function),
+    )
+
+    await user.click(screen.getByRole('button', { name: '1.25×' }))
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'reset' }),
+      expect.any(Function),
+    )
+  })
+
   it('marks the preset the tab is already at', () => {
     render(<App />)
 
@@ -250,7 +296,7 @@ describe('popup speed tab receipt', () => {
     expect(
       await screen.findByText('Speeds set here are kept for youtube.com'),
     ).toBeInTheDocument()
-    expect(screen.queryByText(/^Remembered for/)).toBeNull()
+    expect(screen.queryByText(/remembered for/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Forget' })).toBeNull()
   })
 
@@ -279,7 +325,23 @@ describe('popup speed tab receipt', () => {
     render(<App />)
 
     expect(
-      await screen.findByText('Remembered for youtube.com'),
+      await screen.findByText('1.5× remembered for youtube.com'),
+    ).toBeInTheDocument()
+  })
+
+  /**
+   * The service worker debounces the write by a second, so the number here is
+   * the one in storage rather than the one on the readout above. Saying only
+   * "Remembered for youtube.com" made those two indistinguishable for that
+   * second, while claiming the memory was already current.
+   */
+  it('names the stored speed, not the one the tab is at', async () => {
+    answerPopupState('youtube.com', 1.75)
+    seedDomains({ 'youtube.com': { speed: 1.25, updatedAt: 1 } })
+    render(<App />)
+
+    expect(
+      await screen.findByText('1.25× remembered for youtube.com'),
     ).toBeInTheDocument()
   })
 
@@ -309,7 +371,7 @@ describe('popup speed tab receipt', () => {
     render(<App />)
 
     expect(await screen.findByText(/faster/)).toBeInTheDocument()
-    expect(screen.queryByText(/^Remembered for/)).toBeNull()
+    expect(screen.queryByText(/remembered for/)).toBeNull()
     expect(screen.queryByText(/are kept for/)).toBeNull()
   })
 
@@ -318,7 +380,7 @@ describe('popup speed tab receipt', () => {
     render(<App />)
 
     expect(await screen.findByText(/faster/)).toBeInTheDocument()
-    expect(screen.queryByText(/^Remembered for/)).toBeNull()
+    expect(screen.queryByText(/remembered for/)).toBeNull()
     expect(screen.queryByText(/are kept for/)).toBeNull()
   })
 
@@ -329,7 +391,7 @@ describe('popup speed tab receipt', () => {
     render(<App />)
 
     expect(await screen.findByText(/faster/)).toBeInTheDocument()
-    expect(screen.queryByText(/^Remembered for/)).toBeNull()
+    expect(screen.queryByText(/remembered for/)).toBeNull()
     expect(screen.queryByText(/are kept for/)).toBeNull()
   })
 })
@@ -454,6 +516,33 @@ describe('popup sites tab', () => {
     expect(
       screen.getByText('No other site is remembered yet.'),
     ).toBeInTheDocument()
+  })
+
+  /**
+   * A marker is a stored entry and the opposite of a memory, so choosing
+   * "Never remember" for this tab used to flip the message into claiming the
+   * site was remembered — at the moment the user had asked for the opposite.
+   */
+  it('does not call this tab remembered when it is switched off', async () => {
+    answerPopupState('vimeo.com')
+    seedDomains({ 'vimeo.com': { speed: 1, updatedAt: 1, never: true } })
+    await openSites()
+
+    expect(screen.getByText('No sites are remembered yet.')).toBeInTheDocument()
+  })
+
+  // The list is how an exclusion is undone, so a switched-off site is listed —
+  // under a heading that counts rows rather than memories.
+  it('lists another site that is switched off without calling it remembered', async () => {
+    answerPopupState('vimeo.com')
+    seedDomains({ 'other.example': { speed: 1, updatedAt: 1, never: true } })
+    await openSites()
+
+    expect(screen.getByText('Other sites (1)')).toBeInTheDocument()
+    expect(screen.getByLabelText('Speed for other.example')).toHaveValue(
+      'never',
+    )
+    expect(screen.queryByText(/remembered yet/)).toBeNull()
   })
 
   it('says so on a page that is not a site', async () => {
@@ -888,6 +977,38 @@ describe('popup color picker', () => {
     ).toBeNull()
   })
 
+  /**
+   * The default text colour is #ffffff on a Canvas pane, so the panel opens
+   * with a saturation track running white to white and a swatch the same shape
+   * and colour as an empty text input. Words are what carry the value there.
+   */
+  it('names every channel on screen, not only to a screen reader', async () => {
+    const user = await openSettings()
+
+    const picker = await openPicker(user, 'Text color')
+
+    for (const channel of ['Hue', 'Saturation', 'Lightness']) {
+      expect(within(picker).getByText(channel)).toBeInTheDocument()
+      expect(within(picker).getByLabelText(channel)).toBeInTheDocument()
+    }
+  })
+
+  // Re-clicking the swatch closes the panel, but the ring on it reads as "this
+  // is the one being edited" rather than as "press me again".
+  it('closes from inside the panel', async () => {
+    const user = await openSettings()
+
+    const picker = await openPicker(user, 'Text color')
+
+    await user.click(
+      within(picker).getByRole('button', { name: 'Close Text color picker' }),
+    )
+
+    expect(
+      screen.queryByRole('group', { name: 'Text color picker' }),
+    ).toBeNull()
+  })
+
   it('saves a hex only once it is a whole color', async () => {
     const user = await openSettings()
 
@@ -1004,6 +1125,18 @@ describe('popup badge settings', () => {
     expect(screen.getByText('75%')).toBeInTheDocument()
   })
 
+  /**
+   * The colour rows were the only badge rows stating no value at all. With the
+   * default white text on a Canvas pane, that left a control whose whole job
+   * is to show a colour rendering as an empty box the shape of a text input.
+   */
+  it('writes the hex of each colour next to its swatch', async () => {
+    await openSettings()
+
+    expect(screen.getByText('#ffffff')).toBeInTheDocument()
+    expect(screen.getByText('#000000')).toBeInTheDocument()
+  })
+
   it('follows the slider it belongs to', async () => {
     await openSettings()
 
@@ -1059,18 +1192,14 @@ describe('popup backup', () => {
     answerPopupState('vimeo.com')
   })
 
-  // The pair arrives with Export already open, so a click is what a person
-  // does to get to the *other* half — clicking the open one would close it.
+  // The pair arrives on Export, so a click is what a person does to get to the
+  // *other* half.
   const openBackup = async (button: 'Export' | 'Import') => {
     const user = userEvent.setup()
     render(<App />)
     await openTab(user, 'Settings')
 
-    const half = screen.getByRole('button', { name: button })
-
-    if (half.getAttribute('aria-expanded') !== 'true') {
-      await user.click(half)
-    }
+    await user.click(screen.getByRole('button', { name: button }))
 
     return user
   }
@@ -1083,18 +1212,46 @@ describe('popup backup', () => {
     await openTab(user, 'Settings')
 
     expect(screen.getByRole('button', { name: 'Export' })).toHaveAttribute(
-      'aria-expanded',
+      'aria-pressed',
       'true',
     )
     expect(screen.getByLabelText('Backup')).toBeInTheDocument()
   })
 
-  it('closes the half that is already open', async () => {
+  /**
+   * The pair is styled as a segmented control, which is the grammar of a
+   * choice that always has an answer. It used to collapse: pressing the chosen
+   * half again left neither chosen and took the panel away with it.
+   */
+  it('stays on the half that is already chosen', async () => {
     const user = await openBackup('Export')
 
     await user.click(screen.getByRole('button', { name: 'Export' }))
 
-    expect(screen.queryByLabelText('Backup')).toBeNull()
+    expect(screen.getByLabelText('Backup')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
+  // A restore leaves the pair on Export, which is where the settings that were
+  // just restored can be read back.
+  it('goes back to the readable half once a backup is restored', async () => {
+    const user = await openBackup('Import')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    expect(screen.getByLabelText('Backup')).toBeInTheDocument()
+    expect(screen.getByText('Restored.')).toBeInTheDocument()
   })
 
   it('exports the settings and the site list as one document', async () => {
@@ -1193,6 +1350,28 @@ describe('popup backup', () => {
     expect(
       screen.getByRole('button', { name: 'Replace settings' }),
     ).toBeDisabled()
+  })
+
+  /**
+   * Two words on two buttons do not say that the text one produces is what the
+   * other wants. Each half names the other, since the two are used on
+   * different computers and never at the same time.
+   */
+  it('says on each half where the other one is', async () => {
+    await openBackup('Export')
+
+    expect(
+      screen.getByText(/Paste it into Import on your other computer\./),
+    ).toBeInTheDocument()
+
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Import' }))
+
+    expect(screen.getByLabelText('Backup to restore')).toHaveAttribute(
+      'placeholder',
+      'Paste a backup from Export on your other computer',
+    )
   })
 
   // The reason this pane is two textareas rather than a download and a file
