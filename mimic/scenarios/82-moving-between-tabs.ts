@@ -55,7 +55,7 @@ export default {
     await look(
       s,
       panel,
-      'The panel as it opens, which is on Speed. A title with an on/off switch beside it, then three tabs — Speed, Sites, Settings — and under them the whole of the Speed tab: a large readout of how fast the video is currently playing, a minus and a plus either side of it, a Reset underneath, a row of six speeds that go straight there rather than stepping, an underlined line saying speeds set here are kept for the site behind the panel, and a reminder of the three keys. This is the shortest of the three tabs.',
+      'The panel as it opens, which is on Speed. A title with an on/off switch beside it, then three tabs — Speed, Sites, Settings — and under them the whole of the Speed tab: a large readout of how fast the video is currently playing, a minus and a plus either side of it, a Reset underneath, a row of six speeds that go straight there rather than stepping, an underlined line saying speeds set here are kept for the site behind the panel — which is itself a button, and goes to the Sites tab where that rule can be changed — and a reminder of the three keys. This is the shortest of the three tabs.',
       { name: 'speed', mustShow: panel.locator('.speed-presets') },
     )
 

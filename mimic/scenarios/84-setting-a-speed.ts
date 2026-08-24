@@ -58,7 +58,7 @@ export default {
     await look(
       s,
       panel,
-      'The panel as it opens, on Speed, over a site playing a talk. The large "1.0×" in the middle is how fast that site is currently playing, with a minus and a plus either side of it and a Reset under them. The row of six speeds below goes straight to a speed rather than stepping to it. The underlined line at the foot names the site behind the panel and says speeds set here are kept for it — a promise about what will happen, not a record of anything that has. There is no button beside it.',
+      'The panel as it opens, on Speed, over a site playing a talk. The large "1.0×" in the middle is how fast that site is currently playing, with a minus and a plus either side of it and a Reset under them. The row of six speeds below goes straight to a speed rather than stepping to it. The underlined line at the foot names the site behind the panel and says speeds set here are kept for it — a promise about what will happen, not a record of anything that has. The line is itself a button, and leads to the Sites tab where the rule can be changed for every site rather than this one. Nothing sits beside it yet.',
       { name: 'opened', mustShow: promise },
     )
 
