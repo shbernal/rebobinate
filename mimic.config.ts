@@ -18,6 +18,9 @@ import type { Page } from '@playwright/test'
 
 const extensionPath = path.resolve(process.cwd(), 'dist')
 
+/** The browser window every scenario is captured in, and recorded at. */
+const VIEWPORT = { width: 1280, height: 800 }
+
 /**
  * The same knowledge as `scripts/chromium.mjs`, which cannot be imported here:
  * that module imports `@playwright/test` directly, and mimic injects its own
@@ -63,7 +66,10 @@ export default {
 
   judge: {
     provider: 'openrouter',
-    model: 'openai/gpt-5.6-sol-pro',
+    // A judge that can take video. Most cannot: the frontier text-and-image
+    // models refuse a video part outright, and one scenario now hands over a
+    // recording rather than a storyboard.
+    model: 'google/gemini-3.1-pro-preview',
     concurrency: 4,
 
     // The lens is mimic's — a persona, reusable across targets. What belongs
@@ -71,7 +77,7 @@ export default {
     // critique asking a 360px panel for a hero section.
     lens: 'design',
     notes:
-      'A browser-extension popup, about 360px wide, opened over the page the person is watching. It is a compact utility panel, not a page — judge it against other extension popups and system panels, not against a website. It sits over arbitrary video sites, so it cannot rely on anything behind it.',
+      'A browser extension for changing how fast a video plays. It has two surfaces, and an exhibit shows one or the other. The first is its popup panel, about 360px wide, opened over the page the person is watching: a compact utility panel, not a page — judge it against other extension popups and system panels, not against a website. The second is a small marker the extension draws on top of the video itself, on whatever site the person happens to be on. It sits over arbitrary video sites, so neither surface can rely on anything behind it.',
   },
 
   async launch({
@@ -108,7 +114,7 @@ export default {
           { channel: 'chromium' }
         : { executablePath }),
       headless: true,
-      viewport: { width: 1280, height: 800 },
+      viewport: VIEWPORT,
       args: [
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
@@ -120,7 +126,14 @@ export default {
         // second CDP connection, see openPopup.
         '--remote-debugging-port=0',
       ],
-      ...(recordVideo === undefined ? {} : { recordVideo }),
+      // Passed through with a size, which mimic deliberately leaves to the
+      // target: Playwright otherwise scales a recording down to fit an 800px
+      // box, and this viewport is 1280 wide. The marker being recorded is 14px
+      // of text, and shrinking the frame by a third is how a judge ends up
+      // reporting a legibility problem the recorder invented.
+      ...(recordVideo === undefined
+        ? {}
+        : { recordVideo: { ...recordVideo, size: VIEWPORT } }),
     })
 
     const isOurs = (worker: { url(): string }) =>

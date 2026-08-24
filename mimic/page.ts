@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import type { BrowserContext, Locator, Page } from '@playwright/test'
 
 /**
@@ -30,15 +31,67 @@ const PAGE = `<!doctype html>
   </body>
 </html>`
 
+/**
+ * The e2e suite's clip, reused rather than copied. Four seconds of animation at
+ * 320x180, committed there on purpose, and the only real footage in the repo.
+ */
+const MEDIA_FILE = fileURLToPath(
+  new URL('../e2e/fixtures/media/clip.mp4', import.meta.url),
+)
+const MEDIA_PATH = '/media/clip.mp4'
+
+/**
+ * The same page with footage actually running behind the player, and a bigger
+ * one.
+ *
+ * Only the scenario that records video asks for this. A source-less `<video>`
+ * is enough to set a speed on, which is all the still scenarios need, but a
+ * recording of one is a film of a frozen rectangle: nothing in it shows that a
+ * video is playing, and whether the marker keeps up with a playing video is
+ * half of what a recording is for. The clip is upscaled well past its 320x180,
+ * so it is soft — the narration says so, because a judge told nothing about it
+ * would be right to call it out.
+ */
+const PLAYING_PAGE = `<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Designing for the small screen — a talk</title></head>
+  <body style="margin:0;background:#0f0f14;color:#eee;font:16px/1.5 system-ui">
+    <div style="max-width:1120px;margin:0 auto;padding:20px">
+      <video
+        src="${MEDIA_PATH}"
+        autoplay
+        muted
+        loop
+        playsinline
+        preload="auto"
+        style="width:100%;aspect-ratio:16/9;background:#000;display:block"
+      ></video>
+      <h1 style="font-size:20px;margin:14px 0 4px">Designing for the small screen</h1>
+      <p style="margin:0;color:#9c98b3">A 48 minute conference talk</p>
+    </div>
+  </body>
+</html>`
+
 /** A page with a video on it, at an origin the extension can remember. */
-export async function openVideoPage(context: BrowserContext): Promise<Page> {
-  await context.route(`${VIDEO_ORIGIN}/**`, route =>
-    route.fulfill({
+export async function openVideoPage(
+  context: BrowserContext,
+  options: { playing?: boolean } = {},
+): Promise<Page> {
+  await context.route(`${VIDEO_ORIGIN}/**`, route => {
+    if (new URL(route.request().url()).pathname === MEDIA_PATH) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'video/mp4',
+        path: MEDIA_FILE,
+      })
+    }
+
+    return route.fulfill({
       status: 200,
       contentType: 'text/html; charset=utf-8',
-      body: PAGE,
-    }),
-  )
+      body: options.playing === true ? PLAYING_PAGE : PAGE,
+    })
+  })
   const page = await context.newPage()
   await page.goto(`${VIDEO_ORIGIN}/talk`)
   await page.bringToFront()
@@ -65,6 +118,8 @@ export interface Ctx {
       clip?: { x: number; y: number; width: number; height: number }
     },
   ): Promise<void>
+  /** Only valid when the scenario declares `video: true`. */
+  showVideo(says: string): void
 }
 
 export const metaOf = (s: Ctx): Meta => s.meta as unknown as Meta
@@ -199,4 +254,114 @@ export function toggle(popup: Page, label: string | RegExp) {
   return popup
     .locator('label.switch')
     .filter({ has: popup.getByRole('checkbox', { name: label }) })
+}
+
+/**
+ * What the marker over the video currently is, read the way a person reads it:
+ * is it on screen, and what does it say.
+ *
+ * The marker styles itself from a rule inside its own shadow root rather than
+ * from a style attribute, so the only honest reading is the computed one.
+ */
+export function marker(page: Page): Promise<{ shown: boolean; text: string }> {
+  return page.evaluate(() => {
+    const host = document.getElementById('rebobinate-speed-host')
+
+    if (host === null) return { shown: false, text: '' }
+
+    return {
+      shown: getComputedStyle(host).display !== 'none',
+      text: host.shadowRoot?.querySelector('div')?.textContent ?? '',
+    }
+  })
+}
+
+/**
+ * Fail the frame unless the marker is in the state its caption claims.
+ *
+ * The page frames have no `mustShow` to lean on, and their captions are all
+ * claims about a thing that comes and goes on its own — "it has appeared", "it
+ * faded away", "it is still there". A caption like that is worth capturing only
+ * if it can be false, and after a wait it very much can: a timer that fires
+ * late, a marker that never showed, a speed that never took. This is what makes
+ * the wait an assertion instead of a hope.
+ */
+export async function assertMarker(
+  page: Page,
+  name: string,
+  expected: { shown: boolean; text?: string },
+): Promise<void> {
+  const seen = await marker(page)
+
+  if (seen.shown !== expected.shown) {
+    throw new Error(
+      `frame "${name}": the marker is ${seen.shown ? 'on screen' : 'not on screen'}, and the caption says it is ${expected.shown ? 'on screen' : 'not'}`,
+    )
+  }
+
+  if (expected.text !== undefined && seen.text !== expected.text) {
+    throw new Error(
+      `frame "${name}": the marker reads "${seen.text}", and the caption says "${expected.text}"`,
+    )
+  }
+}
+
+/** The speed the video is actually playing at, not the one anything claims. */
+export function speedOf(page: Page): Promise<number> {
+  return page
+    .locator('video')
+    .evaluate(node => (node as HTMLVideoElement).playbackRate)
+}
+
+/**
+ * Press one of the extension's speed keys, and do not return until the video
+ * really changed speed.
+ *
+ * The content script is loaded through an asynchronous loader, so for a moment
+ * after the page opens it is not listening yet and a key pressed then is simply
+ * gone. Pressing again is what a person does when nothing happens, and stopping
+ * at the first change is what stops it from overshooting.
+ */
+export async function pressSpeed(
+  page: Page,
+  key: string,
+  times = 1,
+): Promise<void> {
+  for (let press = 0; press < times; press += 1) {
+    const before = await speedOf(page)
+    let changed = false
+
+    for (let attempt = 0; attempt < 20 && !changed; attempt += 1) {
+      await page.keyboard.press(key)
+
+      const deadline = Date.now() + 250
+      while (Date.now() < deadline && !changed) {
+        await page.waitForTimeout(25)
+        changed = (await speedOf(page)) !== before
+      }
+    }
+
+    if (!changed) {
+      throw new Error(`the video never changed speed after pressing "${key}"`)
+    }
+  }
+}
+
+/** Fail unless the video is genuinely running, so "playing" is not a claim. */
+export async function assertPlaying(page: Page): Promise<void> {
+  const video = page.locator('video')
+  await video.evaluate(async node => {
+    await (node as HTMLVideoElement).play().catch(() => undefined)
+  })
+
+  const at = () =>
+    video.evaluate(node => (node as HTMLVideoElement).currentTime)
+  const before = await at()
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await page.waitForTimeout(100)
+    if ((await at()) > before) return
+  }
+
+  throw new Error('the video never started playing, so nothing is moving')
 }
