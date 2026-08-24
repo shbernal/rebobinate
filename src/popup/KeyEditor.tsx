@@ -129,14 +129,23 @@ const KeyEditor = ({ keys, onChange }: KeyEditorProps) => {
     })
   }
 
+  // The slot under the listening row, or the one under the last row when
+  // nothing is listening.
+  const noteOrder = capturing
+    ? SPEED_ACTIONS.indexOf(capturing) * 2 + 1
+    : SPEED_ACTIONS.length * 2
+
   return (
     <section className="keys">
-      {SPEED_ACTIONS.map(action => {
+      {SPEED_ACTIONS.map((action, index) => {
         const chips = toChips(keys[action])
         const isCapturing = capturing === action
 
         return (
-          <div className="key-row" key={action}>
+          // Ordered rather than left in source order so the note below can be
+          // moved into the gap under whichever row is listening. Even numbers,
+          // so the odd ones are the slots between them.
+          <div className="key-row" key={action} style={{ order: index * 2 }}>
             <span className="key-action">{ACTION_LABELS[action]}</span>
 
             <span className="key-chips">
@@ -180,7 +189,18 @@ const KeyEditor = ({ keys, onChange }: KeyEditorProps) => {
         )
       })}
 
-      <p className="note" role="status">
+      {/* One element, one reserved line, moved rather than re-rendered per row:
+          a paragraph inserted between two rows would push everything under it
+          down again, which is what the fixed capture column above just stopped.
+          `message` is only ever set from `REJECTIONS` or the duplicate-owner
+          branch, so it is the refusal and the fallback is the instruction.
+          `role="status"` and not `alert`: the polite region already announces
+          the swap, and a rejected keypress does not need to interrupt. */}
+      <p
+        className={message ? 'note note-refused' : 'note'}
+        role="status"
+        style={{ order: noteOrder }}
+      >
         {message ??
           (capturing ? 'Press the key to bind, or Esc to cancel.' : '')}
       </p>

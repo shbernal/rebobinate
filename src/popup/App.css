@@ -260,34 +260,40 @@
      last row arrives. They are backgrounds, so they paint behind the pinned
      preview rather than on top of it.
 
-     Each cover reaches full Canvas a third of the way in rather than at its
-     own last pixel, and that stop is what makes the pair cancel. Two gradients
-     ramping over the same rows do not: a cover that only turns opaque at its
-     end leaves a sixth of the shadow standing, which fractional layout — see
-     below — then puts on every pane too short to scroll, as a grey band under
-     the last row. Measured at this stop a short pane is flat Canvas to within
-     one part in 255.
+     Each cover reaches full Canvas well before its own last pixel, and that
+     stop is what makes the pair cancel. Two gradients ramping over the same
+     rows do not: a cover that only turns opaque at its end leaves a sixth of
+     the shadow standing, which fractional layout — see below — then puts on
+     every pane too short to scroll, as a grey band under the last row.
+
+     The stop is 85%/15% and not the 70%/30% it was, because the shadow it has
+     to swallow got stronger. At 22% of CanvasText over 14px the cue measured
+     about 21% of Canvas at its darkest and readers looking straight at it
+     reported no cue at all, so it is 32% over 16px. That much shadow still
+     standing at the old stop left about three levels of grey on a short pane;
+     the cover was pushed rather than the shadow backed out. Measured at these
+     stops a short pane is flat Canvas to within one part in 255.
 
      Each shadow fades back out before its edge because the cover tracks the
      scrollable area, which fractional layout leaves a pixel taller than the
      box on a pane that does not really scroll: a shadow that ran to the edge
      would show that pixel as a line. */
   background:
-    linear-gradient(Canvas 70%, transparent) top / 100% 18px no-repeat local,
-    linear-gradient(transparent 0%, Canvas 30%) bottom / 100% 18px no-repeat
+    linear-gradient(Canvas 85%, transparent) top / 100% 18px no-repeat local,
+    linear-gradient(transparent 0%, Canvas 15%) bottom / 100% 18px no-repeat
       local,
     linear-gradient(
         transparent,
-        color-mix(in srgb, CanvasText 22%, transparent) 20%,
+        color-mix(in srgb, CanvasText 32%, transparent) 20%,
         transparent
       )
-      top / 100% 14px no-repeat scroll,
+      top / 100% 16px no-repeat scroll,
     linear-gradient(
         transparent,
-        color-mix(in srgb, CanvasText 22%, transparent) 80%,
+        color-mix(in srgb, CanvasText 32%, transparent) 80%,
         transparent
       )
-      bottom / 100% 14px no-repeat scroll;
+      bottom / 100% 16px no-repeat scroll;
 }
 
 .pane-heading {
@@ -301,6 +307,17 @@
   margin: 0;
   font-size: 11px;
   opacity: 0.7;
+}
+
+/* A refusal, in the one place the panel has to give one. At `.note`'s single
+   style "Press the key to bind, or Esc to cancel." and "- is already slower."
+   were the same sentence in the same voice, so the panel said no exactly as it
+   said how. Mixed against CanvasText rather than set flat, so it lands on both
+   themes, and back to full opacity so the refusal is not also the quiet tier.
+   No icon: at 11px a glyph is noise. */
+.note-refused {
+  color: color-mix(in srgb, #d93025 70%, CanvasText);
+  opacity: 1;
 }
 
 /* The tier above the aside, for the sentences that are the only statement of a
@@ -366,16 +383,38 @@
 
 /* One row per action: the name, the keys bound to it, and the capture button.
    The chips wrap onto their own lines rather than squeezing the button, which
-   is the column that has to stay clickable. */
+   is the column that has to stay clickable.
+
+   The rows are ordered from `KeyEditor` rather than by source order, so the
+   one message this block has can be moved to the slot under whichever row is
+   listening without being moved in the DOM. Restore sits after all of them. */
 .keys {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
+/* The third column is a fixed width, not `auto`, and that is the whole point.
+   With `auto` the track was the width of the button's label, so relabelling
+   Add to "Press a key…" on a click grew the track by 49px, took that width
+   out of the chips, and wrapped Faster's third keycap onto a second line —
+   the row under the pointer growing 30px at the exact moment the user has
+   committed to watching it. Measured in the popup font at 11px the long label
+   is 88.5px wide; 92 leaves room for a face that sets it wider.
+
+   The chips are then laid out against 140px rather than 192, and the three
+   keys Faster ships with need 173, so that row is two lines at rest instead of
+   two lines only while a capture is open. That is the trade: a taller block
+   that never moves, against a shorter one that jumps by 42px at the worst
+   possible moment. A shorter capturing label is what would buy the line back —
+   the column has to fit inside 59px for three keycaps to stay on one row.
+
+   `justify-self: end` keeps the button its own size inside the fixed track, so
+   the three Add buttons stay Add-sized and line up on their right edge; the
+   button grows leftwards into the track's own slack when it relabels. */
 .key-row {
   display: grid;
-  grid-template-columns: 52px 1fr auto;
+  grid-template-columns: 52px 1fr 92px;
   gap: 6px;
   align-items: center;
 }
@@ -399,7 +438,10 @@
 .chip {
   display: inline-flex;
   align-items: stretch;
-  min-height: 20px;
+  /* 24px so the remove button inside it clears the 24×24 floor a pointer
+     target needs. The keycaps sit 8px apart, too close for the spacing
+     exception to carry a smaller one. */
+  min-height: 24px;
   border: 1px solid color-mix(in srgb, CanvasText 45%, transparent);
   border-radius: 3px;
   background: color-mix(in srgb, CanvasText 6%, transparent);
@@ -414,18 +456,18 @@
 }
 
 .chip button {
-  width: 20px;
+  width: 24px;
   padding: 0;
   border: 0;
   border-left: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
   border-radius: 0;
   background: transparent;
   color: inherit;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   /* Visibly part of the pill at rest rather than only under the pointer, but
      quieter than the key it removes. */
-  opacity: 0.6;
+  opacity: 0.7;
   cursor: pointer;
 }
 
@@ -447,7 +489,23 @@
   cursor: pointer;
 }
 
+.keys .capture {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+/* The block's one message, parked in the slot under whichever row is
+   listening. The line is reserved whether or not there is anything to say:
+   an empty `<p>` generates no line box, so without this the block grew by a
+   line the moment a capture started and Restore dropped with it. */
+.keys .note {
+  min-height: 1lh;
+}
+
+/* After every row and after the note's own bottom slot, whichever slot the
+   note is occupying. */
 .keys .restore {
+  order: 99;
   align-self: flex-start;
 }
 
@@ -798,7 +856,13 @@ hr {
 /* Text that goes somewhere, so it is underlined and not made to look like a
    button: the row's own button is the one on the receipt, and two buttons of
    equal weight would be two offers rather than one. `.rule` sets the size and
-   the opacity; only what the UA gives a button is overridden here. */
+   the opacity; only what the UA gives a button is overridden here.
+
+   Solid, not dotted. A dotted underline is the abbr and tooltip convention,
+   not the link one, and readers looking straight at this line read it as an
+   annotation on the domain and never tried it. The hover is the other half:
+   with only `:focus-visible` the pointer got no answer at all, so the line
+   brightens and its underline thickens under it. */
 .memory-link {
   padding: 0;
   border: 0;
@@ -806,9 +870,14 @@ hr {
   color: inherit;
   font-family: inherit;
   text-align: left;
-  text-decoration: underline dotted;
+  text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
+}
+
+.memory-link:hover {
+  opacity: 1;
+  text-decoration-thickness: 2px;
 }
 
 .memory-link:focus-visible {

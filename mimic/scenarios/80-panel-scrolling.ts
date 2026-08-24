@@ -116,7 +116,7 @@ export default {
     await look(
       s,
       panel,
-      "The panel's Settings tab, at the top, as it looks the moment it is opened. A row for the speed step, the three keys under it, a switch for the toolbar badge, and then the block for the marker drawn over the video — a switch, and a sample of the marker itself. The tab does not end there: the bottom edge cuts through the Size row, and that half-row is the only thing on screen saying there is more of it.",
+      "The panel's Settings tab, at the top, as it looks the moment it is opened. A row for the speed step, the three key rows under it — Faster is bound to three keys and carries them over two lines — a switch for the toolbar badge, and then the block for the marker drawn over the video, of which the switch and the sample of the marker itself are on screen. The tab does not end there: the bottom edge cuts through the grid of corners under the sample, and the last rows fade down into that edge.",
       { name: 'settings-top', mustShow: panel.locator('#step') },
     )
 
