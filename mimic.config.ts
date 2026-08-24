@@ -22,22 +22,34 @@ const extensionPath = path.resolve(process.cwd(), 'dist')
 const VIEWPORT = { width: 1280, height: 800 }
 
 /**
- * Except for a scenario filmed inside the panel, which is captured in a window
- * the size of the panel.
+ * Except for the scenarios filmed inside the panel, which are captured in a
+ * window the size of the panel.
  *
  * Playwright records a page at the context's video size and pads anything
  * smaller rather than cropping to it, so a 320px panel filmed in a 1280px
  * window is a stamp in the middle of a black field. 320 is the panel's own
- * width, set in `src/popup/index.css`. 540 clears the Settings tab, which at
- * 530 is the tallest of the three; the shorter tabs leave window under the
- * panel, and the scenario's narration says so rather than letting a judge read
- * it as panel.
+ * width, set in `src/popup/index.css`.
+ *
+ * The height is per scenario because the panel's is: each tab is as tall as
+ * what is on it, and a window sized for the tallest tab a scenario visits
+ * leaves a band of bare window under the shorter ones. That band is not the
+ * panel having an empty bottom, and every one of these scenarios says so in
+ * the narration over its recording rather than leaving a judge to read it as
+ * design.
  */
-const PANEL_WINDOW = { width: 320, height: 540 }
+const PANEL_WINDOWS: Record<string, number> = {
+  'panel-scrolling': 540,
+  'moving-between-tabs': 540,
+  'setting-a-speed': 250,
+  'binding-a-new-key': 540,
+}
 
 /** Keyed by scenario id, which is all the launch hook is told about one. */
-const windowFor = (scenario: string) =>
-  scenario === 'panel-scrolling' ? PANEL_WINDOW : VIEWPORT
+const windowFor = (scenario: string) => {
+  const height = PANEL_WINDOWS[scenario]
+
+  return height === undefined ? VIEWPORT : { width: 320, height }
+}
 
 /**
  * The same knowledge as `scripts/chromium.mjs`, which cannot be imported here:
@@ -248,6 +260,23 @@ export default {
       const page = await context.newPage()
       await page.goto(`${prefix()}src/popup/index.html`)
       await page.waitForSelector('main.popup')
+
+      // Tint what is not the panel. The window is sized for the tallest tab a
+      // scenario visits, so on a shorter one there is bare window under the
+      // panel — and the panel's own background is the page's, so that band
+      // came out the same colour as the panel and read as the popup having a
+      // large empty bottom. It is the recorder, not the product, and a judge
+      // has no way to know that from the pixels.
+      //
+      // `main.popup` is transparent and takes its colour from the body, so the
+      // tint has to be handed back to it explicitly — `Canvas` is what
+      // `src/popup/index.css` sets on the body, and is therefore the colour
+      // the panel is already painted. Tinting the body alone put grey through
+      // every gap between the panel's own rows.
+      await page.addStyleTag({
+        content:
+          'body { background: #4a4a55 } main.popup { background: Canvas }',
+      })
 
       return page
     }

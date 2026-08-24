@@ -24,8 +24,9 @@ import { look, metaOf, openVideoPage, type Ctx } from '../page.ts'
  * The frame is the panel at 1:1, so unlike `70-badge-lifetime` the text in the
  * recording is the size it is on screen and survives the judge's sampling. The
  * window is the height of the Settings tab, which is the tallest of the three,
- * so on the shorter tabs there is window below the panel. The narration says
- * so; that band is not the panel having an empty bottom.
+ * so on the shorter tabs there is window below the panel. That band is tinted
+ * grey by the launch hook so it cannot be read as the panel having an empty
+ * bottom, and the narration names it.
  */
 
 /**
@@ -183,7 +184,7 @@ export default {
     await panel.waitForTimeout(1500)
 
     s.showVideo(
-      'The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of its tallest tab. In order: the panel opens on Speed, which is short, so the plain band under it for the first second is window rather than panel; Settings is picked and the panel fills the window; the pane is scrolled by wheel, and the title, the tab strip and the marker\'s own switch and sample all stay where they are while the controls run underneath; the Size slider is walked from 14px to 30px and the sample stuck above it grows as it goes; "Hide after" is set to "Never" and the sentence below it rewrites itself; the pane runs out shortly after that, with the block\'s header still stuck to the top of it; and Speed is picked again, where the panel shrinks back to the height it opened at.',
+      'The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of its tallest tab. In order: the panel opens on Speed, which is short, so the grey band under it for the first second is the window it is being filmed in rather than the panel — it is tinted for exactly that reason; Settings is picked and the panel fills the window; the pane is scrolled by wheel, and the title, the tab strip and the marker\'s own switch and sample all stay where they are while the controls run underneath; the Size slider is walked from 14px to 30px and the sample stuck above it grows as it goes; "Hide after" is set to "Never" and the sentence below it rewrites itself; the pane runs out shortly after that, with the block\'s header still stuck to the top of it; and Speed is picked again, where the panel shrinks back to the height it opened at.',
     )
   },
 }
