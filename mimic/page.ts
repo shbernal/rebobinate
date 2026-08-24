@@ -44,19 +44,23 @@ const MEDIA_PATH = '/media/clip.mp4'
  * The same page with footage actually running behind the player, and a bigger
  * one.
  *
- * Only the scenario that records video asks for this. A source-less `<video>`
- * is enough to set a speed on, which is all the still scenarios need, but a
+ * Only the scenarios that record video ask for this. A source-less `<video>` is
+ * enough to set a speed on, which is all the still scenarios need, but a
  * recording of one is a film of a frozen rectangle: nothing in it shows that a
  * video is playing, and whether the marker keeps up with a playing video is
  * half of what a recording is for. The clip is upscaled well past its 320x180,
  * so it is soft — the narration says so, because a judge told nothing about it
  * would be right to call it out.
+ *
+ * Narrower when the counter is on, so that the counter and the whole of the
+ * player both fit inside the 800px the window is recorded at. A counter cut off
+ * by the bottom of the frame would be worse than no counter.
  */
-const PLAYING_PAGE = `<!doctype html>
+const playingPage = (clock: boolean) => `<!doctype html>
 <html lang="en">
   <head><meta charset="utf-8" /><title>Designing for the small screen — a talk</title></head>
   <body style="margin:0;background:#0f0f14;color:#eee;font:16px/1.5 system-ui">
-    <div style="max-width:1120px;margin:0 auto;padding:20px">
+    <div style="max-width:${clock ? '1000' : '1120'}px;margin:0 auto;padding:20px">
       <video
         src="${MEDIA_PATH}"
         autoplay
@@ -68,14 +72,58 @@ const PLAYING_PAGE = `<!doctype html>
       ></video>
       <h1 style="font-size:20px;margin:14px 0 4px">Designing for the small screen</h1>
       <p style="margin:0;color:#9c98b3">A 48 minute conference talk</p>
+      ${clock ? CLOCK : ''}
     </div>
   </body>
 </html>`
 
+/**
+ * A counter of how much video has actually gone by, drawn by the test page.
+ *
+ * The clip is a four-second loop of a smooth gradient, and that is unreadable
+ * as a pace: sampled once a second — which is roughly how a judge watches a
+ * recording — a loop running at 1.0× and the same loop at 2.0× are two
+ * sequences of unrelated-looking abstract frames. Measured over the first
+ * recording of this, the frame-to-frame change at double speed was within a
+ * quarter of the change at normal speed, because a one-second step through a
+ * four-second cycle is already most of the way round it. A caption claiming the
+ * footage is visibly faster would have been asking a judge to confirm something
+ * that is not in the pixels.
+ *
+ * So the page counts instead. `currentTime` restarts on every loop, so the
+ * wraps are accumulated and what is displayed only ever climbs: at 1.0× it
+ * gains a second per second, at 2.0× two, at 0.5× a half. Sampled once a second
+ * that is arithmetic rather than perception.
+ *
+ * It belongs to the fixture, not the extension, and every caption over a frame
+ * containing it says so — an unexplained readout on the page is exactly the
+ * kind of thing a code-blind judge should and would attribute to the extension.
+ */
+const CLOCK = `<p style="margin:18px 0 0;color:#6f6b85;font-size:13px">
+        Test page counter, not part of the extension — seconds of video played
+      </p>
+      <p id="played" style="margin:2px 0 0;font:600 34px/1.2 ui-monospace,monospace;color:#cfc9e6">0.0</p>
+      <script>
+        const video = document.querySelector('video')
+        const readout = document.getElementById('played')
+        let played = 0
+        let last = 0
+        const tick = () => {
+          const now = video.currentTime
+          // A loop sends currentTime back to zero; the jump is not time going
+          // backwards, it is the whole of the new reading being new.
+          played += now >= last ? now - last : now
+          last = now
+          readout.textContent = played.toFixed(1)
+          requestAnimationFrame(tick)
+        }
+        tick()
+      </script>`
+
 /** A page with a video on it, at an origin the extension can remember. */
 export async function openVideoPage(
   context: BrowserContext,
-  options: { playing?: boolean } = {},
+  options: { playing?: boolean; clock?: boolean } = {},
 ): Promise<Page> {
   await context.route(`${VIDEO_ORIGIN}/**`, route => {
     if (new URL(route.request().url()).pathname === MEDIA_PATH) {
@@ -89,7 +137,10 @@ export async function openVideoPage(
     return route.fulfill({
       status: 200,
       contentType: 'text/html; charset=utf-8',
-      body: options.playing === true ? PLAYING_PAGE : PAGE,
+      body:
+        options.playing === true
+          ? playingPage(options.clock === true)
+          : PAGE,
     })
   })
   const page = await context.newPage()
