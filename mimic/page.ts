@@ -102,6 +102,8 @@ export async function openVideoPage(
 export interface Meta {
   extensionId: string
   openPopup(): Promise<Page>
+  /** The panel as an ordinary tab: the only one a recording can see. */
+  openPanel(): Promise<Page>
 }
 
 /** The slice of mimic's scenario context these scenarios use. */

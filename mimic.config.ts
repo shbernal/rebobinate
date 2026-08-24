@@ -22,6 +22,24 @@ const extensionPath = path.resolve(process.cwd(), 'dist')
 const VIEWPORT = { width: 1280, height: 800 }
 
 /**
+ * Except for a scenario filmed inside the panel, which is captured in a window
+ * the size of the panel.
+ *
+ * Playwright records a page at the context's video size and pads anything
+ * smaller rather than cropping to it, so a 320px panel filmed in a 1280px
+ * window is a stamp in the middle of a black field. 320 is the panel's own
+ * width, set in `src/popup/index.css`. 540 clears the Settings tab, which at
+ * 530 is the tallest of the three; the shorter tabs leave window under the
+ * panel, and the scenario's narration says so rather than letting a judge read
+ * it as panel.
+ */
+const PANEL_WINDOW = { width: 320, height: 540 }
+
+/** Keyed by scenario id, which is all the launch hook is told about one. */
+const windowFor = (scenario: string) =>
+  scenario === 'panel-scrolling' ? PANEL_WINDOW : VIEWPORT
+
+/**
  * The same knowledge as `scripts/chromium.mjs`, which cannot be imported here:
  * that module imports `@playwright/test` directly, and mimic injects its own
  * `chromium` precisely so one browser build is in play instead of two.
@@ -82,10 +100,12 @@ export default {
 
   async launch({
     chromium,
+    needsLiveTabState,
     recordVideo,
     scenario,
   }: {
     chromium: typeof import('@playwright/test').chromium
+    needsLiveTabState: boolean
     recordVideo?: { dir: string }
     scenario: string
   }) {
@@ -106,6 +126,7 @@ export default {
     rmSync(profilePath, { recursive: true, force: true })
 
     const executablePath = resolveChromiumExecutable()
+    const viewport = windowFor(scenario)
 
     const context = await chromium.launchPersistentContext(profilePath, {
       ...(executablePath === undefined
@@ -114,7 +135,7 @@ export default {
           { channel: 'chromium' }
         : { executablePath }),
       headless: true,
-      viewport: VIEWPORT,
+      viewport,
       args: [
         `--disable-extensions-except=${extensionPath}`,
         `--load-extension=${extensionPath}`,
@@ -128,12 +149,12 @@ export default {
       ],
       // Passed through with a size, which mimic deliberately leaves to the
       // target: Playwright otherwise scales a recording down to fit an 800px
-      // box, and this viewport is 1280 wide. The marker being recorded is 14px
-      // of text, and shrinking the frame by a third is how a judge ends up
+      // box, and the wide viewport is 1280. The marker recorded at that size is
+      // 14px of text, and shrinking the frame by a third is how a judge ends up
       // reporting a legibility problem the recorder invented.
       ...(recordVideo === undefined
         ? {}
-        : { recordVideo: { ...recordVideo, size: VIEWPORT } }),
+        : { recordVideo: { ...recordVideo, size: viewport } }),
     })
 
     const isOurs = (worker: { url(): string }) =>
@@ -150,12 +171,12 @@ export default {
      * Open the **real** popup — the overlay, which leaves the page underneath
      * as the active tab.
      *
-     * The popup document can also be opened as an ordinary tab, and that is the
-     * trap: a tab-opened popup is itself the active tab, so the service worker
-     * resolves it instead of the video page, and anything that depends on which
-     * tab is active renders a plausible lie. `chrome.action.openPopup()` avoids
-     * that entirely. Playwright does not surface the resulting page on its own
-     * context, so it is reached over a second CDP connection.
+     * The popup document can also be opened as an ordinary tab — `openPanel`
+     * below — and that is the trap: a tab-opened popup is itself the active
+     * tab, so anything that depends on which tab is active renders a plausible
+     * lie. `chrome.action.openPopup()` avoids that entirely. Playwright does
+     * not surface the resulting page on its own context, so it is reached over
+     * a second CDP connection.
      */
     const prefix = () => `chrome-extension://${extensionId}/`
 
@@ -200,12 +221,44 @@ export default {
       throw new Error('the popup never appeared')
     }
 
+    /**
+     * Open the popup document as an ordinary tab, which is the only version of
+     * the panel that can be filmed.
+     *
+     * `recordVideo` films the pages the launched context owns, and the real
+     * popup is not one of them: it is reached over the second connection above
+     * and has no `video()` at all. A tab is a page like any other, and at
+     * `PANEL_WINDOW` it is the panel and nothing else.
+     *
+     * What the tab costs is the active tab. The service worker falls back to
+     * the last web tab in the window when an extension page is frontmost, so
+     * the panel here still reads a real site and really drives it — but "the
+     * page the person is looking at" and "the last web page they touched" are
+     * the same tab only while one is open. A scenario that turns on live tab
+     * state is refused this path rather than filmed through that assumption.
+     */
+    const openPanel = async (): Promise<Page> => {
+      if (needsLiveTabState) {
+        throw new Error(
+          'openPanel() opens the panel as a tab, which does not observe the ' +
+            'live active tab. Use openPopup(), or drop needsLiveTabState.',
+        )
+      }
+
+      const page = await context.newPage()
+      await page.goto(`${prefix()}src/popup/index.html`)
+      await page.waitForSelector('main.popup')
+
+      return page
+    }
+
     return {
       context,
       // The real popup observes the real active tab, so scenarios that turn on
-      // live tab state are honest here. Never set this true for the tab path.
+      // live tab state are honest here. What keeps that true is the guard in
+      // `openPanel`: the tab path refuses those scenarios itself.
       observesLiveTabState: true,
-      meta: { extensionId, openPopup },
+      meta: { extensionId, openPopup, openPanel },
       close: async () => {
         await cdp?.close()
       },
