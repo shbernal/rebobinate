@@ -63,7 +63,7 @@ export default {
 
     await assertMarker(video, 'doubled', { shown: true, text: '2.0×' })
     await s.show(
-      'The person held down the "+" key for twenty presses, which is what the extension\'s default step of 0.05 costs to get from normal speed to double. The marker in the top-left corner of the video reads "2.0×" and the talk is now playing at twice its normal rate — from here the test page\'s counter underneath gains two seconds of video for every second that passes.',
+      'The person pressed the "+" key twenty separate times, which is what the extension\'s default step of 0.05 costs to get from normal speed to double. The marker in the top-left corner of the video reads "2.0×" and the talk is now playing at twice its normal rate — from here the test page\'s counter underneath gains two seconds of video for every second that passes.',
       { name: 'doubled' },
     )
 
