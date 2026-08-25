@@ -398,8 +398,17 @@ Three things about the panes follow from that width:
   past it. The switch travels with the canvas rather than scrolling away,
   because a master switch off screen while its block is being edited leaves no
   way to turn the block off, and half of one under the pane's 18px scroll cue
-  reads as a rendering fault. With the badge off, `.preview[hidden]` collapses
-  the header to the switch alone.
+  reads as a rendering fault. With the badge off, `.preview[hidden]` and
+  `.corners[hidden]` collapse the whole block to the switch and one `.note`
+  line, _"Size, colours and timing are kept."_ — the only thing left on screen
+  that says where the sample, the corner grid, the sliders, the colour rows,
+  the dropdown, the second switch and the sentence went. Hiding the corner grid
+  costs about 60px more of the scroll shift that the collapse already causes,
+  since a shorter tab has less left to scroll and the browser clamps
+  `scrollTop`; the note gives about half of that back. A collapse that reads as
+  one deliberate event is worth more than a smaller jump with a dead control
+  left standing in it. The fieldset keeps `disabled` alongside `hidden`: `hidden` takes
+  it out of the layout, `disabled` is what a stylesheet override cannot undo.
 
   Its opaque `Canvas` has to reach past its own content. `.badge-settings`
   separates its children with `gap: 8px`, a flex gap belongs to no child and so
@@ -466,10 +475,12 @@ The inversion is in the `checked` and `onChange` props only; installed copies
 hold the stored key and the content script reads it. "Hide after" is left alone,
 because "Show for" would make its `Never` option read backwards.
 
-One cascade trap lives with them: the badge rows and the preview are hidden with
-the `hidden` attribute, whose UA rule loses to any author `display`. `.field`
-and `.preview` both set `display: flex`, so `App.css` matches the attribute
-explicitly (`.field[hidden]`) to put the author rule on the winning side.
+One cascade trap lives with them: the badge rows, the preview and the corner
+fieldset are hidden with the `hidden` attribute, whose UA rule loses to any
+author `display`. `.field` and `.preview` set `display: flex` and `.corners`
+sets `display: block`, so `App.css` matches the attribute explicitly
+(`.field[hidden]`) to put the author rule on the winning side. Anything else in
+the block that grows a `display` of its own has to join that selector list.
 
 ## Rebinding a key
 
@@ -538,14 +549,22 @@ accessibility tree. That plus the open swatch's accent ring and `aria-expanded`
 is what carries ownership. The caption row also carries the way out — a ✕
 calling `setOpenColor(null)`, `aria-label`ed with the field it closes, because
 the ring on the open swatch reads as "this is the one being edited" rather than
-as "press me again", and the panel is about 200px of a 440px pane.
+as "press me again", and the panel is about 200px of a 440px pane. Being the
+only exit the panel advertises, it is drawn as one: a 24px square at the
+caption's own colour. The `opacity: 0.8` that dims the caption sits on the
+caption `<span>` rather than on `.picker-label`, since `opacity` paints a group
+and dimming the row dimmed the ✕ with it.
 
 **Everything in the colour rows states its value in words**, which the default
 settings are what force. `badge.textColor` ships `#ffffff` and the pane paints
 on `Canvas`, so a swatch showing that colour is a white rectangle inside a
 faint border — the same shape as a text input, carrying nothing. Each row in
-`COLOR_FIELDS` renders its hex beside the label in the type the Size and
-Opacity `<output>`s use, and inside the picker each slider renders its channel
+`COLOR_FIELDS` renders its hex beside its swatch in the type the Size and
+Opacity `<output>`s use — a `.field` is `justify-content: space-between`, which
+spreads a three-child row evenly and left the hex stranded mid-row belonging to
+neither end, so `.field > :first-child` takes `margin-right: auto` and groups
+the value with the control it names. Every other row on the popup has two
+children and does not move. Inside the picker each slider renders its channel
 name: at `#ffffff` the saturation track runs white to white, so the gradient
 that normally describes itself describes nothing on the first colour anyone
 opens. The hex field's sample square is gone for the same reason — flat white

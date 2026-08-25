@@ -1189,6 +1189,35 @@ describe('popup badge settings', () => {
     expect(screen.getByText('22px')).toBeInTheDocument()
   })
 
+  /**
+   * The corner grid was the one child of the block that survived the switch:
+   * it carried `disabled` and no `hidden`, so it stayed on screen greyed out
+   * while the sample, the sliders, the colour rows and the sentence all left.
+   */
+  it('collapses the whole block when the badge is turned off', async () => {
+    const user = await openSettings()
+
+    expect(screen.getByRole('button', { name: 'top-left' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'On-video badge' }))
+
+    expect(screen.queryByRole('button', { name: 'top-left' })).toBeNull()
+    expect(screen.queryByRole('slider', { name: 'Size' })).toBeNull()
+  })
+
+  // What is left after the collapse is a switch and a foreign toggle. The line
+  // is the only thing on screen that says the settings are still there.
+  it('says the settings are kept, and only once they are out of sight', async () => {
+    const user = await openSettings()
+
+    const kept = screen.getByText('Size, colours and timing are kept.')
+    expect(kept).not.toBeVisible()
+
+    await user.click(screen.getByRole('checkbox', { name: 'On-video badge' }))
+
+    expect(kept).toBeVisible()
+  })
+
   // Every other switch on the pane means "more visible" when it is on.
   it('asks whether to show the badge at 1.0×, not whether to hide it', async () => {
     const user = await openSettings()
