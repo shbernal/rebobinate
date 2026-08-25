@@ -6,16 +6,22 @@ import { look, metaOf, openVideoPage, type Ctx } from '../page.ts'
  * Everything else here answers a click immediately. "Add" does not: it puts the
  * panel into a mode where the next keystroke anywhere in it is swallowed and
  * turned into a binding, the button relabels itself to "Press a key…", and a
- * line underneath explains the way out. Nothing about that is visible in a
- * still of the tab before or a still of the tab after — the whole control is
- * the interval between them, and a judge shown two stills would be judging a
- * list of keys rather than the thing that edits it.
+ * line in the gap under that row explains the way out. Nothing about that is
+ * visible in a still of the tab before or a still of the tab after — the whole
+ * control is the interval between them, and a judge shown two stills would be
+ * judging a list of keys rather than the thing that edits it.
  *
  * The refusal is filmed too, deliberately. Binding a key that already belongs
  * to another action is the mistake this control is most likely to meet, and it
- * answers by staying open and printing what the key is already for. A control
- * that stays in its mode after refusing is a different design from one that
- * drops out, and only a recording distinguishes them.
+ * answers by staying open and printing, in red on the same line, what the key
+ * is already for. A control that stays in its mode after refusing is a
+ * different design from one that drops out, and only a recording distinguishes
+ * them.
+ *
+ * What the block does not do is move. The capture button has a column of its
+ * own so relabelling it cannot squeeze the keycaps, and the message line is
+ * reserved whether or not there is a message, so the only thing that changes
+ * between these frames is the thing being reported.
  *
  * The removal at the end is here for the disabled state. Every action keeps at
  * least one key — `normalizeSettings` reads an empty list as a missing one and
@@ -59,7 +65,7 @@ export default {
     await look(
       s,
       panel,
-      'The Keys block on the Settings tab, scrolled to. Three rows — Faster, Slower, Reset — each listing the keys currently bound to it as small keycaps, each keycap carrying a ✕ to drop it, and each row ending in an "Add" button. Faster is bound to three keys out of the box. Under the three rows is a "Restore default keys" button.',
+      'The Keys block on the Settings tab, scrolled to. Three rows — Faster, Slower, Reset — each listing the keys currently bound to it as small keycaps, each keycap carrying a ✕ to drop it, and each row ending in an "Add" button on the right. Faster is bound to three keys out of the box and carries them over two lines. Under the three rows is a blank line and then a "Restore default keys" button.',
       { name: 'keys', mustShow: add },
     )
 
@@ -75,7 +81,7 @@ export default {
     await look(
       s,
       panel,
-      '"Add" on the Faster row has been clicked once, and the panel is now waiting. The button has relabelled itself to "Press a key…" and is shown as held down, and a line has appeared under the three rows reading "Press the key to bind, or Esc to cancel." Nothing else in the panel has changed. Until a key is pressed or Esc is hit, the next keystroke anywhere in here belongs to this button.',
+      '"Add" on the Faster row has been clicked once, and the panel is now waiting. The button has grown leftwards into its own column and relabelled itself to "Press a key…", and a line has appeared in the gap directly under the Faster row — not under the block — reading "Press the key to bind, or Esc to cancel." The Faster row itself has not moved, and neither has "Restore default keys" at the foot: the line was already holding its place, empty. Until a key is pressed or Esc is hit, the next keystroke anywhere in here belongs to this button.',
       { name: 'listening', mustShow: note },
     )
 
@@ -96,7 +102,7 @@ export default {
     await look(
       s,
       panel,
-      `The minus key was pressed, which is already the Slower key. The panel refused it and said why: the line now reads "${refusal}". It is still waiting — the button still reads "Press a key…" — so the refusal costs a second attempt, not a second click on Add. No keycap was added to the Faster row.`,
+      `The minus key was pressed, which is already the Slower key. The panel refused it and said why: the line under the Faster row, which a moment ago was a grey instruction, is now a red one reading "${refusal}". It is still waiting — the button still reads "Press a key…" — so the refusal costs a second attempt, not a second click on Add. No keycap was added to the Faster row, and nothing in the block moved to make room for the refusal.`,
       { name: 'refused', mustShow: note },
     )
 
@@ -117,7 +123,7 @@ export default {
     await look(
       s,
       panel,
-      `The full stop was pressed, and it was free, so it was taken. A fourth keycap reading "." has appeared on the Faster row, the button has gone back to reading "Add", and the line underneath has cleared itself. Faster is now bound to ${labels.length} keys, any of which does the same thing. Nothing was confirmed or saved — the binding took effect as it was pressed.`,
+      `The full stop was pressed, and it was free, so it was taken. A fourth keycap reading "." has appeared on the Faster row, the button has gone back to reading "Add", and the line under the row has cleared itself and gone back to the blank one at the foot of the block. Faster is now bound to ${labels.length} keys, any of which does the same thing. Nothing was confirmed or saved — the binding took effect as it was pressed.`,
       { name: 'bound', mustShow: fasterRow },
     )
 
@@ -177,7 +183,7 @@ export default {
     )
 
     s.showVideo(
-      'The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of its tallest tab, which is this one, so the panel fills the frame throughout. In order: the Settings tab is picked and the pane scrolled down to the Keys block; "Add" on the Faster row is clicked and the button relabels itself to "Press a key…" while a line appears underneath explaining the way out; the minus key is pressed and refused, with the line changing to say what that key is already for and the button staying in its waiting state; the full stop is pressed and accepted, appearing immediately as a fourth keycap on the row while the button goes back to "Add"; then that keycap\'s ✕ is clicked and it disappears; and finally the Reset row underneath is emptied one key at a time until a single one is left, where its ✕ greys out instead of vanishing. The thing to watch is the waiting state — how long the panel sits in it, and how clearly it says it is in it.',
+      'The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of its tallest tab, which is this one, so the panel fills the frame throughout. In order: the Settings tab is picked and the pane scrolled down to the Keys block; "Add" on the Faster row is clicked and the button grows leftwards and relabels itself to "Press a key…" while a line appears in the gap directly under that row explaining the way out; the minus key is pressed and refused, with the same line turning red and saying what that key is already for while the button stays in its waiting state; the full stop is pressed and accepted, appearing immediately as a fourth keycap on the row while the button goes back to "Add"; then that keycap\'s ✕ is clicked and it disappears; and finally the Reset row underneath is emptied one key at a time until a single one is left, where its ✕ greys out instead of vanishing. The thing to watch is the waiting state — how long the panel sits in it, how clearly it says it is in it, and how little of the block moves while it is on.',
     )
   },
 }

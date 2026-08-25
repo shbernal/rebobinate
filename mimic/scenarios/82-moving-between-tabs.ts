@@ -89,7 +89,7 @@ export default {
     await look(
       s,
       panel,
-      'Settings has been picked, and the panel has grown again — this time past what it can show, so this tab scrolls where the other two did not. The top of it is how far the plus and minus move the speed, the keys those are bound to, and a switch for the number drawn on the extension\'s own toolbar icon. Below that the block for the marker drawn over the video begins, and the bottom edge of the panel cuts through it: the half-row showing is the only thing on screen saying there is more of this tab.',
+      "Settings has been picked, and the panel has grown again — this time past what it can show, so this tab scrolls where the other two did not. The top of it is how far the plus and minus move the speed, the keys those are bound to, and a switch for the number drawn on the extension's own toolbar icon. Below that the block for the marker drawn over the video begins, and the bottom edge of the panel cuts through the grid of corners inside it, with the rows above that edge fading down into it — the cut and the fade together are what say there is more of this tab.",
       { name: 'settings', mustShow: panel.locator('#step') },
     )
 

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { BACKUP_FORMAT, BACKUP_VERSION } from '../../src/shared/backup'
 import { DOMAINS_SCHEMA_VERSION } from '../../src/shared/domains'
 import { pressSpeedKey, rateOf } from '../fixtures/controls'
@@ -101,6 +101,60 @@ test.describe('popup', () => {
 
     await expect.poll(() => rateOf(page)).toBeCloseTo(1.05, 3)
   })
+
+  /**
+   * Starting a capture used to cost the block 42px: the button relabels from
+   * Add to "Press a key…", which grew the row's third track, squeezed the
+   * keycaps and wrapped Faster's third one onto a second line, and the message
+   * that followed grew the note from no line box at all. Both landed at the
+   * moment the user had committed to watching that one row.
+   *
+   * The third track is a fixed width now and the note's line is reserved, so
+   * the block is the same height in both states and the row that was clicked
+   * does not move. Only a real engine lays any of that out, which is why the
+   * assertion is here rather than in the jsdom suite.
+   */
+  test('does not move when a key capture starts', async ({ openPopup }) => {
+    const popup = await openPopup()
+    await openTab(popup, 'Settings')
+
+    const keys = popup.locator('section.keys')
+    const faster = keys.locator('.key-row').first()
+    const add = popup.getByRole('button', { name: 'Add a key for Faster' })
+
+    const rest = await boxes(keys, faster)
+
+    await add.click()
+    await expect(add).toHaveText('Press a key…')
+
+    const listening = await boxes(keys, faster)
+
+    expect(listening.block).toBeCloseTo(rest.block, 1)
+    expect(listening.row).toBeCloseTo(rest.row, 1)
+    expect(listening.rowTop).toBeCloseTo(rest.rowTop, 1)
+    expect(listening.chipLines).toBe(rest.chipLines)
+
+    // And the message it is waiting for costs nothing either.
+    await popup.keyboard.press('-')
+    await expect(keys.locator('p.note')).toHaveClass(/note-refused/)
+
+    expect((await boxes(keys, faster)).block).toBeCloseTo(rest.block, 1)
+  })
+})
+
+/** The heights a capture must not change, read off the live layout. */
+const boxes = async (keys: Locator, row: Locator) => ({
+  block: (await keys.boundingBox())?.height ?? 0,
+  row: (await row.boundingBox())?.height ?? 0,
+  rowTop: (await row.boundingBox())?.y ?? 0,
+  chipLines: await row.evaluate(
+    element =>
+      new Set(
+        [...element.querySelectorAll('.chip')].map(
+          chip => chip.getBoundingClientRect().top,
+        ),
+      ).size,
+  ),
 })
 
 /**

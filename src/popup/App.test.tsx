@@ -802,6 +802,50 @@ describe('popup key bindings', () => {
     expect(storedSettings().keys.reset).not.toContain('+')
   })
 
+  /**
+   * The instruction and the refusal share one line, so the only thing that can
+   * tell them apart is how the line is painted. jsdom has no cascade, so what
+   * is asserted here is the hook the stylesheet hangs the colour on.
+   */
+  it('paints a refusal differently from the instruction it replaces', async () => {
+    const user = await openSettings()
+    const note = () =>
+      document.querySelector('section.keys p.note') as HTMLElement
+
+    await capture(user, 'Reset')
+
+    expect(note()).toHaveTextContent('Press the key to bind')
+    expect(note()).not.toHaveClass('note-refused')
+
+    await user.keyboard('{+}')
+
+    expect(note()).toHaveTextContent('+ is already faster.')
+    expect(note()).toHaveClass('note-refused')
+  })
+
+  /**
+   * The note is one element parked in the slot under whichever row is
+   * listening, rather than one paragraph per row: three reserved lines would
+   * cost more height than the message is worth, and inserting one on demand
+   * would push the rows under it down. The slot is a flex `order`, so the row
+   * order is `index * 2` and the note takes the odd number after its row.
+   */
+  it('parks its note in the slot under the row that is listening', async () => {
+    const user = await openSettings()
+    const note = document.querySelector('section.keys p.note') as HTMLElement
+
+    expect(note.style.order).toBe('6')
+
+    await capture(user, 'Faster')
+    expect(note.style.order).toBe('1')
+
+    await capture(user, 'Reset')
+    expect(note.style.order).toBe('5')
+
+    await user.keyboard('{Escape}')
+    expect(note.style.order).toBe('6')
+  })
+
   // The content script hands modified keystrokes back to the browser, so a
   // binding on one would never fire.
   it('refuses a modified keystroke', async () => {
