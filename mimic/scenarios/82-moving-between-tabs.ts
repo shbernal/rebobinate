@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { look, metaOf, openVideoPage, type Ctx } from '../page.ts'
+import {
+  look,
+  metaOf,
+  openVideoPage,
+  panelHeight,
+  type Ctx,
+} from '../page.ts'
 
 /**
  * The panel as a place with three rooms in it, rather than three separate
@@ -27,12 +32,6 @@ import { look, metaOf, openVideoPage, type Ctx } from '../page.ts'
  * window rather than as the panel having an empty bottom, and the narration
  * names it. That band is the recording, not the product.
  */
-
-/** The panel's own height, which is the thing changing. */
-const panelHeight = (panel: Page): Promise<number> =>
-  panel
-    .locator('main.popup')
-    .evaluate(node => Math.round(node.getBoundingClientRect().height))
 
 export default {
   id: 'moving-between-tabs',

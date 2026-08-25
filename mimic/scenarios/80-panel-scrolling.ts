@@ -1,13 +1,19 @@
 import type { Page } from '@playwright/test'
-import { look, metaOf, openVideoPage, type Ctx } from '../page.ts'
+import {
+  look,
+  metaOf,
+  openVideoPage,
+  pinned,
+  wheelUntil,
+  type Ctx,
+} from '../page.ts'
 
 /**
- * The one scenario filmed inside the panel.
+ * The panel's geography, and the only exhibit of it that is about scrolling.
  *
- * Every other exhibit of the panel is a stack of stills, and stills cannot
- * answer the two questions this pane raises. The panel is 320px wide and its
- * Settings tab is 530px tall against a pane that shows 440 of it, so most of
- * what is on that tab is off screen when it opens — and what holds still while
+ * Stills cannot answer the two questions this pane raises. The panel is 320px
+ * wide and its Settings tab is 530px tall against a pane that shows 440 of it,
+ * so most of what is on that tab is off screen when it opens — and what holds still while
  * the rest of it moves is the whole design of the thing. The tab strip stays
  * put. The badge block's header, which carries the master switch and the live
  * sample, sticks to the top of the pane for the run of the controls it
@@ -29,35 +35,6 @@ import { look, metaOf, openVideoPage, type Ctx } from '../page.ts'
  * bottom, and the narration names it.
  */
 
-/**
- * Scrolled the way a person scrolls — wheel notches over the pane — until the
- * pane is where the next frame needs it.
- *
- * A fixed number of notches is what put the first cut of this scenario at the
- * foot of the pane with the Size slider off screen above it, while the caption
- * described that slider moving. Scrolling to a condition and failing when it is
- * never met keeps the frame and the sentence about it the same thing.
- */
-const wheelUntil = async (
-  panel: Page,
-  reached: () => Promise<boolean>,
-  target: string,
-) => {
-  await panel.mouse.move(160, 300)
-
-  for (let notch = 0; notch < 24; notch += 1) {
-    if (await reached()) {
-      await panel.waitForTimeout(400)
-      return
-    }
-
-    await panel.mouse.wheel(0, 60)
-    await panel.waitForTimeout(120)
-  }
-
-  throw new Error(`the pane never scrolled to ${target}`)
-}
-
 /** Whether the pane has run out of anything else to scroll to. */
 const atEnd = (panel: Page): Promise<boolean> =>
   panel
@@ -65,33 +42,6 @@ const atEnd = (panel: Page): Promise<boolean> =>
     .evaluate(
       pane => pane.scrollTop >= pane.scrollHeight - pane.clientHeight - 1,
     )
-
-/**
- * Whether the marker block's header is actually stuck to the top of the pane,
- * rather than merely near it.
- *
- * The claim this scenario makes about the block is that its header holds still
- * while the block scrolls under it, and the two are indistinguishable in a
- * frame taken before the block's top has reached the top of the pane. So it is
- * measured rather than assumed: stuck means the header's top edge is the
- * pane's, to the pixel. Reaching it costs about 300px of scroll, all of it
- * above the block — the block itself then fits under the header with room to
- * spare, which is why every control this scenario touches is reachable from
- * this one position.
- */
-const pinned = (panel: Page): Promise<boolean> =>
-  panel.locator('.badge-header').evaluate(header => {
-    const pane = header.closest('.pane')
-
-    if (pane === null) {
-      return false
-    }
-
-    const offset =
-      header.getBoundingClientRect().top - pane.getBoundingClientRect().top
-
-    return Math.abs(offset) <= 1
-  })
 
 export default {
   id: 'panel-scrolling',

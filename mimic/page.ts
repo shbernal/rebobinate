@@ -192,6 +192,98 @@ export async function start(s: Ctx): Promise<{ video: Page; popup: Page }> {
   return { video, popup }
 }
 
+/**
+ * Scrolled the way a person scrolls — wheel notches over the pane — until the
+ * pane is where the next frame needs it.
+ *
+ * A fixed number of notches is what put the first cut of `panel-scrolling` at
+ * the foot of the pane with the Size slider off screen above it, while the
+ * caption described that slider moving. Scrolling to a condition and failing
+ * when it is never met keeps the frame and the sentence about it the same
+ * thing.
+ */
+export const wheelUntil = async (
+  panel: Page,
+  reached: () => Promise<boolean>,
+  target: string,
+): Promise<void> => {
+  await panel.mouse.move(160, 300)
+
+  for (let notch = 0; notch < 24; notch += 1) {
+    if (await reached()) {
+      await panel.waitForTimeout(400)
+      return
+    }
+
+    await panel.mouse.wheel(0, 60)
+    await panel.waitForTimeout(120)
+  }
+
+  throw new Error(`the pane never scrolled to ${target}`)
+}
+
+/**
+ * Whether the marker block's header is actually stuck to the top of the pane,
+ * rather than merely near it.
+ *
+ * Every exhibit of that block claims its header holds still while the block
+ * scrolls under it, and the two are indistinguishable in a frame taken before
+ * the block's top has reached the top of the pane. So it is measured rather
+ * than assumed: stuck means the header's top edge is the pane's, to the pixel.
+ */
+export const pinned = (panel: Page): Promise<boolean> =>
+  panel.locator('.badge-header').evaluate(header => {
+    const pane = header.closest('.pane')
+
+    if (pane === null) {
+      return false
+    }
+
+    const offset =
+      header.getBoundingClientRect().top - pane.getBoundingClientRect().top
+
+    return Math.abs(offset) <= 1
+  })
+
+/** Whether an element is wholly inside the part of the pane that is on screen. */
+export const insidePane = (target: Locator): Promise<boolean> =>
+  target.evaluate(node => {
+    const pane = node.closest('.pane')
+
+    if (pane === null) {
+      return false
+    }
+
+    const box = node.getBoundingClientRect()
+    const view = pane.getBoundingClientRect()
+
+    return box.top >= view.top - 1 && box.bottom <= view.bottom + 1
+  })
+
+/** Where an element sits in the pane, measured from the top of what is on screen. */
+export const offsetInPane = (target: Locator): Promise<number> =>
+  target.evaluate(node => {
+    const pane = node.closest('.pane')
+
+    if (pane === null) {
+      return Number.NaN
+    }
+
+    return Math.round(
+      node.getBoundingClientRect().top - pane.getBoundingClientRect().top,
+    )
+  })
+
+/** The panel's own height, which is what a tab change and a collapsing block move. */
+export const panelHeight = (panel: Page): Promise<number> =>
+  panel
+    .locator('main.popup')
+    .evaluate(node => Math.round(node.getBoundingClientRect().height))
+
+/** How tall the pane's contents are, which is what a panel opening inside it changes. */
+export const paneContentHeight = (panel: Page): Promise<number> =>
+  panel.locator('.pane').evaluate(pane => Math.round(pane.scrollHeight))
+
 type Clip = { x: number; y: number; width: number; height: number }
 
 /**

@@ -42,6 +42,8 @@ const PANEL_WINDOWS: Record<string, number> = {
   'moving-between-tabs': 540,
   'setting-a-speed': 250,
   'binding-a-new-key': 540,
+  'choosing-a-colour': 540,
+  'turning-the-marker-off': 540,
 }
 
 /** Keyed by scenario id, which is all the launch hook is told about one. */
