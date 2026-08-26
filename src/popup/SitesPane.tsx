@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DomainMemory, DomainStore } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
 import { formatSpeedLabel } from '@/shared/speed'
@@ -29,6 +29,12 @@ type RowProps = {
   onSetSpeed: (domain: string, speed: number) => void
   onSetNever: (domain: string, never: boolean) => void
   onForget: (domain: string) => void
+  /**
+   * Told what was cleared, and what it held. Only the rows in the list below
+   * get this: clearing the `This tab` row leaves the row standing on the
+   * default, so there is nothing there to put back.
+   */
+  onDropped?: (domain: string, entry: DomainMemory) => void
 }
 
 const SiteRow = ({
@@ -38,6 +44,7 @@ const SiteRow = ({
   onSetSpeed,
   onSetNever,
   onForget,
+  onDropped,
 }: RowProps) => {
   const never = entry?.never === true
 
@@ -48,6 +55,10 @@ const SiteRow = ({
    * again" — so the marker is cleared by switching it off instead.
    */
   const clear = () => {
+    if (entry) {
+      onDropped?.(domain, entry)
+    }
+
     if (never) {
       onSetNever(domain, false)
       return
@@ -78,6 +89,9 @@ const SiteRow = ({
 
   const current = never ? NEVER : entry ? String(entry.speed) : DEFAULT
   const listed = entry && !never ? entry.speed : defaultSpeed
+  const dropLabel = never
+    ? `Start remembering ${domain} again`
+    : `Stop remembering ${domain}`
 
   return (
     <li className="site">
@@ -106,16 +120,18 @@ const SiteRow = ({
       </select>
 
       {/* The one-click version of the select's `Use default`, which calls the
-          same `clear` — so it is named for the same outcome rather than for a
-          second vocabulary. A marker is still a stored entry, so the ✕ clears
-          that too: otherwise a site switched off has no way back except the
-          select that put it there. `disabled` says the button is about what is
-          stored, which the select's option cannot. */}
+          same `clear`. It is named for what it drops rather than for the speed
+          the site lands on: in the list below, what the user sees the click do
+          is a row leave, and "Back to the default speed for X" named an effect
+          that disappearance does not carry. A marker is a stored entry too, so
+          the ✕ clears that as well — the opposite outcome, and the opposite
+          sentence. `disabled` says the button is about what is stored, which
+          the select's option cannot. */}
       <button
         type="button"
         className="forget"
-        aria-label={`Back to the default speed for ${domain}`}
-        title={`Back to the default speed for ${domain}`}
+        aria-label={dropLabel}
+        title={dropLabel}
         disabled={!entry}
         onClick={clear}
       >
@@ -124,6 +140,37 @@ const SiteRow = ({
     </li>
   )
 }
+
+/**
+ * What is left where a dropped row was, until the pane is left.
+ *
+ * A popup closes the moment the user clicks anything outside it, so a timed
+ * undo would be a window the panel cannot promise. This one is a place instead
+ * of a period: it holds the row's slot in the list, and it is spent when the
+ * next row is dropped, when the filter is retyped, or when the tab is left. At
+ * `.note`'s weight, because it is a line about a site rather than a site.
+ */
+const DroppedRow = ({
+  domain,
+  onUndo,
+}: {
+  domain: string
+  onUndo: () => void
+}) => (
+  <li className="site site-dropped">
+    <span className="site-name" title={domain}>
+      {domain}
+    </span>
+    <button
+      type="button"
+      className="undo"
+      aria-label={`Undo dropping ${domain}`}
+      onClick={onUndo}
+    >
+      Undo
+    </button>
+  </li>
+)
 
 type SitesPaneProps = {
   settings: Settings
@@ -134,7 +181,17 @@ type SitesPaneProps = {
   onSetSpeed: (domain: string, speed: number) => void
   onSetNever: (domain: string, never: boolean) => void
   onForget: (domain: string) => void
+  /**
+   * Asks the shell to hold the scrolling pane at the height it has now, or to
+   * let it go. The pane is the shell's element and its height is the popup's,
+   * so the measuring belongs there; this pane only knows when the filter box
+   * is in use.
+   */
+  onHoldHeight: (hold: boolean) => void
 }
+
+/** The one row that has been dropped and can still be put back. */
+type Dropped = { domain: string; entry: DomainMemory }
 
 const SitesPane = ({
   settings,
@@ -144,8 +201,23 @@ const SitesPane = ({
   onSetSpeed,
   onSetNever,
   onForget,
+  onHoldHeight,
 }: SitesPaneProps) => {
   const [filter, setFilter] = useState('')
+  const [dropped, setDropped] = useState<Dropped | null>(null)
+
+  /**
+   * The order the rows are in, held for as long as the pane is mounted.
+   *
+   * The store's own order is most recently touched first, which is the right
+   * order to arrive in and the right order to evict by, and the wrong thing to
+   * do to a list somebody has their hand on: setting a speed writes the entry,
+   * which moved that row to the top under the pointer that had just set it. So
+   * the sort below decides where a row goes when it first appears, and this
+   * decides where it stays. Leaving the tab unmounts the pane, so the next
+   * visit sorts afresh — which is the whole of the reset logic.
+   */
+  const order = useRef<string[]>([])
 
   // The most recently touched first: on a profile with hundreds of sites, the
   // one the user is looking for is almost always one they used recently.
@@ -153,12 +225,63 @@ const SitesPane = ({
     .filter(([key]) => key !== domain)
     .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
 
+  /**
+   * Today's sort merged into the order already on screen: a key that is already
+   * placed keeps its place, a key that is new goes on the front, and a key that
+   * is no longer stored falls out — unless it is the dropped one, which keeps
+   * its slot so the undo can put the row back where the row was.
+   */
+  const stored = new Set(others.map(([key]) => key))
+  const kept = order.current.filter(
+    key => stored.has(key) || key === dropped?.domain,
+  )
+  const placed = new Set(kept)
+  const arrived = others.map(([key]) => key).filter(key => !placed.has(key))
+  const rows = [...arrived, ...kept]
+  order.current = rows
+
   const query = filter.trim().toLowerCase()
-  const matching = query
-    ? others.filter(([key]) => key.includes(query))
-    : others
+  const matching = query ? rows.filter(key => key.includes(query)) : rows
   const shown = matching.slice(0, MAX_ROWS)
   const hidden = matching.length - shown.length
+
+  /**
+   * What the heading counts is what is stored, so the dropped row's line is
+   * listed and not counted: the entry really is gone, and the count saying so
+   * before the undo is taken is the honest half of offering one.
+   */
+  const found = query
+    ? matching.filter(key => stored.has(key)).length
+    : others.length
+
+  const search = (value: string) => {
+    setFilter(value)
+    // A different question is being asked of the list, so the answer to the
+    // last one goes.
+    setDropped(null)
+    // Measured at the moment the box goes from empty to holding a query, which
+    // is the last moment the pane is at its full height with the box in use.
+    onHoldHeight(value.trim() !== '')
+  }
+
+  const undo = () => {
+    if (dropped === null) {
+      return
+    }
+
+    // The write that recreates what was there, not a special restore path: a
+    // marker and a speed are made the same way here as anywhere else.
+    if (dropped.entry.never) {
+      onSetNever(dropped.domain, true)
+    } else {
+      onSetSpeed(dropped.domain, dropped.entry.speed)
+    }
+
+    setDropped(null)
+  }
+
+  // The floor is this pane's while it is on screen and nobody else's.
+  useEffect(() => () => onHoldHeight(false), [onHoldHeight])
 
   /**
    * "Other" is a claim about this tab's site, so it is only sayable when that
@@ -238,9 +361,20 @@ const SitesPane = ({
               stored decision — a speed, or a "never" that leaves the site out.
               The markers are listed because the list is how an exclusion is
               undone, and "Remembered sites (3)" over three rows two of which
-              say "Never remember" counted them as memories. */}
+              say "Never remember" counted them as memories.
+
+              Under a filter it says both numbers. The stored count is still
+              the one that matters, but it was the only number on this pane a
+              filter could put at odds with the rows underneath it — "(12)"
+              over three of them — and the pane already prints the other in
+              "N more not shown". */}
           <h2 className="pane-heading">
-            Other sites{others.length > 0 ? ` (${others.length})` : ''}
+            Other sites
+            {others.length === 0
+              ? ''
+              : found === others.length
+                ? ` (${others.length})`
+                : ` (${found} of ${others.length})`}
           </h2>
 
           {others.length >= FILTER_FROM ? (
@@ -251,16 +385,35 @@ const SitesPane = ({
                 type="search"
                 value={filter}
                 placeholder="domain"
-                onChange={event => setFilter(event.target.value)}
+                onChange={event => search(event.target.value)}
+                onFocus={() => onHoldHeight(true)}
+                onBlur={() => onHoldHeight(false)}
               />
             </section>
           ) : null}
 
           {shown.length > 0 ? (
             <ul className="sites">
-              {shown.map(([key, entry]) => (
-                <SiteRow key={key} domain={key} entry={entry} {...rowProps} />
-              ))}
+              {shown.map(key => {
+                const entry = domains.entries[key]
+
+                // The slot outlives its row only until something is stored
+                // under that name again, which an undo does and a visit to the
+                // site does too.
+                return entry === undefined && key === dropped?.domain ? (
+                  <DroppedRow key={key} domain={key} onUndo={undo} />
+                ) : (
+                  <SiteRow
+                    key={key}
+                    domain={key}
+                    entry={entry}
+                    {...rowProps}
+                    onDropped={(target, held) =>
+                      setDropped({ domain: target, entry: held })
+                    }
+                  />
+                )
+              })}
             </ul>
           ) : (
             <p className="note">{emptyNote}</p>

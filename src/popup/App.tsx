@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BackupContents } from '@/shared/backup'
 import type { RuntimeMessage, SpeedResponse } from '@/shared/messages'
 import type { SpeedAction } from '@/shared/keys'
@@ -69,6 +69,24 @@ const App = () => {
    */
   const [domain, setDomain] = useState<string | null>(null)
   const [domains, setDomains] = useState<DomainStore>(EMPTY_DOMAIN_STORE)
+
+  /**
+   * A floor under the scrolling pane, in pixels, while a pane asks for one.
+   *
+   * The pane is what the popup's height is: it has a ceiling and no floor, so
+   * a list narrowing from twelve rows to three under a filter took 250px out
+   * of the window, once per character typed. The Sites pane asks for the floor
+   * while its filter box is in use and gives it back when the box is left, so
+   * the window settles once rather than on every keystroke. Measured here
+   * because this is whose element it is.
+   */
+  const paneRef = useRef<HTMLDivElement>(null)
+  const [paneFloor, setPaneFloor] = useState<number | null>(null)
+  const holdPaneHeight = useCallback((hold: boolean) => {
+    const height = paneRef.current?.offsetHeight ?? 0
+
+    setPaneFloor(hold && height > 0 ? height : null)
+  }, [])
 
   useEffect(() => {
     readSettings(setSettings)
@@ -179,6 +197,8 @@ const App = () => {
 
       <div
         className="pane"
+        ref={paneRef}
+        style={paneFloor === null ? undefined : { minHeight: paneFloor }}
         role="tabpanel"
         id={tabPanelId(tab)}
         aria-labelledby={tabId(tab)}
@@ -231,6 +251,7 @@ const App = () => {
             onSetSpeed={setSiteSpeed}
             onSetNever={setSiteNever}
             onForget={forgetSite}
+            onHoldHeight={holdPaneHeight}
           />
         ) : null}
 

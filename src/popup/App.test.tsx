@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { UserEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -46,6 +46,24 @@ const seedDomains = (
 ) => {
   getChromeMock().storage.local.seed({
     [DOMAINS_STORAGE_KEY]: { schemaVersion: DOMAINS_SCHEMA_VERSION, entries },
+  })
+}
+
+/**
+ * The service worker's half of an edit. It is not running under jsdom, so a
+ * write the popup asked for has to be made here: the list follows the stored
+ * map rather than the message that asked for it.
+ */
+const workerWrote = async (
+  entries: Record<
+    string,
+    { speed?: number; updatedAt: number; never?: boolean }
+  >,
+) => {
+  await act(async () => {
+    getChromeMock().storage.local.set({
+      [DOMAINS_STORAGE_KEY]: { schemaVersion: DOMAINS_SCHEMA_VERSION, entries },
+    })
   })
 }
 
@@ -418,7 +436,7 @@ describe('popup sites tab', () => {
     expect(screen.getByLabelText('Speed for youtube.com')).toHaveValue('1.5')
     expect(
       screen.getByRole('button', {
-        name: 'Back to the default speed for youtube.com',
+        name: 'Stop remembering youtube.com',
       }),
     ).toBeEnabled()
   })
@@ -430,7 +448,7 @@ describe('popup sites tab', () => {
     expect(screen.getByLabelText('Speed for vimeo.com')).toHaveValue('default')
     expect(
       screen.getByRole('button', {
-        name: 'Back to the default speed for vimeo.com',
+        name: 'Stop remembering vimeo.com',
       }),
     ).toBeDisabled()
   })
@@ -563,7 +581,7 @@ describe('popup sites tab', () => {
 
     await user.click(
       screen.getByRole('button', {
-        name: 'Back to the default speed for youtube.com',
+        name: 'Stop remembering youtube.com',
       }),
     )
 
@@ -649,7 +667,7 @@ describe('popup sites tab', () => {
 
     await user.click(
       screen.getByRole('button', {
-        name: 'Back to the default speed for vimeo.com',
+        name: 'Start remembering vimeo.com again',
       }),
     )
 
@@ -715,6 +733,179 @@ describe('popup sites tab', () => {
 
     expect(screen.getAllByRole('listitem')).toHaveLength(1)
     expect(screen.getByTitle('site-7.example')).toBeInTheDocument()
+  })
+
+  /**
+   * A dozen sites, oldest last, which is the shape the list is designed for
+   * and the shape the two tests below need.
+   */
+  const twelveSites = () =>
+    Object.fromEntries(
+      Array.from({ length: 12 }, (_, index) => [
+        `site-${index}.example`,
+        { speed: 1.5, updatedAt: index },
+      ]),
+    )
+
+  const listedNames = () =>
+    screen
+      .getAllByRole('listitem')
+      .map(row => row.querySelector('.site-name')?.textContent)
+
+  /**
+   * The list is ordered by when each site was last touched and setting a speed
+   * touches one, so the row the user had their hand on used to travel to the
+   * top the moment the write landed — off the top of a scrolled pane, taking
+   * the only confirmation of what they had just chosen with it.
+   */
+  it('leaves an edited row where it was', async () => {
+    answerPopupState(null)
+    const seeded = twelveSites()
+    seedDomains(seeded)
+    const user = await openSites()
+
+    const before = listedNames()
+    expect(before[before.length - 1]).toBe('site-0.example')
+
+    await user.selectOptions(
+      screen.getByLabelText('Speed for site-0.example'),
+      '2',
+    )
+    await workerWrote({
+      ...seeded,
+      'site-0.example': { speed: 2, updatedAt: 99 },
+    })
+
+    expect(listedNames()).toEqual(before)
+    expect(screen.getByLabelText('Speed for site-0.example')).toHaveValue('2')
+  })
+
+  // A site that has never been listed is new to the pane, so it belongs at the
+  // front rather than wherever the frozen order has no opinion about it.
+  it('puts a site the list has not seen on the front', async () => {
+    answerPopupState(null)
+    const seeded = twelveSites()
+    seedDomains(seeded)
+    await openSites()
+
+    await workerWrote({
+      ...seeded,
+      'brand-new.example': { speed: 2, updatedAt: 99 },
+    })
+
+    expect(listedNames()[0]).toBe('brand-new.example')
+  })
+
+  /**
+   * The ✕ is a 20px button beside the dropdown and the row it clears leaves the
+   * list, so a misclick used to cost a setting the pane could not re-enter: the
+   * site is listed nowhere until it is next visited.
+   */
+  it('holds the slot of a dropped row and puts the row back', async () => {
+    answerPopupState(null)
+    seedDomains({
+      'keep.example': { speed: 1.25, updatedAt: 2 },
+      'drop.example': { speed: 1.75, updatedAt: 1 },
+    })
+    const user = await openSites()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Stop remembering drop.example' }),
+    )
+    await workerWrote({ 'keep.example': { speed: 1.25, updatedAt: 2 } })
+
+    expect(listedNames()).toEqual(['keep.example', 'drop.example'])
+    expect(screen.queryByLabelText('Speed for drop.example')).toBeNull()
+    // The entry really is gone, and the count says so before the undo is taken.
+    expect(screen.getByText('Other sites (1)')).toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Undo dropping drop.example' }),
+    )
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      {
+        type: 'rebobinate:set-domain-speed',
+        domain: 'drop.example',
+        speed: 1.75,
+      },
+      expect.any(Function),
+    )
+  })
+
+  // A marker is not a speed, so putting one back is the other write.
+  it('puts a dropped marker back as a marker', async () => {
+    answerPopupState(null)
+    seedDomains({
+      'keep.example': { speed: 1.25, updatedAt: 2 },
+      'off.example': { speed: 1, updatedAt: 1, never: true },
+    })
+    const user = await openSites()
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Start remembering off.example again',
+      }),
+    )
+    await workerWrote({ 'keep.example': { speed: 1.25, updatedAt: 2 } })
+    await user.click(
+      screen.getByRole('button', { name: 'Undo dropping off.example' }),
+    )
+
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      {
+        type: 'rebobinate:set-domain-never',
+        domain: 'off.example',
+        never: true,
+      },
+      expect.any(Function),
+    )
+  })
+
+  // The slot answers the list the user was looking at. Ask a different question
+  // of it and the answer goes with it.
+  it('drops the undo when the filter is retyped', async () => {
+    answerPopupState(null)
+    const seeded = twelveSites()
+    seedDomains(seeded)
+    const user = await openSites()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Stop remembering site-3.example' }),
+    )
+    const { 'site-3.example': _dropped, ...rest } = seeded
+    await workerWrote(rest)
+
+    expect(
+      screen.getByRole('button', { name: 'Undo dropping site-3.example' }),
+    ).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Filter'), 'site-7')
+
+    expect(
+      screen.queryByRole('button', { name: 'Undo dropping site-3.example' }),
+    ).toBeNull()
+  })
+
+  // The heading counts what is stored, which is the right thing for it to
+  // count and the one number on the pane that a filter can put at odds with
+  // the rows under it.
+  it('says how much of the list the filter is showing', async () => {
+    answerPopupState(null)
+    seedDomains(twelveSites())
+    const user = await openSites()
+
+    expect(screen.getByText('Other sites (12)')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Filter'), 'site-1')
+
+    expect(screen.getByText('Other sites (3 of 12)')).toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Filter'))
+    await user.type(screen.getByLabelText('Filter'), 'gardening')
+
+    expect(screen.getByText('Other sites (0 of 12)')).toBeInTheDocument()
+    expect(screen.getByText('No site matches that filter.')).toBeInTheDocument()
   })
 
   it('hides the list while the memory is turned off', async () => {
