@@ -3,7 +3,7 @@ import { crx } from '@crxjs/vite-plugin'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import type { Plugin, PluginOption, UserConfig } from 'vite'
-import manifest from './manifest.config'
+import manifest from './manifest.config.ts'
 
 // crxjs still emits both `rollupOptions` and `rolldownOptions` on Vite 8, which
 // makes Vite warn on every build. Drop the rolldown half of the pair.
@@ -58,7 +58,7 @@ const isFirefox = process.env.EXT_TARGET === 'firefox'
 export default defineConfig({
   resolve: {
     alias: {
-      '@': `${path.resolve(__dirname, 'src')}`,
+      '@': `${path.resolve(import.meta.dirname, 'src')}`,
     },
   },
   plugins: [
