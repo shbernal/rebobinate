@@ -352,6 +352,16 @@
   opacity: 0.9;
 }
 
+/* `.note-refused` one tier up, for the refusal the import box gives: the parse
+   error and the sentence about what a restore costs share one line, so without
+   this the panel says "that is not valid JSON" in exactly the voice it says
+   "replaces all 4 remembered sites". Same colour token as `.note-refused` so
+   the panel's two refusals match, and no icon for the same reason. */
+.rule-refused {
+  color: color-mix(in srgb, #d93025 70%, CanvasText);
+  opacity: 1;
+}
+
 .sites {
   display: flex;
   flex-direction: column;

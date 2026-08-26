@@ -1,7 +1,7 @@
 import type { RuntimeMessage } from '@/shared/messages'
 import { isRuntimeMessage } from '@/shared/messages'
 import type { SpeedAction } from '@/shared/keys'
-import type { Settings } from '@/shared/settings'
+import type { BadgeSettings, Settings } from '@/shared/settings'
 import {
   DEFAULT_SETTINGS,
   onSettingsChange,
@@ -40,7 +40,7 @@ if (isControllableDocument()) {
 
       if (eventName === 'ratechange') {
         enforcer.reconcile(video)
-        badge.render(enforcer.getSpeed(), settings.badge)
+        badge.render(enforcer.getSpeed(), badgeSettings())
         return
       }
 
@@ -52,6 +52,18 @@ if (isControllableDocument()) {
     document,
     anchor: () => registry.primary(),
   })
+
+  /**
+   * The badge block's own switch, with the master one folded in.
+   *
+   * `shouldShow` only ever consulted `badge.enabled`, so a speed arriving while
+   * the extension was switched off still drew the marker — a promise about a
+   * video nothing is speeding up. Reported off rather than short-circuited at
+   * each call site, because `render` and `flash` already do the right thing
+   * with a disabled block: they take whatever is on screen down.
+   */
+  const badgeSettings = (): BadgeSettings =>
+    settings.enabled ? settings.badge : { ...settings.badge, enabled: false }
 
   // Whether any frame of the tab holds a video. On a page whose player sits in
   // an iframe, the focused frame has none of its own, but the keystroke is
@@ -74,7 +86,7 @@ if (isControllableDocument()) {
     }
 
     announced = true
-    badge.flash(enforcer.getSpeed(), settings.badge)
+    badge.flash(enforcer.getSpeed(), badgeSettings())
   }
 
   const keyHandler = createKeyHandler({
@@ -124,12 +136,12 @@ if (isControllableDocument()) {
     if (speedsEqual(speed, enforcer.getSpeed())) {
       // Still flash: the user pressed a key and deserves feedback even when the
       // speed is already at the limit.
-      badge.flash(speed, settings.badge)
+      badge.flash(speed, badgeSettings())
       return
     }
 
     enforcer.setSpeed(speed)
-    badge.flash(speed, settings.badge)
+    badge.flash(speed, badgeSettings())
   }
 
   chrome.runtime.onMessage.addListener(message => {
@@ -157,7 +169,7 @@ if (isControllableDocument()) {
 
   readSettings(initial => {
     settings = initial
-    badge.render(enforcer.getSpeed(), settings.badge)
+    badge.render(enforcer.getSpeed(), badgeSettings())
   })
 
   onSettingsChange(next => {
@@ -168,7 +180,7 @@ if (isControllableDocument()) {
       enforcer.setSpeed(1)
     }
 
-    badge.render(enforcer.getSpeed(), settings.badge)
+    badge.render(enforcer.getSpeed(), badgeSettings())
   })
 
   registry.start()
@@ -188,7 +200,7 @@ if (isControllableDocument()) {
 
       if (typeof response?.speed === 'number') {
         enforcer.setSpeed(response.speed)
-        badge.render(response.speed, settings.badge)
+        badge.render(response.speed, badgeSettings())
         announceSpeed()
       }
     },

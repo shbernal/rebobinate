@@ -19,10 +19,12 @@ import {
  * does when it is off — whether the tabs go quiet, grey out, say anything at
  * all, or carry on exactly as they were.
  *
- * A still cannot ask that, because the answer is a comparison. The tabs off and
- * the tabs on are the same pixels except for the switch itself, and a pair of
- * stills of two identical screens is a pair a judge has no reason to read as a
- * finding rather than as a repeat.
+ * A still cannot ask that, because the answer is a comparison. What the panel
+ * does is deliberately uneven: the Speed tab collapses, because with the switch
+ * off the service worker refuses everything those controls send, while the
+ * Sites and Settings tabs stay entirely live, because pausing the extension is
+ * very often the step before changing the setting that made you pause it. One
+ * line under the header is what carries the news to all three.
  *
  * What the switch really turns off is on the page, not in the panel: the
  * keyboard stops answering and the video is put back to normal speed. Neither
@@ -33,9 +35,7 @@ import {
  * on, at the foot of the scenario: without that control, a key that failed to
  * arrive and a key that arrived and was ignored look identical.
  *
- * The panel's own two answers to the same question disagree, and that
- * disagreement is the exhibit. Filmed through `openPanel`, in the window the
- * panel tops out at.
+ * Filmed through `openPanel`, in the window the panel tops out at.
  */
 
 /** The site behind the panel, which is what the Sites tab lists under "This tab". */
@@ -44,7 +44,7 @@ const SITE = 'player.test'
 /** Ten steps off 1.0× at the default 0.05, set the ordinary way: from the keyboard. */
 const PRESSES = 10
 
-/** The chip pressed while the switch is off, and the speed it claims to set. */
+/** The chip reached for while the switch is off, and the speed it would set. */
 const PRESET = '2.0×'
 
 /** What a row's dropdown is showing, read as the word on screen rather than as a number. */
@@ -83,13 +83,23 @@ export default {
     const master = toggle(panel, 'Enabled')
     const readout = panel.locator('output.readout')
     const speedTab = panel.getByRole('tab', { name: 'Speed' })
+    /** The line the panel adds under the header while the switch is off. */
+    const offLine = panel.locator('main.popup > p.rule')
+    const faster = panel.getByRole('button', { name: 'Faster' })
+    const chip = panel.getByRole('button', { name: PRESET, exact: true })
 
     const showing = (await readout.textContent()) ?? ''
+
+    if ((await offLine.count()) !== 0) {
+      throw new Error(
+        'the panel is already saying it is off with it switched on',
+      )
+    }
 
     await look(
       s,
       panel,
-      `The panel as it opens, over a page with a video playing at ${showing} — set a moment ago by pressing the speed-up key ${PRESSES} times on the page itself. At the very top, above the three tabs and outside all of them, is the extension's name and a switch labelled "Enabled", larger than any other switch in the panel and currently on. Under it the Speed tab: a minus, the big ${showing} readout, a plus; a "Reset" button; a row of speed chips; and a line saying the speed is being remembered for this site.`,
+      `The panel as it opens, over a page with a video playing at ${showing} — set a moment ago by pressing the speed-up key ${PRESSES} times on the page itself. At the very top, above the three tabs and outside all of them, is the extension's name and a switch labelled "Enabled", larger than any other switch in the panel and currently on. Under it the Speed tab: a minus, the big ${showing} readout, a plus; a "Reset" button; a row of speed chips; and a line saying the speed is being remembered for this site. Nothing between the title and the tabs.`,
       { name: 'on', mustShow: master },
     )
 
@@ -98,6 +108,7 @@ export default {
 
     const snapped = await speedOf(video)
     const stillShowing = (await readout.textContent()) ?? ''
+    const said = ((await offLine.textContent()) ?? '').trim()
 
     if (snapped !== 1) {
       throw new Error(
@@ -105,16 +116,26 @@ export default {
       )
     }
 
-    if (stillShowing !== showing) {
+    if (stillShowing === showing) {
       throw new Error(
-        `the readout moved to ${stillShowing} on its own when the switch was thrown`,
+        `the readout is still claiming ${stillShowing} over a video that is back at 1.0×`,
+      )
+    }
+
+    if (said === '') {
+      throw new Error('nothing in the panel says the extension is off')
+    }
+
+    if (await faster.isEnabled()) {
+      throw new Error(
+        'the plus is still pressable, and the service worker would refuse it',
       )
     }
 
     await look(
       s,
       panel,
-      `The "Enabled" switch has been turned off, and this is the whole of what changed in the panel: the switch. Every control under it is exactly as it was — the plus and minus are pressable, the chips are pressable, the "Reset" button is pressable, and the line at the foot still says a speed is being remembered for this site. Nothing is greyed out, dimmed, or captioned; no tab is missing. The big readout still says ${showing}, and that is now wrong: throwing the switch put the video on the page behind this panel back to 1.0× — measured, not assumed — and nothing told the readout. Two claims about the same video, on screen at once, and the panel is showing the stale one.`,
+      `The "Enabled" switch has been turned off, and three things changed at once. A new line has appeared between the title and the tabs, where the switch is and so on screen whichever tab is open: "${said}" The Speed tab under it has gone quiet — the plus, the minus, "Reset" and every chip in the row are greyed and unpressable, because with the switch off the extension refuses all of them rather than taking the press and doing nothing with it. And the big readout no longer carries a number: it reads "${stillShowing}", because throwing the switch put the video on the page behind this panel back to 1.0× — measured, not assumed — and the panel is not going to print a speed nothing is holding. The one thing kept is the line at the foot saying a speed is remembered for this site, which is still true and applies again the moment the switch goes back on.`,
       { name: 'off', mustShow: readout },
     )
 
@@ -152,7 +173,7 @@ export default {
     await look(
       s,
       panel,
-      `The Sites tab, with the extension still switched off. It is fully live: "Default speed" opens, the "Remember per site" switch throws and is on, and under "This tab" the row for ${SITE} shows ${remembered} — the speed that was set from the keyboard before any of this, still stored, with a ✕ beside it that is live rather than greyed. Under that, "Other sites" and a line saying none is remembered yet. Nothing anywhere on the tab says that none of it is in force at the moment; the whole screen reads exactly as it would with the switch on, which is what makes this a poor place to find out that it is off.`,
+      `The Sites tab, with the extension still switched off. The line saying so is still at the top, above the tabs, because it belongs to the switch rather than to any one tab. Everything under it is fully live and deliberately so: "Default speed" opens, the "Remember per site" switch throws and is on, and under "This tab" the row for ${SITE} shows ${remembered} — the speed that was set from the keyboard before any of this, still stored, with a ✕ beside it that is live rather than greyed. Nothing here is dimmed, because someone who has just paused the extension is very often about to change the setting that made them pause it, and a list they cannot edit would be a trap. What the row promises is about the next visit; the line at the top is what says the promise is not being kept at the moment.`,
       { name: 'sites', mustShow: panel.locator('ul.sites').first() },
     )
 
@@ -162,36 +183,41 @@ export default {
     const badgeSwitch = toggle(panel, 'On-video badge')
 
     if (!(await badgeSwitch.locator('input').isChecked())) {
-      throw new Error('the marker was already off, so this tab has nothing to say')
-    }
-
-    await look(
-      s,
-      panel,
-      `The Settings tab, still with the extension switched off. The biggest block on it is about the marker drawn over the video, and its own switch — "On-video badge" — is on, with the live sample under it drawn as usual and every control below it working: the corner grid, both sliders, both colours, the timing. That sample is a promise the extension is not currently keeping; with the master switch off no marker is drawn over any video at all. The keyboard block above it lists shortcuts that do nothing at the moment, in the same type as ever. Two switches are in play on this screen and only one of them is winning, and the tab does not mention the other.`,
-      { name: 'settings', mustShow: badgeSwitch },
-    )
-
-    await speedTab.click()
-    await panel.waitForTimeout(600)
-
-    await panel.getByRole('button', { name: PRESET, exact: true }).click()
-    await panel.waitForTimeout(1200)
-
-    const droveTo = await speedOf(video)
-    const nowShowing = (await readout.textContent()) ?? ''
-    const receipt = (await panel.locator('section.memory p.rule').textContent()) ?? ''
-
-    if (droveTo !== 2) {
       throw new Error(
-        `the ${PRESET} chip left the video at ${droveTo}× with the extension off`,
+        'the marker was already off, so this tab has nothing to say',
       )
     }
 
     await look(
       s,
       panel,
-      `Back on the Speed tab, with the switch still off, the ${PRESET} chip has been pressed once. It worked: the video on the page behind the panel is now genuinely playing at ${droveTo}× — measured on the video itself — and the readout has followed it to ${nowShowing}, with the chip drawn as the selected one. The line at the foot has been rewritten too — "${receipt.trim()}" — so with the extension switched off the panel has just changed a video's speed and written down a new speed to start that site at. The same instruction from the keyboard a moment ago did nothing. So "Enabled" governs one of the two ways into this extension and not the other: the keys are off, the panel is not, and a switch that stops the shortcuts while leaving the buttons under it live has no way to say which of the two it meant.`,
+      `The Settings tab, still with the extension switched off, and the same line still at the top. The biggest block on it is about the marker drawn over the video, and its own switch — "On-video badge" — is on, with the live sample under it drawn as usual and every control below it working: the corner grid, both sliders, both colours, the timing. The sample is a sample rather than a promise: with the master switch off no marker is drawn over any video, and the line above the tabs is what says so. Greying the block instead would have claimed the badge settings were unavailable, when they are only inert — and they are exactly the settings someone might have paused the extension to come and change.`,
+      { name: 'settings', mustShow: badgeSwitch },
+    )
+
+    await speedTab.click()
+    await panel.waitForTimeout(600)
+
+    if (await chip.isEnabled()) {
+      throw new Error(
+        `the ${PRESET} chip is still pressable with the switch off`,
+      )
+    }
+
+    const held = await speedOf(video)
+    const receipt =
+      (await panel.locator('section.memory p.rule').textContent()) ?? ''
+
+    if (held !== 1) {
+      throw new Error(
+        `the video is at ${held}× with the extension off and nothing pressed`,
+      )
+    }
+
+    await look(
+      s,
+      panel,
+      `Back on the Speed tab, with the switch still off, reaching for the ${PRESET} chip. It cannot be pressed — every chip in the row is greyed, as are the plus, the minus and "Reset" — so the panel offers no way in that the keyboard does not have. The video on the page behind the panel is still at ${held}×, measured on the video itself. The line at the foot is the one thing on this tab that still reads normally — "${receipt.trim()}" — because what is remembered for this site is a fact about the next visit rather than a claim about this one, and it survives the pause intact. Above the tabs, the same sentence as on the other two tabs is doing the explaining: the switch governs both ways into the extension, and the panel says which ones it took away.`,
       { name: 'preset', mustShow: readout },
     )
 
@@ -203,14 +229,18 @@ export default {
 
     const alive = await speedOf(video)
 
-    if (alive <= droveTo) {
+    if (alive <= 1) {
       throw new Error(
         `the key was still dead at ${alive}× after the switch went back on, so the dead keypress above proves nothing`,
       )
     }
 
+    if ((await offLine.count()) !== 0) {
+      throw new Error('the panel is still saying it is off with it switched on')
+    }
+
     s.showVideo(
-      `The same visit as a recording, at real speed, filmed in a window the width of the panel; the page with the video on it is a separate tab and is never in frame. In order: the panel opens on the Speed tab showing ${showing}, which was set from the keyboard on that page; the "Enabled" switch at the very top is turned off, and nothing in the panel changes but the switch — while off screen the video drops back to 1.0× and the keyboard stops answering, both measured; the Sites tab is visited and is entirely live, still listing this site at ${remembered}; the Settings tab is visited and is entirely live, still drawing a sample of a marker that will not appear; back on the Speed tab the ${PRESET} chip is pressed and really does drive the video to ${droveTo}×, with the extension switched off throughout; and finally the switch goes back on and the same key that did nothing works again. What to watch is how little the panel does when the switch is thrown, and that the one thing the switch is meant to stop can still be done from inside the panel.`,
+      `The same visit as a recording, at real speed, filmed in a window the width of the panel; the page with the video on it is a separate tab and is never in frame. In order: the panel opens on the Speed tab showing ${showing}, which was set from the keyboard on that page; the "Enabled" switch at the very top is turned off, and the panel answers in three ways at once — a line appears between the title and the tabs, the readout drops its number for "${stillShowing}", and the whole Speed tab greys out — while off screen the video drops back to 1.0× and the keyboard stops answering, both measured; the Sites tab is visited and is entirely live, still listing this site at ${remembered}; the Settings tab is visited and is entirely live, still drawing a sample of a marker that is not currently on any video; back on the Speed tab the ${PRESET} chip cannot be pressed at all and the video stays at 1.0×; and finally the switch goes back on, the line goes away, the controls come back, and the same key that did nothing works again — stepping from 1.0× to ${alive}×, from where the video actually is rather than from where it was before the pause. What to watch is the line above the tabs, which stays put through all three tabs, and which parts of the panel go quiet and which deliberately do not.`,
     )
   },
 }

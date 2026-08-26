@@ -837,6 +837,150 @@ describe('the domain the popup shows', () => {
   })
 })
 
+/**
+ * The master switch, enforced where both ways in meet.
+ *
+ * The keyboard was gated in the content script and the toolbar number in the
+ * badge helpers, which left the popup — and anything else that ever sends one
+ * of these — driving the video with the extension switched off.
+ */
+describe('the extension switched off', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('refuses a speed set from the popup, and remembers nothing', async () => {
+    seedSettings({ enabled: false })
+    getChromeMock().tabs.seed([
+      { id: 7, url: WATCH_URL, incognito: false, active: true },
+    ])
+    const { send, broadcasts } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:set', speed: 2 }, POPUP)
+    vi.advanceTimersByTime(1000)
+
+    // The speed the tab was already at comes straight back: nothing resolved.
+    expect(response).toHaveBeenCalledWith({ speed: 1 })
+    expect(broadcasts()).toEqual([])
+    expect(storedDomains()).toEqual({})
+    expect(
+      send({ type: 'rebobinate:popup-state' }, POPUP),
+    ).toHaveBeenCalledWith(expect.objectContaining({ speed: 1 }))
+  })
+
+  it('answers a keystroke with the speed the frame reported', async () => {
+    seedSettings({ enabled: false, step: 0.5 })
+    const { send, broadcasts } = await loadBackground()
+
+    const response = send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1.5 },
+      onSite(),
+    )
+    vi.advanceTimersByTime(1000)
+
+    expect(response).toHaveBeenCalledWith({ speed: 1.5 })
+    expect(broadcasts()).toEqual([])
+    expect(storedDomains()).toEqual({})
+  })
+
+  /**
+   * Forgotten rather than parked. The content script puts the video back to
+   * 1.0× on the same transition, so a parked 1.5× is a map describing a speed
+   * nothing is holding — and the popup read that number back off it.
+   */
+  it('forgets every tab speed when the switch is thrown', async () => {
+    seedSettings({ step: 0.5 })
+    const { send, chromeMock } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite(),
+    )
+    expect(
+      send({ type: 'rebobinate:popup-state' }, onSite()),
+    ).toHaveBeenCalledWith(expect.objectContaining({ speed: 1.5 }))
+
+    chromeMock.storage.local.set({
+      [SETTINGS_STORAGE_KEY]: {
+        ...DEFAULT_SETTINGS,
+        step: 0.5,
+        enabled: false,
+      },
+    })
+    // The write behind that keystroke was still in its debounce, and a restore
+    // of the switch is not a reason to let it land.
+    vi.advanceTimersByTime(1000)
+
+    expect(
+      send({ type: 'rebobinate:popup-state' }, onSite()),
+    ).toHaveBeenCalledWith(expect.objectContaining({ speed: 1 }))
+    expect(storedDomains()).toEqual({})
+  })
+
+  // Which is the point of forgetting it: the first press after the switch goes
+  // back on steps from the video, not from the number it was at before.
+  it('steps from normal speed once the switch goes back on', async () => {
+    seedSettings({ step: 0.5 })
+    const { send, chromeMock } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite(),
+    )
+
+    for (const enabled of [false, true]) {
+      chromeMock.storage.local.set({
+        [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, step: 0.5, enabled },
+      })
+    }
+
+    // What the content script reports, having put its own video back to 1.
+    const response = send(
+      { type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 },
+      onSite(),
+    )
+
+    expect(response).toHaveBeenCalledWith({ speed: 1.5 })
+  })
+
+  // The other way a video gets sped up without anybody pressing anything: a
+  // page loading on a site the extension remembers.
+  it('starts a remembered site at normal speed', async () => {
+    seedSettings({ enabled: false })
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    const { send } = await loadBackground()
+
+    const response = send({ type: 'rebobinate:query' }, onSite())
+
+    expect(response).toHaveBeenCalledWith(expect.objectContaining({ speed: 1 }))
+    // Not consulted rather than not stored: the Sites tab stays live while the
+    // extension is paused, so what it lists has to survive the pause.
+    expect(storedDomains()['youtube.com'].speed).toBe(1.5)
+  })
+
+  // The Sites tab keeps working while the extension is off, so a row edited
+  // there is written — but it is not applied to whatever is on screen.
+  it('writes an edited site without speeding the tab it is on', async () => {
+    seedSettings({ enabled: false })
+    getChromeMock().tabs.seed([
+      { id: 7, url: WATCH_URL, incognito: false, active: true },
+    ])
+    const { send, broadcasts } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:set-domain-speed', domain: 'youtube.com', speed: 2 },
+      POPUP,
+    )
+
+    expect(storedDomains()['youtube.com'].speed).toBe(2)
+    expect(broadcasts()).toEqual([])
+  })
+})
+
 describe('the speed on the toolbar icon', () => {
   const badgeText = (tabId?: number) => getChromeMock().action.badgeText(tabId)
 

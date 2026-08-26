@@ -130,6 +130,14 @@ const resolveStartSpeed = (
   callback: (speed: number, settings: Settings) => void,
 ) => {
   readSettings(settings => {
+    // Switched off, so there is no speed to start at. Per-site memory is not
+    // consulted rather than not stored: the entry stays, the Sites tab keeps
+    // listing it, and it answers again at the first load after the switch does.
+    if (!settings.enabled) {
+      callback(1, settings)
+      return
+    }
+
     const domain = settings.rememberPerDomain ? domainKeyFromUrl(tab.url) : null
 
     if (!domain) {
@@ -348,6 +356,13 @@ const applyToTabOnDomain = (
     }
 
     readSettings(settings => {
+      // The row is written either way — editing the site list of a paused
+      // extension is a legitimate thing to be doing — but nothing is put on a
+      // video while the master switch is off.
+      if (!settings.enabled) {
+        return
+      }
+
       const applied = clampToSettings(speed, settings)
 
       tabSpeeds.set(tab.id, applied)
@@ -486,6 +501,17 @@ chrome.runtime.onMessage.addListener(
         const current =
           known ??
           (message.type === 'rebobinate:intent' ? message.currentSpeed : 1)
+
+        // The master switch, read at the one funnel the keyboard and the popup
+        // both come through. Gating the popup's buttons instead would leave the
+        // hole open to whatever calls this next: with the switch off an intent
+        // resolves to the speed the page is already at and stops there — no
+        // write to the map, no broadcast, nothing remembered for the domain.
+        if (!settings.enabled) {
+          sendResponse({ speed: current })
+          return
+        }
+
         const isReset =
           message.type === 'rebobinate:intent' && message.action === 'reset'
         const speed = resolveSpeed(current, message, settings)
@@ -535,6 +561,36 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   })
 })
 
+/**
+ * What `enabled` was when the settings were last seen, so the subscription
+ * below can tell the master switch being thrown from any other edit.
+ */
+let wasEnabled = true
+
+/**
+ * Throwing the master switch off forgets every tab's speed rather than parking
+ * it.
+ *
+ * Parking is what left the panel reading 1.5× over a video the content script
+ * had already put back to 1.0×, and what made the first keystroke after the
+ * switch went back on step from the parked number instead of from the video.
+ * The map is safe to lose for the reason given where it is declared, so the
+ * next intent resumes from what the frame reports — 1.0× — and the next visit
+ * to the site resolves fresh from per-site memory.
+ */
+const onSettingsSeen = (settings: Settings) => {
+  if (wasEnabled && !settings.enabled) {
+    tabSpeeds.clear()
+    cancelAllPendingWrites()
+  }
+
+  wasEnabled = settings.enabled
+  refreshToolbarBadge(settings)
+}
+
 initToolbarBadge()
-readSettings(refreshToolbarBadge)
-onSettingsChange(refreshToolbarBadge)
+readSettings(settings => {
+  wasEnabled = settings.enabled
+  refreshToolbarBadge(settings)
+})
+onSettingsChange(onSettingsSeen)
