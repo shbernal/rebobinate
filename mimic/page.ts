@@ -138,9 +138,7 @@ export async function openVideoPage(
       status: 200,
       contentType: 'text/html; charset=utf-8',
       body:
-        options.playing === true
-          ? playingPage(options.clock === true)
-          : PAGE,
+        options.playing === true ? playingPage(options.clock === true) : PAGE,
     })
   })
   const page = await context.newPage()
@@ -155,6 +153,20 @@ export interface Meta {
   openPopup(): Promise<Page>
   /** The panel as an ordinary tab: the only one a recording can see. */
   openPanel(): Promise<Page>
+  /**
+   * Sites already in the extension's memory, newest first. The one thing here
+   * a scenario cannot build by clicking; `mimic.config.ts` sets out what it is
+   * allowed to stand in for. Call it before the panel is opened.
+   */
+  seedDomains(sites: SeedSite[]): Promise<void>
+}
+
+/** One seeded site: what a person left behind somewhere this capture never went. */
+export interface SeedSite {
+  domain: string
+  /** Left out on a `never`, which stores a placeholder rather than a speed. */
+  speed?: number
+  never?: boolean
 }
 
 /** The slice of mimic's scenario context these scenarios use. */
@@ -279,6 +291,26 @@ export const panelHeight = (panel: Page): Promise<number> =>
   panel
     .locator('main.popup')
     .evaluate(node => Math.round(node.getBoundingClientRect().height))
+
+/**
+ * Put the pane back at the top of its scroll.
+ *
+ * `look` scrolls whatever a frame is about into view, which is right for a
+ * frame about one control and wrong for a frame whose caption says the tab is
+ * not scrolled. Called before those, so the sentence and the pixels agree.
+ */
+export const scrollPaneToTop = async (panel: Page): Promise<void> => {
+  await panel.locator('.pane').evaluate(pane => {
+    pane.scrollTop = 0
+  })
+  await panel.waitForTimeout(200)
+}
+
+/** Whether the pane holds more than it can show, which is what a cut edge means. */
+export const paneOverflows = (panel: Page): Promise<boolean> =>
+  panel
+    .locator('.pane')
+    .evaluate(pane => pane.scrollHeight > pane.clientHeight + 1)
 
 /** How tall the pane's contents are, which is what a panel opening inside it changes. */
 export const paneContentHeight = (panel: Page): Promise<number> =>

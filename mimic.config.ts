@@ -1,6 +1,9 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
+// Type-only, so nothing is resolved at run time: Node strips it before it
+// ever looks at the path.
+import type { SeedSite } from './mimic/page.ts'
 
 /**
  * Configuration for `mimic`, which drives this extension and has a code-blind
@@ -41,6 +44,8 @@ const PANEL_WINDOWS: Record<string, number> = {
   'panel-scrolling': 540,
   'moving-between-tabs': 540,
   'setting-a-speed': 250,
+  'following-the-link': 540,
+  'a-list-of-sites': 540,
   'binding-a-new-key': 540,
   'choosing-a-colour': 540,
   'turning-the-marker-off': 540,
@@ -52,6 +57,18 @@ const windowFor = (scenario: string) => {
 
   return height === undefined ? VIEWPORT : { width: 320, height }
 }
+
+/**
+ * Where the extension keeps its per-site speeds, repeated here rather than
+ * imported.
+ *
+ * Node runs this file by stripping the types, which resolves no extensions, and
+ * `src/shared/domains.ts` imports its own neighbours without any — so importing
+ * the real constant is not available to this file. Drift is caught rather than
+ * assumed: a scenario that seeds sites asserts the count the panel then lists,
+ * so a renamed key fails the capture instead of quietly seeding nothing.
+ */
+const DOMAINS_STORAGE_KEY = 'rebobinate:domains'
 
 /**
  * The same knowledge as `scripts/chromium.mjs`, which cannot be imported here:
@@ -283,13 +300,61 @@ export default {
       return page
     }
 
+    /**
+     * Put sites in the extension's memory before the panel is opened.
+     *
+     * Every other scenario builds its state by clicking, which is the honest
+     * way and stays the default. It cannot reach this one: the panel remembers
+     * a speed against the domain of the tab behind it, the recorded panel is a
+     * tab of its own, and there is exactly one fixture origin — so a list of a
+     * dozen sites is a dozen browsing sessions on a dozen domains, and no
+     * amount of clicking inside one capture produces it.
+     *
+     * What that licence is allowed to cover, and nothing else:
+     *
+     * - **The extension's own store, in the extension's own shape.** One write
+     *   to the one key it reads, holding the same three fields
+     *   `rememberDomain` writes: a speed, a timestamp, and the never marker.
+     *   No invented fields, no second key.
+     * - **Time, not behaviour.** Every entry is one a person could have made by
+     *   pressing a key on that site. The timestamps are what a scenario cannot
+     *   sit through — they are spaced a minute apart, newest first, which is
+     *   what "most recently touched" means to the list.
+     * - **Nothing the panel itself owns.** No open tab, no typed filter, no
+     *   setting. Anything a scenario claims about the panel is still reached by
+     *   clicking it, and a seeded row is real enough that the ✕ on it deletes a
+     *   real entry.
+     *
+     * Written from inside the service worker, so it is the extension's own
+     * `chrome.storage.local` and the popup's subscription sees it arrive the
+     * way it sees any other write.
+     */
+    const seedDomains = async (sites: SeedSite[]) => {
+      const now = Date.now()
+      const entries = Object.fromEntries(
+        sites.map((site, index) => [
+          site.domain,
+          {
+            speed: site.speed ?? 1,
+            updatedAt: now - index * 60_000,
+            never: site.never === true,
+          },
+        ]),
+      )
+
+      await worker.evaluate(
+        ({ key, store }) => chrome.storage.local.set({ [key]: store }),
+        { key: DOMAINS_STORAGE_KEY, store: { schemaVersion: 2, entries } },
+      )
+    }
+
     return {
       context,
       // The real popup observes the real active tab, so scenarios that turn on
       // live tab state are honest here. What keeps that true is the guard in
       // `openPanel`: the tab path refuses those scenarios itself.
       observesLiveTabState: true,
-      meta: { extensionId, openPopup, openPanel },
+      meta: { extensionId, openPopup, openPanel, seedDomains },
       close: async () => {
         await cdp?.close()
       },
