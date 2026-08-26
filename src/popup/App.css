@@ -266,6 +266,12 @@
   gap: 8px;
   max-height: 440px;
   overflow-y: auto;
+  /* No native scrollbar. Chrome paints an opaque 15px gutter inside the pane
+     for as long as it overflows, which eats a fifth of a 320px popup and cuts
+     the rows short of the edge the padding sets. The gradient cues below say
+     there is more pane in both directions, so nothing is lost by dropping it;
+     Firefox is thin-overlay already and follows the same property. */
+  scrollbar-width: none;
   /* A scroll cue at each edge, in two layers apiece and no JavaScript. Each
      cover scrolls with the content (`local`) and sits at that end of it; the
      shadow under it is fixed to the box. So a shadow shows exactly while there
