@@ -41,8 +41,23 @@ export type BackupContents = {
   domains?: DomainStore
 }
 
+/**
+ * What the paste turned out to be carrying, in the terms the panel says it in.
+ *
+ * Derived rather than counted at the call site because it is read twice — once
+ * to preview what a restore would bring in, once to report what it brought —
+ * and a preview that counts one way and a receipt that counts another is worse
+ * than neither.
+ */
+export type BackupSummary = {
+  /** How many sites it would restore. `0` when it carries a list and the list is empty. */
+  siteCount: number
+  /** Whether it carries a settings object at all: a backup restores only what it holds. */
+  hasSettings: boolean
+}
+
 export type ParseResult =
-  ({ ok: true } & BackupContents) | { ok: false; error: string }
+  ({ ok: true } & BackupContents & BackupSummary) | { ok: false; error: string }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -112,5 +127,12 @@ export const parseBackup = (text: string): ParseResult => {
     return { ok: false, error: 'That backup has nothing in it.' }
   }
 
-  return { ok: true, ...contents }
+  return {
+    ok: true,
+    ...contents,
+    hasSettings: contents.settings !== undefined,
+    siteCount: contents.domains
+      ? Object.keys(contents.domains.entries).length
+      : 0,
+  }
 }

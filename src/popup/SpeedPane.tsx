@@ -4,6 +4,13 @@ import { formatSpeedLabel, speedsEqual } from '@/shared/speed'
 import { SPEED_PRESETS } from './speeds'
 
 type SpeedPaneProps = {
+  /**
+   * The master switch. With it off the service worker refuses every intent, so
+   * the controls that send one are dead rather than quietly ignored, and the
+   * readout has no speed to report: the tab's speed is forgotten when the
+   * switch is thrown and the video is back at normal.
+   */
+  enabled: boolean
   speed: number
   /** What reset goes back to, which is not always 1.0×. */
   defaultSpeed: number
@@ -39,7 +46,11 @@ const firstBinding = (bindings: string[]) => {
   return bindings.length > 0 ? formatBinding(bindings[0]) : '—'
 }
 
+/** What the readout says when there is no speed being held. */
+const NO_SPEED = '—'
+
 const SpeedPane = ({
+  enabled,
   speed,
   defaultSpeed,
   keys,
@@ -55,14 +66,18 @@ const SpeedPane = ({
     <section className="speed">
       <button
         type="button"
+        disabled={!enabled}
         onClick={() => onAction('decrease')}
         aria-label="Slower"
       >
         −
       </button>
-      <output className="readout">{formatSpeedLabel(speed)}</output>
+      <output className="readout">
+        {enabled ? formatSpeedLabel(speed) : NO_SPEED}
+      </output>
       <button
         type="button"
+        disabled={!enabled}
         onClick={() => onAction('increase')}
         aria-label="Faster"
       >
@@ -78,6 +93,7 @@ const SpeedPane = ({
       <button
         type="button"
         className="reset"
+        disabled={!enabled}
         title={
           remembered && domain !== null
             ? `Back to ${formatSpeedLabel(defaultSpeed)}, and stops remembering a speed for ${domain}`
@@ -104,7 +120,8 @@ const SpeedPane = ({
         <button
           key={preset}
           type="button"
-          aria-pressed={speedsEqual(speed, preset)}
+          disabled={!enabled}
+          aria-pressed={enabled && speedsEqual(speed, preset)}
           onClick={() =>
             speedsEqual(preset, defaultSpeed)
               ? onAction('reset')

@@ -24,6 +24,51 @@ inherit a speed that was set before they existed; one that asks before the top
 frame has (which happens) resolves from the tab's domain too, rather than
 sitting at 1.0 until the broadcast corrects it.
 
+## The master switch
+
+`settings.enabled` is the one control in the panel that is not about a
+preference — it is about the extension — and it is enforced in the service
+worker, at the points where a speed is decided, rather than in the surfaces that
+ask for one.
+
+Everything that would put a speed on a video is gated there:
+
+- the intent/set handler answers with the speed the frame is already at and
+  stops — no `tabSpeeds` write, no broadcast, no `remember()`;
+- `resolveStartSpeed` answers `1` without consulting the domain map, so a
+  remembered site loads at normal speed;
+- `applyToTabOnDomain` writes the edited row and does not push it to the tab.
+
+Gating the popup's buttons instead would only hide the bypass: the popup is one
+caller of the same funnel, and so is whatever is added next.
+
+Throwing the switch **forgets** every tab's speed and cancels every pending
+per-domain write, rather than parking them. The content script puts its own
+videos back to 1.0 on the same transition, so a parked number is a map
+describing a speed nothing is holding — and the popup read that number straight
+back off it. Losing it is free for the reason the map is in memory at all:
+frames report their own speed with every intent, so the first press after the
+switch goes back on steps from where the video actually is. Re-enabling
+therefore leaves the video at 1.0 and the next page load resolves fresh from
+per-site memory; the map itself is never touched, so the Sites tab keeps
+listing what it listed.
+
+The on-video badge takes the master switch through `badgeSettings()` in the
+content script, which reports `badge.enabled` as false while the extension is
+off. `shouldShow` only ever consulted the badge block's own switch, so without
+this a speed arriving while the extension was off still flashed a marker.
+
+In the popup the switch is presented rather than enforced. One `.rule` line
+under the header — above the tab strip, so it is on screen whichever tab is
+open — says the extension is off and that everything below it is kept. The Speed
+tab collapses: its steppers, Reset and chips are `disabled`, and the readout
+prints a dash rather than a number nothing is holding. Its per-site receipt
+stays, because what is remembered for the site is still true. The **Sites and
+Settings tabs stay fully live and undimmed**: pausing the extension is very
+often the step before changing the setting that made you pause it, and dimming
+is the grammar of unpressable. The header line is what tells those tabs they are
+dormant.
+
 ## Per-site speed memory
 
 The speed chosen on a site is written down and applied on the next visit. The
@@ -630,9 +675,31 @@ parsing twice — and the note under it either says why the button is dead or
 counts what pressing it would replace. Both branches stay one statement about
 the loss — _"Replaces your settings. You have no remembered sites to lose."_ on
 a profile with nothing stored, rather than counting zero sites or reporting the
-profile's present state alongside the warning. There is no confirmation step by design: on
-Gecko the popup autohides on focus loss, so an extra step is another way to lose
-the paste.
+profile's present state alongside the warning. The refusal takes
+`.rule-refused`, the larger tier of the same colour token `.note-refused`
+carries, so the panel does not say no in the voice it says how. There is no
+confirmation step by design: on Gecko the popup autohides on focus loss, so an
+extra step is another way to lose the paste.
+
+Under that warning, in the quiet tier, is what the paste _holds_ rather than
+what it costs: _"This backup holds your settings and 12 sites."_, or _"This
+backup holds settings only. Your remembered sites are kept."_ The counts come
+from `ParseResult`'s ok branch, which carries `siteCount` and `hasSettings`
+beside the two stores, so the preview and the message after the press cannot
+count differently. Two tiers rather than one sentence: a price and a preview
+read as one warning if they are painted the same. The settings-only case is the
+one this exists for — it changes what the warning above it means, and it was
+invisible.
+
+The status line — `role="status"`, mounted while empty, because a live region
+added to the page at the same moment as its text is not reliably announced —
+sits directly under the action row and above the paragraph explaining the box.
+That is why both halves render into one skeleton (box, buttons, status,
+explanation) rather than as two blocks: a restore flips the pair back to Export
+and writes the status in the same breath, and two separately-rendered status
+lines would remount the region exactly then. It reports the copy in `.note` and
+the restore in `.rule` — _"Restored your settings and 12 sites."_, the preview
+sentence in the past tense — by changing the class on the one node.
 
 It is text in a textarea on both engines because of the same Gecko constraint
 the colour picker works around: an `<input type="file">` opens a native chooser,

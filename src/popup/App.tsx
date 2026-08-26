@@ -193,6 +193,20 @@ const App = () => {
         </span>
       </header>
 
+      {/* The one place the panel says what the switch above it did. It is a
+          statement of consequence rather than a footnote, so it takes the
+          `.rule` tier, and it sits above the tab strip — beside the switch it
+          is about, and on screen whichever tab is open. The Sites and Settings
+          tabs stay live under it: pausing the extension is very often the step
+          before changing the setting that made you pause it, and this line is
+          what tells those tabs they are dormant. */}
+      {settings.enabled ? null : (
+        <p className="rule">
+          Off. No video is being sped up and the shortcuts do nothing.
+          Everything below is kept.
+        </p>
+      )}
+
       <Tabs tabs={TABS} active={tab} onSelect={setTab} />
 
       <div
@@ -205,6 +219,7 @@ const App = () => {
       >
         {tab === 'speed' ? (
           <SpeedPane
+            enabled={settings.enabled}
             speed={speed}
             defaultSpeed={settings.defaultSpeed}
             keys={settings.keys}

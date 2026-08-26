@@ -298,6 +298,91 @@ describe('popup tabs', () => {
  * Nothing on this pane used to say so, and the Sites tab — where it is said —
  * is not somewhere anybody goes before being surprised by it.
  */
+/**
+ * The master switch is the one control in the panel that is not about a
+ * preference: it is about the extension. What it turns off is enforced in the
+ * service worker, which refuses every intent while it is off, so the panel's
+ * job here is only to say so and to stop offering presses that cannot land.
+ */
+describe('popup with the extension switched off', () => {
+  beforeEach(() => {
+    seedSettings({ enabled: false })
+    answerPopupState('youtube.com', 1.5)
+  })
+
+  // Above the tab strip, where the switch is, so it is on screen whichever tab
+  // is open — the Sites and Settings tabs stay live and this is what tells them
+  // they are dormant.
+  it('says what the switch did, on every tab', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const line = await screen.findByText(
+      'Off. No video is being sped up and the shortcuts do nothing. Everything below is kept.',
+    )
+
+    expect(line).toHaveClass('rule')
+
+    await openTab(user, 'Sites')
+    expect(line).toBeInTheDocument()
+
+    await openTab(user, 'Settings')
+    expect(line).toBeInTheDocument()
+  })
+
+  // The refusal is visible rather than a dead press: the service worker would
+  // answer any of these with the speed it was already at.
+  it('offers no press that the service worker would refuse', async () => {
+    render(<App />)
+
+    await screen.findByText(/^Off\./)
+
+    expect(screen.getByRole('button', { name: 'Faster' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Slower' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '2.0×' })).toBeDisabled()
+  })
+
+  /**
+   * Throwing the switch puts the video back to 1.0× and the service worker
+   * forgets the tab's speed, so the number the popup opened with describes
+   * nothing. A dash rather than "1.0×", which would be a fresh claim about a
+   * video nothing is holding.
+   */
+  it('prints no speed it is not holding', async () => {
+    render(<App />)
+
+    await screen.findByText(/^Off\./)
+
+    expect(screen.getByRole('status')).toHaveTextContent('—')
+    expect(screen.getByRole('status')).not.toHaveTextContent('1.5')
+  })
+
+  // What is remembered for the site is still true and still applies the moment
+  // the switch goes back on, so the receipt stays.
+  it('keeps the per-site receipt', async () => {
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+    render(<App />)
+
+    expect(
+      await screen.findByText('1.5× remembered for youtube.com'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Forget' })).toBeEnabled()
+  })
+
+  it('puts the controls back when the switch goes back on', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByText(/^Off\./)
+    await user.click(screen.getByLabelText('Enabled'))
+
+    expect(screen.queryByText(/^Off\./)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Faster' })).toBeEnabled()
+    expect(screen.getByRole('status')).toHaveTextContent('1.5×')
+  })
+})
+
 describe('popup speed tab receipt', () => {
   beforeEach(() => {
     seedSettings()
@@ -1456,6 +1541,13 @@ describe('popup backup', () => {
     answerPopupState('vimeo.com')
   })
 
+  /**
+   * The one live region the section has. Scoped, because the sliders on the
+   * same tab report through `<output>` and carry the same implicit role.
+   */
+  const backupStatus = () =>
+    document.querySelector('.backup p[role="status"]') as HTMLElement
+
   // The pair arrives on Export, so a click is what a person does to get to the
   // *other* half.
   const openBackup = async (button: 'Export' | 'Import') => {
@@ -1515,7 +1607,11 @@ describe('popup backup', () => {
     await user.click(screen.getByRole('button', { name: 'Replace settings' }))
 
     expect(screen.getByLabelText('Backup')).toBeInTheDocument()
-    expect(screen.getByText('Restored.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Restored your settings. Your remembered sites are kept.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('exports the settings and the site list as one document', async () => {
@@ -1614,6 +1710,122 @@ describe('popup backup', () => {
     expect(
       screen.getByRole('button', { name: 'Replace settings' }),
     ).toBeDisabled()
+  })
+
+  /**
+   * The refusal and the price share one line, so how it is painted is the only
+   * thing that tells them apart — the same problem the key editor already
+   * solved with `.note-refused`. jsdom has no cascade, so what is asserted is
+   * the hook the stylesheet hangs the colour on.
+   */
+  it('paints the refusal differently from the price it replaces', async () => {
+    const user = await openBackup('Import')
+    const line = () => document.querySelector('.backup p.rule') as HTMLElement
+
+    expect(line()).toHaveTextContent('Replaces your settings')
+    expect(line()).not.toHaveClass('rule-refused')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste('{ half of a bac')
+
+    expect(line()).toHaveTextContent('That is not valid JSON.')
+    expect(line()).toHaveClass('rule-refused')
+  })
+
+  /**
+   * A backup restores only what it carries, and a settings-only one leaves the
+   * site list alone — which changes what the warning above it means. The quiet
+   * tier under the warning's own, so a price and a preview do not read as one
+   * sentence.
+   */
+  it('names what the paste holds, under what replacing it costs', async () => {
+    const user = await openBackup('Import')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: DEFAULT_SETTINGS,
+      }),
+    )
+
+    const preview = screen.getByText(
+      'This backup holds settings only. Your remembered sites are kept.',
+    )
+
+    expect(preview).toHaveClass('note')
+    expect(
+      screen.getByText('Replaces your settings and the 1 remembered site.'),
+    ).toBeInTheDocument()
+  })
+
+  it('counts the sites a whole backup would bring in', async () => {
+    const user = await openBackup('Import')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: DEFAULT_SETTINGS,
+        domains: {
+          schemaVersion: DOMAINS_SCHEMA_VERSION,
+          entries: {
+            'a.test': { speed: 2, updatedAt: 1 },
+            'b.test': { speed: 1.5, updatedAt: 2 },
+          },
+        },
+      }),
+    )
+
+    expect(
+      screen.getByText('This backup holds your settings and 2 sites.'),
+    ).toBeInTheDocument()
+  })
+
+  // "Restored." named neither of the two things it had just replaced.
+  it('says in the past tense what the restore actually replaced', async () => {
+    const user = await openBackup('Import')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: DEFAULT_SETTINGS,
+        domains: {
+          schemaVersion: DOMAINS_SCHEMA_VERSION,
+          entries: { 'a.test': { speed: 2, updatedAt: 1 } },
+        },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    const said = backupStatus()
+
+    expect(said).toHaveTextContent('Restored your settings and 1 site.')
+    // The same element the copy reports through, so the live region is never
+    // remounted with its text already in it.
+    expect(said).toHaveClass('rule')
+  })
+
+  /**
+   * At the foot of the section both messages printed two lines under the
+   * button that produced them, past the paragraph explaining the box. One
+   * element still, lifted rather than duplicated.
+   */
+  it('reports directly under the button that was pressed', async () => {
+    await openBackup('Export')
+
+    const actions = document.querySelectorAll('.backup .backup-actions')
+    const said = backupStatus()
+
+    // The mode pair is the first action row, the Copy button the second.
+    expect(actions[1].nextElementSibling).toBe(said)
+    expect(said.nextElementSibling).toHaveTextContent(
+      'Paste it into Import on your other computer.',
+    )
   })
 
   /**

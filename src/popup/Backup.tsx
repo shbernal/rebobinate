@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { BackupContents } from '@/shared/backup'
+import type { BackupContents, BackupSummary } from '@/shared/backup'
 import { parseBackup, serializeBackup } from '@/shared/backup'
 import type { DomainStore } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
@@ -8,6 +8,57 @@ type Mode = 'export' | 'import'
 
 /** What to say when the clipboard is not available or refuses the write. */
 const COPY_BY_HAND = 'Select the text and copy it.'
+
+/**
+ * What the status line is saying, and how loudly.
+ *
+ * "Copied." is a receipt for something reversible and stays in the quiet tier.
+ * The restore message names the two stores it just replaced, which is the same
+ * kind of sentence as the warning that preceded it, so it takes `.rule`. One
+ * element either way — the class changes, the node does not.
+ */
+type Status = { text: string; rule: boolean }
+
+const sites = (count: number) => (count === 1 ? '1 site' : `${count} sites`)
+
+/**
+ * What the paste holds, said before it is pressed. The settings-only case is
+ * the one this exists for: it is invisible otherwise, and it changes what the
+ * warning above it means — a backup with no site list leaves the site list
+ * alone, whatever the warning says it would cost.
+ */
+const holdsNote = (parsed: BackupContents & BackupSummary): string => {
+  if (!parsed.hasSettings) {
+    return `This backup holds ${sites(parsed.siteCount)} and no settings. Your settings are kept.`
+  }
+
+  if (!parsed.domains) {
+    return 'This backup holds settings only. Your remembered sites are kept.'
+  }
+
+  if (parsed.siteCount === 0) {
+    return 'This backup holds your settings and an empty list of sites.'
+  }
+
+  return `This backup holds your settings and ${sites(parsed.siteCount)}.`
+}
+
+/** The same sentence in the past tense, once the press has happened. */
+const restoredNote = (parsed: BackupContents & BackupSummary): string => {
+  if (!parsed.hasSettings) {
+    return `Restored ${sites(parsed.siteCount)}. Your settings are kept.`
+  }
+
+  if (!parsed.domains) {
+    return 'Restored your settings. Your remembered sites are kept.'
+  }
+
+  if (parsed.siteCount === 0) {
+    return 'Restored your settings and emptied your remembered sites.'
+  }
+
+  return `Restored your settings and ${sites(parsed.siteCount)}.`
+}
 
 type BackupProps = {
   settings: Settings
@@ -24,6 +75,13 @@ type BackupProps = {
  * chosen (`docs/build-targets.md`). Pasting is the only import a popup can
  * offer on both engines, and once import is a paste, export being a copy keeps
  * the pair symmetrical.
+ *
+ * The two halves are rendered into one skeleton — box, buttons, status,
+ * explanation — rather than as two blocks. That is what lets the status line
+ * sit directly under the button that fills it while staying the same element
+ * across a mode change: a restore flips back to Export and writes the status in
+ * the same breath, and a live region that arrives with its text is not reliably
+ * announced.
  */
 const Backup = ({ settings, domains, onImport }: BackupProps) => {
   /**
@@ -37,7 +95,7 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
    */
   const [mode, setMode] = useState<Mode>('export')
   const [draft, setDraft] = useState('')
-  const [status, setStatus] = useState<string | null>(null)
+  const [status, setStatus] = useState<Status | null>(null)
 
   const text = useMemo(
     () => serializeBackup(settings, domains),
@@ -50,6 +108,13 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
    * to restore. `restore` reads this same result rather than parsing twice.
    */
   const parsed = useMemo(() => parseBackup(draft), [draft])
+
+  /**
+   * The sentence the parse refused with, or null while there is nothing to
+   * refuse — an empty box is waiting rather than wrong. It picks both the text
+   * and the class, so the panel cannot say no in the voice it says how.
+   */
+  const refusal = draft.trim() !== '' && !parsed.ok ? parsed.error : null
 
   const siteCount = Object.keys(domains.entries).length
 
@@ -74,23 +139,25 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
     setStatus(null)
   }
 
+  const say = (text: string, rule = false) => setStatus({ text, rule })
+
   const copy = () => {
     const written = navigator.clipboard?.writeText(text)
 
     if (!written) {
-      setStatus(COPY_BY_HAND)
+      say(COPY_BY_HAND)
       return
     }
 
     written.then(
-      () => setStatus('Copied.'),
-      () => setStatus(COPY_BY_HAND),
+      () => say('Copied.'),
+      () => say(COPY_BY_HAND),
     )
   }
 
   const restore = () => {
     if (!parsed.ok) {
-      setStatus(parsed.error)
+      say(parsed.error)
       return
     }
 
@@ -99,7 +166,7 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
     // Back to Export rather than to nothing, which also leaves the freshly
     // restored settings on screen as the backup they now are.
     setMode('export')
-    setStatus('Restored.')
+    say(restoredNote(parsed), true)
   }
 
   return (
@@ -125,64 +192,86 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
         </button>
       </div>
 
+      {/* Keyed per half, so switching the pair swaps the box rather than
+          re-labelling one: the two carry different text and different scroll
+          positions, and reusing the node would carry one into the other. */}
       {mode === 'export' ? (
-        <>
-          <textarea
-            className="backup-text"
-            aria-label="Backup"
-            readOnly
-            value={text}
-            // Selecting on focus is what makes a keyboard copy one shortcut
-            // rather than a drag through 40 lines of JSON.
-            onFocus={event => event.target.select()}
-          />
-          <div className="backup-actions">
-            <button type="button" onClick={copy}>
-              Copy
-            </button>
-          </div>
-          {/* Names where the text goes, which is the half of the job the
-              pair's two words do not say: this is a backup you paste into the
-              other computer's Import, not a file the browser puts somewhere.
-              A paste is also the only import a popup can offer — a file
-              picker tears the popup down on Gecko. */}
-          <p className="note">
-            Your settings and every remembered site. Paste it into Import on
-            your other computer.
-          </p>
-        </>
-      ) : null}
+        <textarea
+          key="export"
+          className="backup-text"
+          aria-label="Backup"
+          readOnly
+          value={text}
+          // Selecting on focus is what makes a keyboard copy one shortcut
+          // rather than a drag through 40 lines of JSON.
+          onFocus={event => event.target.select()}
+        />
+      ) : (
+        <textarea
+          key="import"
+          className="backup-text"
+          aria-label="Backup to restore"
+          placeholder="Paste a backup from Export on your other computer"
+          value={draft}
+          onChange={event => setDraft(event.target.value)}
+        />
+      )}
 
-      {mode === 'import' ? (
+      <div className="backup-actions">
+        {mode === 'export' ? (
+          <button key="copy" type="button" onClick={copy}>
+            Copy
+          </button>
+        ) : (
+          /* The button that actually overwrites says what it overwrites,
+             rather than repeating the name of the panel it sits in. */
+          <button
+            key="restore"
+            type="button"
+            disabled={!parsed.ok}
+            onClick={restore}
+          >
+            Replace settings
+          </button>
+        )}
+      </div>
+
+      {/* Directly under the button that fills it, and above the paragraph
+          explaining the box: at the foot of the section it printed two lines
+          away from the press it was reporting. Mounted even when it is empty —
+          a live region added to the page at the same moment as its text is not
+          reliably announced. */}
+      <p className={status?.rule ? 'rule' : 'note'} role="status">
+        {status?.text}
+      </p>
+
+      {mode === 'export' ? (
+        /* Names where the text goes, which is the half of the job the pair's
+           two words do not say: this is a backup you paste into the other
+           computer's Import, not a file the browser puts somewhere. A paste is
+           also the only import a popup can offer — a file picker tears the
+           popup down on Gecko. */
+        <p className="note">
+          Your settings and every remembered site. Paste it into Import on your
+          other computer.
+        </p>
+      ) : (
         <>
-          <textarea
-            className="backup-text"
-            aria-label="Backup to restore"
-            placeholder="Paste a backup from Export on your other computer"
-            value={draft}
-            onChange={event => setDraft(event.target.value)}
-          />
-          <div className="backup-actions">
-            {/* The button that actually overwrites says what it overwrites,
-                rather than repeating the name of the panel it sits in. */}
-            <button type="button" disabled={!parsed.ok} onClick={restore}>
-              Replace settings
-            </button>
-          </div>
           {/* Why the button is dead, or what pressing it costs. A confirmation
               step is the wrong shape here: on Gecko the popup autohides on
-              focus loss, so an extra step is another way to lose the paste. */}
-          <p className="rule">
-            {draft.trim() !== '' && !parsed.ok ? parsed.error : replacesNote}
+              focus loss, so an extra step is another way to lose the paste.
+              The refusal is painted the way the key editor paints its own, so
+              the panel does not say no in the voice it says how. */}
+          <p className={refusal === null ? 'rule' : 'rule rule-refused'}>
+            {refusal ?? replacesNote}
           </p>
-        </>
-      ) : null}
 
-      {/* Mounted even when it is empty: a live region added to the page at the
-          same moment as its text is not reliably announced. */}
-      <p className="note" role="status">
-        {status}
-      </p>
+          {/* What the paste is, under what replacing costs. Two tiers rather
+              than one sentence: a price and a preview read as one warning if
+              they are painted the same. */}
+          {parsed.ok ? <p className="note">{holdsNote(parsed)}</p> : null}
+        </>
+      )}
     </section>
   )
 }

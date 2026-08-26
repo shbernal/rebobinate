@@ -31,7 +31,13 @@ describe('serializeBackup', () => {
   it('round-trips the settings and the site list', () => {
     const result = parseBackup(serializeBackup(SETTINGS, DOMAINS))
 
-    expect(result).toEqual({ ok: true, settings: SETTINGS, domains: DOMAINS })
+    expect(result).toEqual({
+      ok: true,
+      settings: SETTINGS,
+      domains: DOMAINS,
+      hasSettings: true,
+      siteCount: 2,
+    })
   })
 
   it('writes it as something a person can read in a textarea', () => {
@@ -80,17 +86,26 @@ describe('parseBackup', () => {
   it('accepts one written by an earlier version', () => {
     const result = parseBackup(backupText({ version: 1, settings: SETTINGS }))
 
-    expect(result).toEqual({ ok: true, settings: SETTINGS })
+    expect(result).toEqual({
+      ok: true,
+      settings: SETTINGS,
+      hasSettings: true,
+      siteCount: 0,
+    })
   })
 
   it('restores only what the backup carries', () => {
     expect(parseBackup(backupText({ domains: DOMAINS }))).toEqual({
       ok: true,
       domains: DOMAINS,
+      hasSettings: false,
+      siteCount: 2,
     })
     expect(parseBackup(backupText({ settings: SETTINGS }))).toEqual({
       ok: true,
       settings: SETTINGS,
+      hasSettings: true,
+      siteCount: 0,
     })
   })
 
@@ -125,6 +140,31 @@ describe('parseBackup', () => {
         schemaVersion: DOMAINS_SCHEMA_VERSION,
         entries: { 'a.test': { speed: 16, updatedAt: 5, never: false } },
       },
+      hasSettings: true,
+      siteCount: 1,
+    })
+  })
+
+  /**
+   * The popup names what the paste holds before it is pressed and again after,
+   * and "settings only" is the case that changes what the warning above the
+   * button means. Counting it at the call site would let the two sentences
+   * disagree, so the parse answers it once.
+   */
+  it('says what it is carrying, not only that it parsed', () => {
+    const settingsOnly = parseBackup(backupText({ settings: SETTINGS }))
+    const emptyList = parseBackup(
+      backupText({ settings: SETTINGS, domains: { entries: {} } }),
+    )
+
+    expect(settingsOnly).toMatchObject({ hasSettings: true, siteCount: 0 })
+    // A list that is present and empty is not a backup with no list: restoring
+    // it empties the map, and the popup has to be able to tell them apart.
+    expect(settingsOnly).not.toHaveProperty('domains')
+    expect(emptyList).toMatchObject({
+      hasSettings: true,
+      siteCount: 0,
+      domains: { entries: {} },
     })
   })
 })
