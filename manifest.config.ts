@@ -1,5 +1,5 @@
 import { defineManifest } from '@crxjs/vite-plugin'
-import pkg from './package.json'
+import pkg from './package.json' with { type: 'json' }
 
 // Gecko needs an explicit add-on id and an up-front data-collection answer.
 // Chrome has no use for either key, so they are only emitted for the Firefox
