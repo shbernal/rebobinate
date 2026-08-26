@@ -365,6 +365,26 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  /* A floor rather than a height, so a live row is still as tall as its select
+     makes it. It is here for the dropped row below, which holds a slot in the
+     list with nothing but a name and an Undo in it and would otherwise be
+     shorter than the rows it sits between. */
+  min-height: 24px;
+}
+
+/* The line a dropped row leaves in its place. Quiet, at `.note`'s size and
+   opacity, because it is a line about a site rather than a site: the entry is
+   gone from storage and the count above has already said so. */
+.site-dropped {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.site-dropped .undo {
+  flex: none;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
 }
 
 .site-name {

@@ -103,21 +103,48 @@ entry and the opposite of a memory, so it takes the _"No sites are remembered
 yet."_ branch. For the same reason the list below is headed **Other sites (n)**:
 it lists every site with a stored decision, including the ones switched off,
 because the list is how an exclusion is undone, and counting those as
-remembered was a claim about them that the rows themselves contradict.
+remembered was a claim about them that the rows themselves contradict. Under a
+filter it says both numbers — **Other sites (3 of 12)** — because the stored
+count was the only number on that pane a filter could stand at odds with the
+rows beneath it.
 
 The marker only ever appears from the Sites tab, which is also where a
 remembered speed can be edited or dropped for any site rather than only the one
 in front of the user. **A row is one control.** The select carries every state
 the row can be in — `Never remember`, `Use default (N×)` with the user's own
 default in it, or a speed — and the ✕ beside it is the one-click version of
-that select's `Use default`, named for the same outcome (_"Back to the default
-speed for X"_) because it calls the same `clear`. It was three controls once,
+that select's `Use default`, because it calls the same `clear`. It is named for
+what it drops (_"Stop remembering X"_, or _"Start remembering X again"_ on a
+marker, which is the opposite write) rather than for the speed the site lands
+on: in the list what the user sees the click do is a row leave, and "back to the
+default speed" named an effect that disappearance does not carry. It was three
+controls once,
 and two of them did the same thing: a blank option that meant "no entry", a
 `Never` switch, and a ✕ that was disabled
 on exactly the rows a marker made unreachable. The select is offered even with
 nothing remembered yet, because deciding what a site should start at is what the
 tab is for, and requiring a video to be stepped somewhere else first made that
 the one thing it could not do.
+
+**The list holds still while it is open.** The store's order is most recently
+touched first, which is right for arriving and right for the 500-entry cap and
+wrong as a live re-sort: setting a speed writes the entry, so the row travelled
+to the top out from under the pointer that had just set it, off the top of a
+scrolled pane. `SitesPane` keeps a `useRef` of the keys in display order and
+merges each render's sort into it — a placed key keeps its place, a new key goes
+on the front, a key no longer stored falls out. Leaving the tab unmounts the
+pane, so the next visit sorts afresh; that is the whole of the reset. The
+`MAX_ROWS` slice and the filter both run on the merged order, so the visible
+rows are still the recently-used ones.
+
+That frozen order is what makes an in-place undo possible, so the ✕ has one. The
+cleared entry is held in a single slot and its key keeps its place in the list,
+where a quiet line naming the site and an **Undo** stands until the next row is
+dropped, the filter is retyped, or the tab is left. There is no timer: a popup
+closes the moment anything outside it is clicked, so a timed window is a promise
+the panel cannot keep. The heading counts what is stored, so it has already
+counted the entry out — the write really happened, and Undo re-sends the write
+that makes it again rather than reaching for a restore path of its own.
 
 Clearing a row takes two different messages, which is the one trap in that row.
 `forgetDomain` leaves a marker standing on purpose, so `rebobinate:forget-domain`
@@ -358,6 +385,16 @@ not there.
 
 The pane scrolls rather than the popup window, so the header and the strip stay
 put on the long Settings pane. The popup is still fixed at 320px wide.
+
+The pane has a ceiling and no floor, so the window is as tall as whatever is in
+it — and a list narrowing under a filter took 250px out of the window on every
+keystroke. `App` owns a `paneFloor`, a `min-height` in pixels measured off the
+pane itself, and hands the panes an `onHoldHeight` to ask for it. Only the Sites
+filter does: it holds the floor while the box is in use and gives it back when
+the box is left, so the window settles once rather than per character. A floored
+pane that is not overflowing still lands in the flat case the scroll cues below
+assume, because both the cover and the shadow are positioned against the same
+box.
 
 `src/popup/speeds.ts` holds the handful of speeds the popup offers directly:
 `SPEEDS`, behind the Sites pane's selects and the default speed, and
