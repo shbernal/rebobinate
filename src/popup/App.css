@@ -165,13 +165,26 @@
   gap: 8px;
 }
 
-/* `hidden` is a UA rule and sits below every author rule in the cascade, so the
-   `display` above defeats it: the badge rows and the preview stayed on screen
-   with the on-video badge switched off. Matching the attribute as well puts the
-   author rule on the winning side rather than reaching for `!important`. */
+/* `hidden` is a UA rule and sits below every author rule in the cascade, so an
+   author `display` defeats it: the badge rows, the sample and the corner
+   fieldset each stayed on screen with the on-video badge switched off — the
+   corner grid longest of all, since it is the one that sets `display: block`
+   rather than `flex`. Matching the attribute as well puts the author rule on
+   the winning side rather than reaching for `!important`. */
 .field[hidden],
-.preview[hidden] {
+.preview[hidden],
+.corners[hidden] {
   display: none;
+}
+
+/* The label left, everything after it against the right edge. `space-between`
+   alone spreads a three-child row evenly, which put the hex about 100px from
+   the swatch it names and the same distance from its own label, so the value
+   belonged to neither. One auto margin on the label groups the value with the
+   control it describes and leaves every two-child row on the popup exactly
+   where it was. */
+.field > :first-child {
+  margin-right: auto;
 }
 
 .field input[type='number'] {
@@ -588,8 +601,9 @@ hr {
 
 /* Which of the two colour rows the panel edits, in words, and the way out. It
    sits over the panel rather than beside the swatch that opened it, because
-   the panel is shared and its position cannot say. The row already existed, so
-   the close control costs no height. */
+   the panel is shared and its position cannot say. The row is as tall as the
+   24px close button now rather than as the 11px caption, which is about 6px of
+   panel bought for the only way out the panel signposts. */
 .picker-label {
   display: flex;
   align-items: center;
@@ -598,19 +612,29 @@ hr {
   margin: 0;
   font-size: 11px;
   font-weight: 600;
+}
+
+/* The caption is the quiet half of the row, not the row. `opacity` paints a
+   group, so dimming the whole row dimmed the ✕ with it — and the ✕ is the only
+   way out the panel advertises, the open swatch's accent ring reading as "this
+   is the row being edited" rather than as a button to press again. */
+.picker-label span {
   opacity: 0.8;
 }
 
+/* 24px square, which is the smallest target WCAG 2.2 asks for, at the caption's
+   own colour. The hover and focus background is the only edge it has at rest;
+   a border would make the panel's one exit its loudest line. */
 .picker-close {
   flex: none;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 0;
   border-radius: 3px;
   background: transparent;
   color: inherit;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1;
   cursor: pointer;
 }
@@ -709,6 +733,12 @@ hr {
   background: transparent;
 }
 
+/* Canvas, CanvasText, Canvas, from the outside in. The tracks are built to run
+   black to white, so a CanvasText ring alone loses its edge at one end of every
+   one of them — at the shipped `#000000` background the Lightness and
+   Saturation handles both open parked over black. The outer ring is what still
+   draws the handle there. A drop shadow instead would read as elevation on a
+   flat panel and do nothing at all at the white end. */
 .color-picker input[type='range']::-webkit-slider-thumb {
   appearance: none;
   width: 12px;
@@ -716,6 +746,7 @@ hr {
   border-radius: 50%;
   border: 2px solid CanvasText;
   background: Canvas;
+  box-shadow: 0 0 0 1px Canvas;
 }
 
 .color-picker input[type='range']::-moz-range-thumb {
@@ -724,6 +755,7 @@ hr {
   border-radius: 50%;
   border: 2px solid CanvasText;
   background: Canvas;
+  box-shadow: 0 0 0 1px Canvas;
 }
 
 .color-picker input[type='range']:focus-visible {

@@ -167,8 +167,9 @@ const SettingsPane = ({
             than scrolling away under the tab strip: a master switch that is
             off screen while its block is being edited leaves no way to turn
             the block off, and half of one under the pane's scroll cue reads as
-            a rendering fault. With the badge off the sample is `hidden` and
-            this collapses to the switch alone. */}
+            a rendering fault. With the badge off everything the block governs
+            is `hidden`, so this collapses to the switch and the line under
+            it. */}
         <div className="badge-header">
           {/* Named for where it is drawn now that there are two badges. */}
           <section className="field">
@@ -179,6 +180,16 @@ const SettingsPane = ({
               onChange={enabled => saveBadge({ enabled })}
             />
           </section>
+
+          {/* What the collapse does not say for itself. Turning the badge off
+              takes the sample, the corner grid, both sliders, both colour
+              rows, the dropdown, the second switch and the sentence off screen
+              at once, and nothing that is left says where any of it went. The
+              quiet tier rather than `.rule`: this is reassurance about stored
+              state, not a statement of what the badge will do. */}
+          <p className="note" hidden={settings.badge.enabled}>
+            Size, colours and timing are kept.
+          </p>
 
           {/* The sample's own size reaches the stylesheet, which sizes the box
               around it: the corner buttons only mean anything while the box is
@@ -213,7 +224,11 @@ const SettingsPane = ({
             the box its `display` applies to, so a grid fieldset puts "Corner"
             on a line of its own above the corners rather than beside them. The
             legend is floated back out of that path in App.css. */}
-        <fieldset className="corners" disabled={!settings.badge.enabled}>
+        <fieldset
+          className="corners"
+          hidden={!settings.badge.enabled}
+          disabled={!settings.badge.enabled}
+        >
           <legend>Corner</legend>
           <div className="corner-grid">
             {BADGE_CORNERS.map(corner => (
