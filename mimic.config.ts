@@ -44,6 +44,8 @@ const PANEL_WINDOWS: Record<string, number> = {
   'panel-scrolling': 540,
   'moving-between-tabs': 540,
   'setting-a-speed': 250,
+  'taking-a-backup': 540,
+  'the-master-switch': 540,
   'following-the-link': 540,
   'a-list-of-sites': 540,
   'binding-a-new-key': 540,
