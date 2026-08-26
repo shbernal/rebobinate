@@ -15,15 +15,15 @@ import {
  * The largest thing one click in this panel does.
  *
  * The marker block is nine controls under a header, and its master switch
- * takes seven of them off the tab: the sample, both sliders, both colour rows,
- * the auto-hide dropdown, the switch about normal speed and the sentence
- * reading the last two. What is left is the switch itself and the grid of
- * corners, which stays on screen and goes dead rather than leaving with the
- * rest. Whether that reads as one control governing a block or as the panel
- * losing half its contents is a judgement about a transition, and a still of
- * the tab afterwards is a still of a short tab.
+ * takes eight of them off the tab: the sample, the grid of corners, both
+ * sliders, both colour rows, the auto-hide dropdown, the switch about normal
+ * speed and the sentence reading the last two. What is left is the switch
+ * itself and one line of text saying the settings are kept. Whether that reads
+ * as one control governing a block or as the panel losing most of a tab is a
+ * judgement about a transition, and a still of the tab afterwards is a still of
+ * a short tab.
  *
- * The collapse takes about 300px out of a 440px pane, and what it moves is not
+ * The collapse takes about 350px out of a 440px pane, and what it moves is not
  * the panel. Backup sits under this block and keeps the tab overflowing either
  * way, so the panel stays the height it was; the pane simply has less to scroll
  * and slides back, carrying the switch that was just clicked away from the top
@@ -95,6 +95,7 @@ export default {
     const opacity = panel.locator('#badge-opacity')
     const autoHide = panel.locator('#badge-autohide')
     const rule = panel.locator('.badge-settings > .rule')
+    const kept = panel.locator('.badge-header > .note')
     const toolbar = panel.locator('.field').filter({ hasText: 'Toolbar badge' })
 
     // Far enough that the block's header sticks, which puts the whole block on
@@ -171,7 +172,7 @@ export default {
     }
 
     const gone = await Promise.all(
-      [sample, size, opacity, autoHide, rule].map(control =>
+      [sample, corners, size, opacity, autoHide, rule].map(control =>
         control.isVisible(),
       ),
     )
@@ -180,12 +181,10 @@ export default {
       throw new Error('something the caption says has gone is still on screen')
     }
 
-    if (!(await corners.isVisible())) {
-      throw new Error('the corner grid left with the rest of the block')
-    }
-
-    if (await corners.getByRole('button').first().isEnabled()) {
-      throw new Error('the corner grid stayed on screen and stayed live')
+    if (!(await kept.isVisible())) {
+      throw new Error(
+        'nothing was left under the switch to say where the block went',
+      )
     }
 
     if (!(await toolbar.isVisible())) {
@@ -195,7 +194,7 @@ export default {
     await look(
       s,
       panel,
-      `The "On-video badge" switch has been turned off, and this is the whole of what is left of the block: the switch itself, and the grid of corners, which stayed rather than leaving with the rest and is greyed out and no longer clickable. Gone are the sample from under the switch, the two sliders, both colour rows, "Hide after", the switch about normal speed and the sentence that read the last two back. The block went from ${wasBlock}px to ${nowBlock}px. The panel is the same ${nowPanel}px it was — what sits under this block still fills the pane — but the view moved on its own: with ${wasBlock - nowBlock}px gone from the middle of the tab there was less left to scroll, so the pane slid back by ${wasScroll - nowScroll}px, taking the switch that was just clicked from the top of the scrolling area to ${nowOffset}px down it. What has arrived above it, unasked, is the foot of the block of keyboard shortcuts and the row for the number drawn on the extension's own toolbar icon. That row is a different marker in a different place and was not touched by any of this: it is still on.`,
+      `The "On-video badge" switch has been turned off, and this is the whole of what is left of the block: the switch itself, and under it one line of small text reading "Size, colours and timing are kept." Gone at once are the sample from under the switch, the grid of corners, the two sliders, both colour rows, "Hide after", the switch about normal speed and the sentence that read the last two back. The block went from ${wasBlock}px to ${nowBlock}px. The panel is the same ${nowPanel}px it was — what sits under this block still fills the pane — but the view moved on its own: with ${wasBlock - nowBlock}px gone from the middle of the tab there was less left to scroll, so the pane slid back by ${wasScroll - nowScroll}px, taking the switch that was just clicked from the top of the scrolling area to ${nowOffset}px down it. What has arrived above it, unasked, is the foot of the block of keyboard shortcuts and the row for the number drawn on the extension's own toolbar icon. That row is a different marker in a different place and was not touched by any of this: it is still on.`,
       { name: 'off', mustShow: master },
     )
 
@@ -213,19 +212,25 @@ export default {
       )
     }
 
-    if (!(await corners.getByRole('button').first().isEnabled())) {
-      throw new Error('the corner grid stayed dead after the block came back')
+    if (!(await corners.isVisible())) {
+      throw new Error('the corner grid did not come back with the block')
+    }
+
+    if (await kept.isVisible()) {
+      throw new Error(
+        'the line about the settings being kept outstayed the collapse',
+      )
     }
 
     await look(
       s,
       panel,
-      `The switch has been turned back on. Everything that left has come back, and it has come back as it was rather than as it ships: "Size" still reads ${back.size}px and "Opacity" still reads ${back.opacity}%, the two colours are the ones that were set, and the sample above is the marker at that size again. Turning the marker off puts it away rather than throwing it out, and nothing warned about that in either direction because there is nothing to warn about. The corner grid is live again.`,
+      `The switch has been turned back on. Everything that left has come back, and it has come back as it was rather than as it ships: "Size" still reads ${back.size}px and "Opacity" still reads ${back.opacity}%, the two colours are the ones that were set, and the sample above is the marker at that size again. Turning the marker off puts it away rather than throwing it out, and the line that said so while it was off has gone with the rest of the block coming back.`,
       { name: 'back', mustShow: size },
     )
 
     s.showVideo(
-      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of its tallest tab, which is the one it is on throughout. In order: the Settings tab is picked and the pane scrolled down to the block about the marker over the video, whose header stops at the top of the scrolling area and holds a live sample; "Size" is walked from 14px to 30px and "Opacity" from 75% to 100%, the sample growing and solidifying as they go; the "On-video badge" switch at the top of the block is turned off, and the sample, both sliders, both colour rows, the dropdown, the second switch and the sentence at the foot all go at once, leaving the switch and a greyed-out grid of corners, while the pane slides back by ${wasScroll - nowScroll}px under the pointer because there is that much less of the tab left to scroll; and the switch is turned back on, where all of it returns at the values it had. What to watch is the moment of the collapse — how much of the panel changes on one click, what is left behind to explain it, whether the one control that stayed rather than left is better or worse for having stayed, and where the person's eye is left afterwards.`,
+      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of its tallest tab, which is the one it is on throughout. In order: the Settings tab is picked and the pane scrolled down to the block about the marker over the video, whose header stops at the top of the scrolling area and holds a live sample; "Size" is walked from 14px to 30px and "Opacity" from 75% to 100%, the sample growing and solidifying as they go; the "On-video badge" switch at the top of the block is turned off, and the sample, the corner grid, both sliders, both colour rows, the dropdown, the second switch and the sentence at the foot all go at once, leaving the switch and a line of text under it, while the pane slides back by ${wasScroll - nowScroll}px under the pointer because there is that much less of the tab left to scroll; and the switch is turned back on, where all of it returns at the values it had. What to watch is the moment of the collapse — how much of the panel changes on one click, whether the one line left behind is enough to explain where the rest went, and where the person's eye is left afterwards.`,
     )
   },
 }
