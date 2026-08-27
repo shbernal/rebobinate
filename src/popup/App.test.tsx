@@ -1689,6 +1689,78 @@ describe('popup backup', () => {
     )
   })
 
+  /**
+   * The largest irreversible action in the product, made reversible with what
+   * the section already had: the export box is the serialization of what is
+   * live, and at the moment Replace settings is pressed it still describes
+   * what is about to be replaced.
+   */
+  it('puts back what a restore replaced', async () => {
+    const user = await openBackup('Import')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+        domains: {
+          schemaVersion: DOMAINS_SCHEMA_VERSION,
+          entries: { 'restored.example': { speed: 2, updatedAt: 3 } },
+        },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    expect(storedSettings().step).toBe(0.5)
+
+    await user.click(screen.getByRole('button', { name: 'Undo restore' }))
+
+    expect(storedSettings().step).toBe(0.25)
+    // The same road back: the snapshot goes through the same import the paste
+    // did, so the map is the service worker's to write either way.
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      {
+        type: 'rebobinate:import-domains',
+        store: {
+          schemaVersion: DOMAINS_SCHEMA_VERSION,
+          entries: { 'vimeo.com': { speed: 1.75, updatedAt: 7, never: false } },
+        },
+      },
+      expect.any(Function),
+    )
+    expect(backupStatus()).toHaveTextContent(
+      'Put back the settings and sites from before the restore.',
+    )
+    expect(screen.queryByRole('button', { name: 'Undo restore' })).toBeNull()
+  })
+
+  /**
+   * A place rather than a countdown, the rule the dropped row's Undo on the
+   * Sites tab already follows. Leaving the pair is leaving the place.
+   */
+  it('spends the undo when the pair is switched back to Import', async () => {
+    const user = await openBackup('Import')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    expect(
+      screen.getByRole('button', { name: 'Undo restore' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+
+    expect(screen.queryByRole('button', { name: 'Undo restore' })).toBeNull()
+  })
+
   // The button that overwrites both stores is live exactly while there is
   // something valid to restore, and the note says why it is not.
   it('says why nothing can be restored and changes nothing', async () => {

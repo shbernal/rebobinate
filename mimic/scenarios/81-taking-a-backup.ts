@@ -271,15 +271,28 @@ export default {
       )
     }
 
+    // The way back, which the restore leaves beside "Copy" in the row it has
+    // just emptied. It is held until the pair is switched or the box is typed
+    // into, so it is on screen for this frame.
+    const undo = panel.getByRole('button', { name: 'Undo restore' })
+
+    if (!(await undo.isVisible())) {
+      throw new Error(
+        'the restore replaced both stores and offered no way back to what was there',
+      )
+    }
+
+    settled('restored', await paneContentHeight(panel))
+
     await look(
       s,
       panel,
-      `"Replace settings" has been pressed. Everything it warned about happened, and the panel names both halves of it on the same line that reported the copy earlier, directly under the button: "${done}" The pair has flipped itself back to "Export" and the box is filled in again, this time from what is now stored; it is character for character the text that was copied out of it, which on one computer is the whole of what a restore can be shown to have done. What it still does not say is what was there before it ran, which is the one thing that would make the press undoable.`,
-      { name: 'restored', mustShow: status },
+      `"Replace settings" has been pressed. Everything it warned about happened, and the panel names both halves of it on the same line that reported the copy earlier, directly under the button: "${done}" The pair has flipped itself back to "Export" and the box is filled in again, this time from what is now stored; it is character for character the text that was copied out of it, which on one computer is the whole of what a restore can be shown to have done. Beside "Copy" there is now a second button, "Undo restore", which puts back the settings and the site list as they were the instant before the press — the panel kept that copy for itself rather than asking the reader to have kept one. It is held for as long as the reader stays here: switching the pair or typing into the box spends it, and so does closing the panel. The row it sits in is the one the restore had just left holding a single button, so nothing below it moved to make room.`,
+      { name: 'restored', mustShow: undo },
     )
 
     s.showVideo(
-      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height it tops out at; the Settings tab is taller than the window, which is why it is scrolled. In order: the Settings tab is picked and the pane wheeled all the way down to the "Backup" section at its foot; "Copy" is pressed and "${copied}" appears directly under the button; "Import" is pressed and the whole slot changes over in place — the JSON out of the box, the button from "Copy" to a dead "Replace settings", the line under it from what the text is to what replacing it costs, and the "${copied}" gone; a partial backup is pasted in and the button stays dead while the line under it turns red and reads "${complained}"; the whole backup is pasted over it and the button comes alive as the line goes back to the price, with a second, smaller line appearing under it to say what the paste holds; and it is pressed, leaving "${done}" under the button and the pair back on Export. Through all of that the foot of the section stays at ${exportSlot}px from the top of the tab — every line that comes and goes down here is landing in a slot that was already held for it. The thing to watch is the second paste — the button and the two sentences beside it change on the text itself, with nothing pressed in between.`,
+      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height it tops out at; the Settings tab is taller than the window, which is why it is scrolled. In order: the Settings tab is picked and the pane wheeled all the way down to the "Backup" section at its foot; "Copy" is pressed and "${copied}" appears directly under the button; "Import" is pressed and the whole slot changes over in place — the JSON out of the box, the button from "Copy" to a dead "Replace settings", the line under it from what the text is to what replacing it costs, and the "${copied}" gone; a partial backup is pasted in and the button stays dead while the line under it turns red and reads "${complained}"; the whole backup is pasted over it and the button comes alive as the line goes back to the price, with a second, smaller line appearing under it to say what the paste holds; and it is pressed, leaving "${done}" under the button, the pair back on Export, and an "Undo restore" button beside "Copy" holding the way back to what was there a moment earlier. Through all of that the foot of the section stays at ${exportSlot}px from the top of the tab — every line that comes and goes down here is landing in a slot that was already held for it. The thing to watch is the second paste — the button and the two sentences beside it change on the text itself, with nothing pressed in between.`,
     )
   },
 }

@@ -96,6 +96,23 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
   const [mode, setMode] = useState<Mode>('export')
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<Status | null>(null)
+  /**
+   * The export of what was there a moment ago, held from the press of Replace
+   * settings until it is spent.
+   *
+   * A restore overwrites the settings and the whole site map at once, and by
+   * the time it happens the pair has been on Import long enough that the
+   * export the user might have kept is gone from the box. It is the largest
+   * irreversible action in the product, and it costs nothing to make it not
+   * one: `text` below is already the serialization of the live settings and
+   * domains, and at the moment `restore` runs it is still the pre-import
+   * snapshot.
+   *
+   * Spent on a mode change and on any edit to the draft, the same rule the
+   * dropped row's Undo in `SitesPane` follows: it is a place rather than a
+   * countdown, and the popup closing spends it too.
+   */
+  const [undoText, setUndoText] = useState<string | null>(null)
 
   const text = useMemo(
     () => serializeBackup(settings, domains),
@@ -137,6 +154,7 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
   const choose = (next: Mode) => {
     setMode(next)
     setStatus(null)
+    setUndoText(null)
   }
 
   const say = (text: string, rule = false) => setStatus({ text, rule })
@@ -161,12 +179,39 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
       return
     }
 
+    // Read before the write, while it still describes what is about to be
+    // replaced. `setMode` below does not spend it: `choose` is what carries
+    // that rule, and this is not a choice the user made.
+    setUndoText(text)
     onImport(parsed)
     setDraft('')
     // Back to Export rather than to nothing, which also leaves the freshly
     // restored settings on screen as the backup they now are.
     setMode('export')
     say(restoredNote(parsed), true)
+  }
+
+  /**
+   * The same road back, travelled by the same code: the snapshot goes through
+   * `parseBackup` and `onImport` exactly as a paste would, so an undo cannot
+   * write a shape a restore could not.
+   */
+  const undo = () => {
+    if (undoText === null) {
+      return
+    }
+
+    const snapshot = parseBackup(undoText)
+
+    setUndoText(null)
+
+    if (!snapshot.ok) {
+      say(snapshot.error)
+      return
+    }
+
+    onImport(snapshot)
+    say('Put back the settings and sites from before the restore.', true)
   }
 
   return (
@@ -213,7 +258,10 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
           aria-label="Backup to restore"
           placeholder="Paste a backup from Export on your other computer"
           value={draft}
-          onChange={event => setDraft(event.target.value)}
+          onChange={event => {
+            setDraft(event.target.value)
+            setUndoText(null)
+          }}
         />
       )}
 
@@ -232,6 +280,16 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
             onClick={restore}
           >
             Replace settings
+          </button>
+        )}
+
+        {/* Beside Copy rather than in a row of its own: the restore has
+            already flipped the pair back to Export, so this row is on screen
+            holding one button and the way back fits in it without the section
+            growing. */}
+        {undoText === null ? null : (
+          <button key="undo" type="button" onClick={undo}>
+            Undo restore
           </button>
         )}
       </div>
