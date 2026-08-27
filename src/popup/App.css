@@ -1034,21 +1034,31 @@ hr {
   cursor: pointer;
 }
 
-/* Text that goes somewhere, so it is underlined and not made to look like a
-   button: the row's own button is the one on the receipt, and two buttons of
-   equal weight would be two offers rather than one. `.rule` sets the size and
-   the opacity; only what the UA gives a button is overridden here.
+/* Text that goes somewhere, so it is underlined and coloured and not made to
+   look like a button: the row's own button is the one on the receipt, and two
+   buttons of equal weight would be two offers rather than one. `.rule` sets
+   the size; only what the UA gives a button is overridden here.
 
    Solid, not dotted. A dotted underline is the abbr and tooltip convention,
    not the link one, and readers looking straight at this line read it as an
-   annotation on the domain and never tried it. The hover is the other half:
-   with only `:focus-visible` the pointer got no answer at all, so the line
-   brightens and its underline thickens under it. */
+   annotation on the domain and never tried it. The underline alone did not
+   carry it: the same reading came back after the switch to solid, so the
+   colour is the other half.
+
+   `LinkText` rather than a blue of our own. It is the system colour for
+   exactly this, and it joins the vocabulary the rest of the panel already
+   speaks — Canvas, CanvasText, AccentColor, Highlight — so it follows the
+   platform and both themes without a value to keep in step. The inherited 0.9
+   goes with it: a colour that means something should not be delivered muddied.
+
+   The hover thickens the underline. It used to brighten as well, back when the
+   line sat at 0.9 and had nowhere else to go. */
 .memory-link {
   padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: LinkText;
+  opacity: 1;
   text-align: left;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -1056,7 +1066,6 @@ hr {
 }
 
 .memory-link:hover {
-  opacity: 1;
   text-decoration-thickness: 2px;
 }
 
