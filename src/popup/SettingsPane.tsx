@@ -160,10 +160,15 @@ const SettingsPane = ({
         />
       </section>
       {/* The buttons and the keys this governs are on another tab, so the
-          field is the only place that can say what it moves. The unit is not
-          appended inside the input: it is a numeric field with a draft state,
-          and a suffix would fight both. */}
-      <p className="note">How far + and − move the speed.</p>
+          field is the only place that can say what it moves. It names the
+          actions rather than the keys: "Faster" and "Slower" are the labels in
+          the Keys block underneath and the labels on the two steppers on the
+          Speed tab, so one wording covers the buttons, the keys and any
+          rebinding — where "+ and −" stops being true the moment somebody
+          binds something else. The unit is not appended inside the input: it
+          is a numeric field with a draft state, and a suffix would fight
+          both. */}
+      <p className="note">How far Faster and Slower move the speed.</p>
 
       <hr />
 
