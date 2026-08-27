@@ -1,3 +1,28 @@
+/* Form controls do not inherit `font-family`, so without this every button,
+   input, select and textarea in the panel renders in the UA's own face — Arial
+   beside the system-ui `:root` sets, in a 320px box where the two sit on
+   adjacent rows. Size and weight are left to the per-control rules below,
+   which is why this is the family alone rather than `font: inherit`. The three
+   monospace exceptions set their own family and are unaffected. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* One focus ring, for every native control that does not draw its own. The
+   panel used to set this ring in five separate places and let everything else
+   fall through to the UA's, which on Chrome is a near-black rectangle — so the
+   Size slider, the Filter box and the Backup textarea wore a different ring
+   from the tabs beside them. `:where()` keeps the specificity at zero, so the
+   two rules that need an inset offset because the group they sit in clips
+   them, `.tab` and `.backup-modes button`, still win. */
+:where(button, input, select, textarea):focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+
 .popup {
   display: flex;
   flex-direction: column;
@@ -71,6 +96,9 @@
   transform: translateX(20px);
 }
 
+/* Not covered by the shared ring above, and not a duplicate of it: the
+   checkbox is transparent and zero-sized so that it keeps a real checkbox's
+   keyboard behaviour, so the ring has to be drawn on the track beside it. */
 .switch input:focus-visible + .slider {
   outline: 2px solid Highlight;
   outline-offset: 2px;
@@ -208,6 +236,15 @@
   opacity: 0.8;
 }
 
+/* A hex is a machine string, and the panel already sets those in monospace in
+   `.site-name`, `.backup-text` and the picker's own box. Without this the same
+   `#40e708` was on screen twice a few pixels apart in two different faces, the
+   row's and the picker's. Scoped to the class rather than to `.field output`,
+   which is the two sliders' readouts and is prose-adjacent numbers. */
+.field-value {
+  font-family: ui-monospace, monospace;
+}
+
 /* The tab strip. Only the selected tab is in the focus order — the arrow keys
    move between them — so the inactive ones need a hover/active affordance of
    their own rather than relying on the focus ring. */
@@ -225,7 +262,10 @@
   border-radius: 4px 4px 0 0;
   background: transparent;
   color: inherit;
-  font: inherit;
+  /* The family comes from the rule at the top of the file now; the size is
+     still taken from the root here, because a tab strip set at the UA's own
+     13.3px would be the one row on the panel a third of a pixel out. */
+  font-size: inherit;
   cursor: pointer;
 }
 
@@ -315,6 +355,17 @@
       bottom / 100% 16px no-repeat scroll;
 }
 
+/* Slack held at the foot of the pane while a block that has just collapsed
+   would otherwise have shortened the scroll range under the pointer. It is
+   empty and it is temporary — `App` shrinks it on every scroll event until it
+   is gone — so it carries no border, no background and no gap of its own: the
+   negative margin cancels the pane's 8px row gap, which would otherwise be
+   slack the pane never asked for. */
+.pane-slack {
+  flex: none;
+  margin-top: -8px;
+}
+
 .pane-heading {
   font-size: 12px;
   font-weight: 600;
@@ -360,6 +411,18 @@
 .rule-refused {
   color: color-mix(in srgb, #d93025 70%, CanvasText);
   opacity: 1;
+}
+
+/* The one line that is about the whole extension rather than about a control,
+   given a band of its own so it does not read as a loose paragraph in the same
+   tier as "Shown for 2 seconds after a speed change". The fill is the token
+   `.chip` already uses, so this borrows the panel's vocabulary rather than
+   inventing a callout. No icon and no colour: the coloured tier is reserved
+   for the two refusals, and being switched off is not an error. */
+.off-line {
+  padding: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, CanvasText 6%, transparent);
 }
 
 .sites {
@@ -420,14 +483,29 @@
   cursor: pointer;
 }
 
+/* One deliberate value, not two stacked. Chrome already greys a disabled
+   button's glyph and border, and an `opacity: 0.4` on top of that left the ✕
+   on the `This tab` row at about a tenth of the panel's text contrast — an
+   empty slot rather than a control, which hid the fact that the row can drop a
+   stored speed at all. The mix is stated so both engines land in the same
+   place instead of on their own idea of grey. */
 .site .forget:disabled {
   cursor: default;
-  opacity: 0.4;
+  color: color-mix(in srgb, CanvasText 45%, Canvas);
 }
 
 .field input[type='search'] {
   flex: 1;
   min-width: 0;
+}
+
+/* Blink draws a clear button inside a search input and Gecko draws none, so
+   the one control on the panel the two builds disagreed about was this box.
+   Suppressed rather than restyled: it holds a few characters, select-all and
+   delete is cheap, and a ✕ of the panel's own would be a fourth remove glyph
+   in a tab that already has one per row. */
+.field input[type='search']::-webkit-search-cancel-button {
+  appearance: none;
 }
 
 /* One row per action: the name, the keys bound to it, and the capture button.
@@ -520,9 +598,19 @@
   cursor: pointer;
 }
 
+/* One deliberate value again, and the divider fading with the glyph it belongs
+   to. `.chip button` is already at 0.7 so that it reads as part of the pill
+   rather than as loose text, and a second 0.3 on top of that left the ✕ on the
+   last Reset key at about a fifth of the panel's contrast — the same
+   dimmed-twice problem as the row above, arrived at from the other side. The
+   divider is the other half: `.chip button` paints its left edge as a border,
+   so a cross that goes quiet inside a box that does not still reads as a live
+   control with nothing in it. */
 .chip button:disabled {
   cursor: default;
-  opacity: 0.3;
+  opacity: 1;
+  color: color-mix(in srgb, CanvasText 40%, Canvas);
+  border-left-color: color-mix(in srgb, CanvasText 10%, transparent);
 }
 
 .chip button:hover:enabled,
@@ -575,16 +663,27 @@ hr {
    takes the first cell and leaves the four corners in three rows. */
 .corners {
   display: block;
-  width: max-content;
+  /* Full width, so the row can be laid out label-left/control-right like every
+     other row on the pane. At `max-content` the whole fieldset shrank to the
+     legend plus the grid and sat against the left edge, which made this the
+     one control on Settings not lined up with the sliders, the swatches, the
+     dropdown and the switches. */
+  width: 100%;
   border: 0;
   padding: 0;
   margin: 0;
 }
 
+/* The grid is what moves to the right edge, not the fieldset: the legend is
+   floated and stays where the float put it. The auto margin resolves against
+   the fieldset's full width, so the two 28px columns land on the same right
+   edge as the controls above and below them. */
 .corner-grid {
   display: grid;
   grid-template-columns: repeat(2, 28px);
   gap: 4px;
+  width: max-content;
+  margin-left: auto;
 }
 
 /* Level with the middle of the grid rather than against its top row, which
@@ -794,11 +893,6 @@ hr {
   box-shadow: 0 0 0 1px Canvas;
 }
 
-.color-picker input[type='range']:focus-visible {
-  outline: 2px solid Highlight;
-  outline-offset: 2px;
-}
-
 .color-picker input[type='text'] {
   flex: 1;
   min-width: 0;
@@ -912,6 +1006,25 @@ hr {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  /* The Forget button's own height, so the promise and the receipt occupy the
+     same box. The two states are a line of text and a line of text plus a
+     22px button, and the receipt arrives about a second after the last click —
+     so without this the popup grew by 8px on its own, under a pointer that had
+     stopped moving. */
+  min-height: 22px;
+}
+
+/* A long domain ellipsises rather than wrapping, which is the other half of
+   the min-height above: a second line would put the growth straight back.
+   `.site-name` already does this in the Sites list, and this row names the
+   same thing. Both states are covered — the receipt is the paragraph, the
+   promise is the link. */
+.memory .rule {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .memory .forget {
@@ -936,7 +1049,6 @@ hr {
   border: 0;
   background: transparent;
   color: inherit;
-  font-family: inherit;
   text-align: left;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -946,11 +1058,6 @@ hr {
 .memory-link:hover {
   opacity: 1;
   text-decoration-thickness: 2px;
-}
-
-.memory-link:focus-visible {
-  outline: 2px solid Highlight;
-  outline-offset: 2px;
 }
 
 .hint {
@@ -1016,6 +1123,35 @@ hr {
 .backup-modes button:focus-visible {
   outline: 2px solid Highlight;
   outline-offset: -2px;
+}
+
+/* The line reserved whether or not there is anything to report, the trick
+   `.keys .note` already uses: an empty `<p>` with no margin generates no line
+   box at all, so pressing Copy grew the section by a line and shoved the two
+   paragraphs under it — and this section is the last on the tallest tab, so
+   what it shoves is the bottom edge of the popup. Sized from the taller of the
+   two tiers it can take, since a receipt at `.note` and a restore at `.rule`
+   are the same slot: measured in the popup, `.rule`'s line box is 14px and
+   `.note`'s is 13. */
+.backup-status {
+  min-height: 14px;
+}
+
+/* And the same for what follows it, which is where the section changes shape:
+   Export's two-line note, Import's price, and Import's price plus a preview
+   once a valid backup is pasted. Sized for the tallest of the three so a mode
+   switch, a bad paste and a good paste all land inside the box the section
+   already has. */
+.backup-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* The tallest of the three, measured. The price is what sets it, and the
+     branch that sets it is the one a fresh profile takes: "You have no
+     remembered sites to lose" is two lines at 296px where the counted branch
+     is one, so 28px of price, the 6px gap and a 12px preview under it.
+     Export's two lines of note come to 24, and sit in the same box. */
+  min-height: 46px;
 }
 
 .backup-text {

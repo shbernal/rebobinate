@@ -241,37 +241,52 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
           away from the press it was reporting. Mounted even when it is empty —
           a live region added to the page at the same moment as its text is not
           reliably announced. */}
-      <p className={status?.rule ? 'rule' : 'note'} role="status">
+      <p
+        className={`backup-status ${status?.rule ? 'rule' : 'note'}`}
+        role="status"
+      >
         {status?.text}
       </p>
 
-      {mode === 'export' ? (
-        /* Names where the text goes, which is the half of the job the pair's
-           two words do not say: this is a backup you paste into the other
-           computer's Import, not a file the browser puts somewhere. A paste is
-           also the only import a popup can offer — a file picker tears the
-           popup down on Gecko. */
-        <p className="note">
-          Your settings and every remembered site. Paste it into Import on your
-          other computer.
-        </p>
-      ) : (
-        <>
-          {/* Why the button is dead, or what pressing it costs. A confirmation
-              step is the wrong shape here: on Gecko the popup autohides on
-              focus loss, so an extra step is another way to lose the paste.
-              The refusal is painted the way the key editor paints its own, so
-              the panel does not say no in the voice it says how. */}
-          <p className={refusal === null ? 'rule' : 'rule rule-refused'}>
-            {refusal ?? replacesNote}
+      {/* The foot, in a box sized for its tallest state. This section is the
+          last on the tallest tab, so every line that appears down here moves
+          the bottom edge of the popup itself — and the foot is where the
+          section changes shape most: two lines of explanation under Export,
+          one line of price under Import, a price and a preview once a valid
+          backup is pasted. Reserving the tallest is what makes copy, mode
+          switch, bad paste and good paste all land inside the same box. */}
+      <div className="backup-foot">
+        {mode === 'export' ? (
+          /* Names where the text goes, which is the half of the job the pair's
+             two words do not say: this is a backup you paste into the other
+             computer's Import, not a file the browser puts somewhere. A paste
+             is also the only import a popup can offer — a file picker tears
+             the popup down on Gecko. */
+          <p className="note">
+            Your settings and every remembered site. Paste it into Import on
+            your other computer.
           </p>
+        ) : (
+          <>
+            {/* Why the button is dead, or what pressing it costs. A
+                confirmation step is the wrong shape here: on Gecko the popup
+                autohides on focus loss, so an extra step is another way to
+                lose the paste. The refusal is painted the way the key editor
+                paints its own, so the panel does not say no in the voice it
+                says how. */}
+            <p className={refusal === null ? 'rule' : 'rule rule-refused'}>
+              {refusal ?? replacesNote}
+            </p>
 
-          {/* What the paste is, under what replacing costs. Two tiers rather
-              than one sentence: a price and a preview read as one warning if
-              they are painted the same. */}
-          {parsed.ok ? <p className="note">{holdsNote(parsed)}</p> : null}
-        </>
-      )}
+            {/* What the paste is, under what replacing costs. Two tiers rather
+                than one sentence: a price and a preview read as one warning if
+                they are painted the same. Mounted empty rather than absent, so
+                the line it will need is already reserved and a valid paste
+                fills a slot instead of pushing the popup down. */}
+            <p className="note">{parsed.ok ? holdsNote(parsed) : ''}</p>
+          </>
+        )}
+      </div>
     </section>
   )
 }

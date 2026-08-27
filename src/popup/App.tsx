@@ -88,6 +88,83 @@ const App = () => {
     setPaneFloor(hold && height > 0 ? height : null)
   }, [])
 
+  /**
+   * Empty space held at the foot of the pane, in pixels, after a block inside
+   * it has collapsed.
+   *
+   * The floor above is about the popup's height; this is about its scroll
+   * position, which is the same class of problem one layer down. Throwing the
+   * on-video badge's switch takes some 350px out of the middle of the Settings
+   * tab, which drops the pane's scroll range by the same amount — so the
+   * browser clamps `scrollTop` to the new maximum and the switch that was just
+   * clicked slides down the pane with unrelated rows arriving above it. Slack
+   * at the foot keeps the old `scrollTop` valid, so nothing moves.
+   *
+   * It is not left there. Every scroll event shrinks it to exactly what is
+   * still needed to hold the position it is at, so it melts as the user
+   * scrolls back up and is gone by the time they reach the top; scrolling down
+   * into it cannot grow it, because the same formula caps it at the position
+   * reached. A tab change clears it outright.
+   */
+  const [paneSlack, setPaneSlack] = useState(0)
+
+  const meltPaneSlack = useCallback(() => {
+    const pane = paneRef.current
+
+    if (pane === null) {
+      return
+    }
+
+    setPaneSlack(slack => {
+      if (slack === 0) {
+        return 0
+      }
+
+      const natural = pane.scrollHeight - slack - pane.clientHeight
+
+      return Math.max(0, Math.min(slack, pane.scrollTop - natural))
+    })
+  }, [])
+
+  /**
+   * Told which element is about to stop taking up room, or `null` when one has
+   * come back. The pane is this component's element, so what a collapse costs
+   * it is worked out here.
+   *
+   * The slack is the block's whole height rather than the difference, which is
+   * always at least what the collapse removes and so is always enough; the
+   * melt above gives the rest back on the first scroll.
+   *
+   * The scroll correction is the sticky header. A block whose header is stuck
+   * to the top of the pane has already scrolled past it by however much the
+   * header is masking, and once the block is shorter than that it is gone off
+   * the top entirely — holding `scrollTop` would keep every other row still
+   * and lose the switch that was just pressed. Scrolling back by exactly the
+   * masked amount is what puts the header where it already looked like it was.
+   */
+  const holdPaneSlack = useCallback((block: HTMLElement | null) => {
+    const pane = paneRef.current
+
+    if (block === null || pane === null) {
+      setPaneSlack(0)
+      return
+    }
+
+    const masked =
+      pane.getBoundingClientRect().top - block.getBoundingClientRect().top
+
+    if (masked > 0) {
+      pane.scrollTop -= masked
+    }
+
+    setPaneSlack(Math.round(block.offsetHeight))
+  }, [])
+
+  const openTab = useCallback((next: TabId) => {
+    setTab(next)
+    setPaneSlack(0)
+  }, [])
+
   useEffect(() => {
     readSettings(setSettings)
     readDomains(setDomains)
@@ -201,18 +278,19 @@ const App = () => {
           before changing the setting that made you pause it, and this line is
           what tells those tabs they are dormant. */}
       {settings.enabled ? null : (
-        <p className="rule">
+        <p className="rule off-line">
           Off. No video is being sped up and the shortcuts do nothing.
           Everything below is kept.
         </p>
       )}
 
-      <Tabs tabs={TABS} active={tab} onSelect={setTab} />
+      <Tabs tabs={TABS} active={tab} onSelect={openTab} />
 
       <div
         className="pane"
         ref={paneRef}
         style={paneFloor === null ? undefined : { minHeight: paneFloor }}
+        onScroll={meltPaneSlack}
         role="tabpanel"
         id={tabPanelId(tab)}
         aria-labelledby={tabId(tab)}
@@ -253,7 +331,7 @@ const App = () => {
                 forgetSite(domain)
               }
             }}
-            onShowSites={() => setTab('sites')}
+            onShowSites={() => openTab('sites')}
           />
         ) : null}
 
@@ -277,6 +355,16 @@ const App = () => {
             speed={speed}
             domains={domains}
             onImport={importBackup}
+            onHoldSlack={holdPaneSlack}
+          />
+        ) : null}
+
+        {/* Last in the pane, and empty. See `paneSlack`. */}
+        {paneSlack > 0 ? (
+          <div
+            className="pane-slack"
+            aria-hidden
+            style={{ height: paneSlack }}
           />
         ) : null}
       </div>
