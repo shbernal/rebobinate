@@ -31,7 +31,7 @@ export default {
     await look(
       s,
       popup,
-      'The part of the Settings section about when the marker should be visible, as it comes out of the box: a dropdown for how long it stays, a switch for whether it shows at all at normal speed, and under the two of them a sentence saying when the marker will be on screen. It currently reads "Shown for 2 seconds after a speed change, and hidden at 1.0×." Pinned to the top of the section are the on/off switch for the marker and, under it, a striped box holding a live sample of it. The video behind the panel is playing at its normal speed and has not been sped up.',
+      'The part of the Settings section about when the marker should be visible, as it comes out of the box: a dropdown for how long it stays, a switch for whether it shows at all at normal speed, and under the two of them a sentence saying when the marker will be on screen. It currently reads "Shown for 2 seconds after a speed change, and hidden at 1.0×." Pinned to the top of the section are the on/off switch for the marker and, under it, a line reading "Preview" over a striped box holding a live sample of it — the caption matters here, because the sentence below says the marker is hidden at 1.0× while the box above shows one reading 1.0×. The video behind the panel is playing at its normal speed and has not been sped up.',
       { name: 'rules', mustShow: rule },
     )
 

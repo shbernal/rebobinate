@@ -66,7 +66,7 @@ export default {
     await look(
       s,
       panel,
-      "The panel's Settings tab, at the top, as it looks the moment it is opened. A row for the speed step, the three key rows under it — Faster is bound to three keys and carries them over two lines — a switch for the toolbar badge, and then the block for the marker drawn over the video, of which the switch and the sample of the marker itself are on screen. The tab does not end there: the bottom edge cuts through the grid of corners under the sample, and the last rows fade down into that edge.",
+      "The panel's Settings tab, at the top, as it looks the moment it is opened. A row for the speed step, the three key rows under it — Faster is bound to three keys and carries them over two lines — a switch for the toolbar badge, and then the block for the marker drawn over the video, of which the switch, the word \"Preview\" and the sample of the marker itself are on screen. The tab does not end there: the bottom edge cuts through the grid of corners under the sample, and the last rows fade down into that edge.",
       { name: 'settings-top', mustShow: panel.locator('#step') },
     )
 
@@ -83,7 +83,7 @@ export default {
     await look(
       s,
       panel,
-      "Scrolled down into the marker block. The block's header — the switch that governs it, and the sample of the marker — has stopped at the top of the scrolling area while the block goes on moving under it: the corner grid that sat below the sample is now half beneath it, cut by a hairline, and the rest of the block stands clear underneath. Everything outside the pane has held still too, the panel's title and its three tabs.",
+      "Scrolled down into the marker block. The block's header — the switch that governs it, the word \"Preview\", and the sample of the marker — has stopped at the top of the scrolling area while the block goes on moving under it: the corner grid that sat below the sample is now half beneath it, cut by a hairline, and the rest of the block stands clear underneath. Everything outside the pane has held still too, the panel's title and its three tabs.",
       { name: 'pinned-sample', mustShow: size },
     )
 

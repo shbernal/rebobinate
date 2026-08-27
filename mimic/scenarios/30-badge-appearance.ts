@@ -18,7 +18,7 @@ export default {
     await look(
       s,
       popup,
-      'The Settings section, scrolled down to the part about the marker that appears on top of the video. "Size" and "Opacity" are drag handles, and the four arrow buttons above them choose which corner of the video the marker sits in. Pinned to the top of the section are the on/off switch for the marker and, under it, a striped box holding a live sample of it.',
+      'The Settings section, scrolled down to the part about the marker that appears on top of the video. "Size" and "Opacity" are drag handles, and the four arrow buttons above them choose which corner of the video the marker sits in. Pinned to the top of the section are the on/off switch for the marker and, under it, a line reading "Preview" over a striped box holding a live sample of it — the caption is what says the box is a sample rather than a report of what is on the video right now.',
       { name: 'controls', mustShow: popup.locator('#badge-opacity') },
     )
 

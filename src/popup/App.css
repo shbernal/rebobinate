@@ -938,7 +938,11 @@ hr {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* 6px rather than the block's own 8px. This is the one part of the tab that
+     is pinned, so every pixel in it is a pixel of pane the controls under it
+     do not get, and the "Preview" caption between the switch and the box costs
+     a line. Two tighter gaps give most of that back. */
+  gap: 6px;
   padding-bottom: 7px;
   margin-bottom: -8px;
   border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);

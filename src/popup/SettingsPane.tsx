@@ -223,6 +223,16 @@ const SettingsPane = ({
             Size, colours and timing are kept.
           </p>
 
+          {/* What the striped box is. Without it the box is a badge reading
+              1.0× sitting at the top of the tab, and the sentence at the foot
+              of the block says the badge is hidden at 1.0× — so the block
+              contradicts itself and the reader is left deciding which half to
+              believe. Under the same `hidden` as the box it captions, so the
+              collapsed state is exactly what it was. */}
+          <p className="note" hidden={!settings.badge.enabled}>
+            Preview
+          </p>
+
           {/* The sample's own size reaches the stylesheet, which sizes the box
               around it: the corner buttons only mean anything while the box is
               taller than what sits in it. The cast is what a custom property
