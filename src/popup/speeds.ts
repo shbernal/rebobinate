@@ -24,7 +24,7 @@ export const speedOptions = (current: number) => {
 
 /**
  * The chips on the Speed pane, which are a shortcut past the grid rather than a
- * replacement for it: at the default 0.05 step, 1.0× to 2.0× is twenty presses.
+ * replacement for it: at the default 0.1 step, 1.0× to 2.0× is ten presses.
  *
  * `SPEEDS` without 0.75, which is the one entry near enough to 1.0× that the
  * buttons already reach it cheaply, and dropping it is what leaves six chips

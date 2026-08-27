@@ -84,7 +84,7 @@ export const LIMITS = {
 export const DEFAULT_SETTINGS: Settings = {
   schemaVersion: SCHEMA_VERSION,
   enabled: true,
-  step: 0.05,
+  step: 0.1,
   minSpeed: LIMITS.speed.min,
   maxSpeed: LIMITS.speed.max,
   defaultSpeed: 1,

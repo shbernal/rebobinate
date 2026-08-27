@@ -106,8 +106,8 @@ const SpeedPane = ({
       </button>
     </section>
 
-    {/* A shortcut past the grid, not a replacement for it: at the default 0.05
-        step, walking from 1.0× to 2.0× on the buttons is twenty presses.
+    {/* A shortcut past the grid, not a replacement for it: at the default 0.1
+        step, walking from 1.0× to 2.0× on the buttons is ten presses.
 
         The chip that lands on the default speed is Reset under another name,
         so it sends what Reset sends. As an ordinary set it wrote an entry at

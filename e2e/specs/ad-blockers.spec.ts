@@ -88,7 +88,7 @@ test.describe('with a content blocker running', () => {
           node => node.shadowRoot?.querySelector('div')?.textContent ?? '',
         ),
       )
-      .toBe('1.05×')
+      .toBe('1.1×')
   })
 
   test('the blocker is really hiding things on the same page', async ({

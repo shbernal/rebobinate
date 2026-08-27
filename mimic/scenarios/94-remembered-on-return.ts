@@ -55,18 +55,18 @@ export default {
     await assertPlaying(video)
     await video.waitForTimeout(3000)
 
-    // Ten presses of the 0.05 step, from 1.0 to 1.5. Enough that the footage is
+    // Five presses of the 0.1 step, from 1.0 to 1.5. Enough that the footage is
     // visibly quicker, which is what the frame after the reload has to match.
-    await pressSpeed(video, '+', 10)
+    await pressSpeed(video, '+', 5)
 
     const chosen = await speedOf(video)
     if (chosen !== 1.5) {
-      throw new Error(`ten presses of "+" landed on ${chosen}×, not 1.5×`)
+      throw new Error(`five presses of "+" landed on ${chosen}×, not 1.5×`)
     }
 
     await assertMarker(video, 'chosen', { shown: true, text: '1.5×' })
     await s.show(
-      'The person pressed "+" ten times on a talk at player.test, taking it to one and a half times its normal speed. The marker in the top-left corner reads "1.5×". Nothing was opened and nothing was saved by hand; this is just someone setting the speed the way they always do. The big number under the talk is the test page counting how many seconds of video have played; it is labelled as such, and it is not part of the extension.',
+      'The person pressed "+" five times on a talk at player.test, taking it to one and a half times its normal speed. The marker in the top-left corner reads "1.5×". Nothing was opened and nothing was saved by hand; this is just someone setting the speed the way they always do. The big number under the talk is the test page counting how many seconds of video have played; it is labelled as such, and it is not part of the extension.',
       { name: 'chosen' },
     )
 
@@ -97,7 +97,7 @@ export default {
     )
 
     s.showVideo(
-      'The same visit as a recording of the page, at real speed. First the talk at its normal speed, where the counter under it climbs by about one per second — that counter is the test page\'s, not the extension\'s, and it counts seconds of video played. Then "+" is pressed ten times, the marker counts up to 1.5×, and the counter starts climbing half again as fast. Then the page reloads: it goes blank, paints again from nothing, and the counter starts over at zero, which is the whole point of this recording. A moment after it comes back, with nothing touched, the counter is climbing at the quicker rate again and the marker has reappeared on its own to announce it before fading. Nobody pressed anything after the reload.',
+      'The same visit as a recording of the page, at real speed. First the talk at its normal speed, where the counter under it climbs by about one per second — that counter is the test page\'s, not the extension\'s, and it counts seconds of video played. Then "+" is pressed five times, the marker counts up to 1.5×, and the counter starts climbing half again as fast. Then the page reloads: it goes blank, paints again from nothing, and the counter starts over at zero, which is the whole point of this recording. A moment after it comes back, with nothing touched, the counter is climbing at the quicker rate again and the marker has reappeared on its own to announce it before fading. Nobody pressed anything after the reload.',
     )
   },
 }

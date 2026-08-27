@@ -155,8 +155,8 @@ describe('popup tabs', () => {
   })
 
   /**
-   * The chips exist because the step grid is a long walk: at the default 0.05
-   * step, 1.0× to 2.0× is twenty presses. They reuse the ordinary set message,
+   * The chips exist because the step grid is a long walk: at the default 0.1
+   * step, 1.0× to 2.0× is ten presses. They reuse the ordinary set message,
    * so the service worker clamps them like any other.
    */
   it('jumps straight to a preset speed', async () => {

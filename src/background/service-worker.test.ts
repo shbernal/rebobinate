@@ -998,8 +998,8 @@ describe('the speed on the toolbar icon', () => {
 
     send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 })
 
-    expect(badgeText(7)).toBe('1.05')
-    expect(getChromeMock().action.badgeTitle(7)).toBe('Rebobinate — 1.05×')
+    expect(badgeText(7)).toBe('1.1')
+    expect(getChromeMock().action.badgeTitle(7)).toBe('Rebobinate — 1.1×')
   })
 
   // The number has to be right before the first keystroke, or a tab that came
@@ -1019,7 +1019,7 @@ describe('the speed on the toolbar icon', () => {
     const { send, chromeMock } = await loadBackground()
 
     send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 2 })
-    expect(badgeText(7)).toBe('2.05')
+    expect(badgeText(7)).toBe('2.1')
 
     chromeMock.tabs.onUpdated.emit(
       7,
@@ -1042,7 +1042,7 @@ describe('the speed on the toolbar icon', () => {
       { id: 7 } as chrome.tabs.Tab,
     )
 
-    expect(badgeText(7)).toBe('2.05')
+    expect(badgeText(7)).toBe('2.1')
   })
 
   // A tab's override outlives the service worker that wrote it, so switching
@@ -1053,7 +1053,7 @@ describe('the speed on the toolbar icon', () => {
     const { send, chromeMock } = await loadBackground()
 
     send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 })
-    expect(badgeText(7)).toBe('1.05')
+    expect(badgeText(7)).toBe('1.1')
 
     chromeMock.storage.local.set({
       [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, toolbarBadge: false },
@@ -1097,6 +1097,6 @@ describe('the speed on the toolbar icon', () => {
     })
 
     expect(badgeText()).toBe('1')
-    expect(badgeText(7)).toBe('1.05')
+    expect(badgeText(7)).toBe('1.1')
   })
 })

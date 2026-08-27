@@ -41,8 +41,8 @@ import {
 /** The site behind the panel, which is what the Sites tab lists under "This tab". */
 const SITE = 'player.test'
 
-/** Ten steps off 1.0× at the default 0.05, set the ordinary way: from the keyboard. */
-const PRESSES = 10
+/** Five steps off 1.0× at the default 0.1, set the ordinary way: from the keyboard. */
+const PRESSES = 5
 
 /** The chip reached for while the switch is off, and the speed it would set. */
 const PRESET = '2.0×'

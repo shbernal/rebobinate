@@ -49,12 +49,12 @@ export default {
       { name: 'playing' },
     )
 
-    // Three presses rather than one: a single step is 1.05x, and a caption that
+    // Three presses rather than one: a single step is 1.1x, and a caption that
     // rounds that to "faster" invites a critique of a step size nobody chose.
     await pressSpeed(video, '+', 3)
-    await assertMarker(video, 'marker', { shown: true, text: '1.15×' })
+    await assertMarker(video, 'marker', { shown: true, text: '1.3×' })
     await s.show(
-      'The person pressed the "+" key three times. A small marker has appeared in the top-left corner of the video, reading "1.15×" — how fast the talk is now playing. It is the only thing on screen saying the speed was changed at all.',
+      'The person pressed the "+" key three times. A small marker has appeared in the top-left corner of the video, reading "1.3×" — how fast the talk is now playing. It is the only thing on screen saying the speed was changed at all.',
       { name: 'marker' },
     )
 
@@ -64,7 +64,7 @@ export default {
     await video.waitForTimeout(2500)
     await assertMarker(video, 'gone', { shown: false })
     await s.show(
-      'Two seconds after that press, with nothing touched in between, the marker faded away by itself. The talk is still playing at 1.15×, and nothing on screen says so any more.',
+      'Two seconds after that press, with nothing touched in between, the marker faded away by itself. The talk is still playing at 1.3×, and nothing on screen says so any more.',
       { name: 'gone' },
     )
 
@@ -77,9 +77,9 @@ export default {
     await video.bringToFront()
     await pressSpeed(video, '+', 1)
     await video.waitForTimeout(4000)
-    await assertMarker(video, 'stays', { shown: true, text: '1.2×' })
+    await assertMarker(video, 'stays', { shown: true, text: '1.4×' })
     await s.show(
-      'The person opened the extension\'s panel — a popup over this page, which is why it is not in this picture — set "Hide after" to "Never", closed it, and pressed "+" once more. Four seconds later the marker is still in the corner, now reading "1.2×", and it will stay there.',
+      'The person opened the extension\'s panel — a popup over this page, which is why it is not in this picture — set "Hide after" to "Never", closed it, and pressed "+" once more. Four seconds later the marker is still in the corner, now reading "1.4×", and it will stay there.',
       { name: 'stays' },
     )
 
