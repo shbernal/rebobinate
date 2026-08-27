@@ -379,7 +379,34 @@ describe('popup with the extension switched off', () => {
 
     expect(screen.queryByText(/^Off\./)).toBeNull()
     expect(screen.getByRole('button', { name: 'Faster' })).toBeEnabled()
-    expect(screen.getByRole('status')).toHaveTextContent('1.5×')
+  })
+
+  /**
+   * Throwing the switch off drops the tab's speed in the service worker and
+   * puts the video back to 1.0×, so the number the popup was holding describes
+   * nothing by the time the switch comes back on. Asking again is the only way
+   * to find out, and the chip's pressed state comes along with it: it is
+   * derived from the same speed.
+   */
+  it('asks again for the speed when the switch goes back on', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByText(/^Off\./)
+
+    // What the service worker answers once the switch has cleared the tab:
+    // `tabSpeeds.get(tab.id) ?? 1`, with nothing left in the map.
+    answerPopupState('youtube.com', 1)
+    await act(async () => {
+      await user.click(screen.getByLabelText('Enabled'))
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent('1.0×')
+    expect(screen.getByRole('status')).not.toHaveTextContent('1.5')
+    expect(screen.getByRole('button', { name: '1.5×' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   })
 })
 

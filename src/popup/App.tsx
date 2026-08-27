@@ -165,10 +165,12 @@ const App = () => {
     setPaneSlack(0)
   }, [])
 
-  useEffect(() => {
-    readSettings(setSettings)
-    readDomains(setDomains)
-
+  /**
+   * Asks the service worker what this tab is doing. It is the only source for
+   * either value: the tab's speed lives in the worker's `tabSpeeds`, and the
+   * domain takes a `tabs.query` the popup cannot make for itself.
+   */
+  const readPopupState = useCallback(() => {
     chrome.runtime.sendMessage(
       { type: 'rebobinate:popup-state' } satisfies RuntimeMessage,
       (response?: SpeedResponse) => {
@@ -181,6 +183,12 @@ const App = () => {
         setDomain(response?.domain ?? null)
       },
     )
+  }, [])
+
+  useEffect(() => {
+    readSettings(setSettings)
+    readDomains(setDomains)
+    readPopupState()
 
     const stopSettings = onSettingsChange(setSettings)
     const stopDomains = onDomainsChange(setDomains)
@@ -189,7 +197,31 @@ const App = () => {
       stopSettings()
       stopDomains()
     }
-  }, [])
+  }, [readPopupState])
+
+  /**
+   * Throwing the master switch off makes the service worker drop the tab's
+   * speed — deliberately, so the next keystroke resumes from the video rather
+   * than from a parked number — and puts the video back to 1.0×. The number
+   * this component is holding survived that, so switching back on used to
+   * leave the readout naming the old speed and the preset chip for it still
+   * drawn as pressed, over a video at normal rate. Asking again is the only
+   * way to find out; the worker answers with the truth either way.
+   *
+   * The ref is because an effect runs on the first render too, and the mount
+   * effect above has already asked.
+   */
+  const wasEnabled = useRef(settings.enabled)
+
+  useEffect(() => {
+    const before = wasEnabled.current
+
+    wasEnabled.current = settings.enabled
+
+    if (settings.enabled && !before) {
+      readPopupState()
+    }
+  }, [settings.enabled, readPopupState])
 
   const save = useCallback((next: Settings) => {
     setSettings(next)

@@ -225,6 +225,19 @@ export default {
     // same background tab, with only the switch changed back.
     await master.click()
     await panel.waitForTimeout(1200)
+
+    // The readout comes back from the service worker rather than from the
+    // number the panel was holding before the pause: the tab's speed was
+    // dropped when the switch went off, so anything else would be a claim
+    // about a video that is at 1.0×.
+    const resumed = (await readout.textContent()) ?? ''
+
+    if (resumed !== '1.0×') {
+      throw new Error(
+        `the readout came back reading ${resumed} over a video the switch put at 1.0×`,
+      )
+    }
+
     await pressSpeed(video, '+', 1)
 
     const alive = await speedOf(video)
@@ -240,7 +253,7 @@ export default {
     }
 
     s.showVideo(
-      `The same visit as a recording, at real speed, filmed in a window the width of the panel; the page with the video on it is a separate tab and is never in frame. In order: the panel opens on the Speed tab showing ${showing}, which was set from the keyboard on that page; the "Enabled" switch at the very top is turned off, and the panel answers in three ways at once — a line appears between the title and the tabs, in a shaded band of its own, the readout drops its number for "${stillShowing}", and the whole Speed tab greys out — while off screen the video drops back to 1.0× and the keyboard stops answering, both measured; the Sites tab is visited and is entirely live, still listing this site at ${remembered}; the Settings tab is visited and is entirely live, still drawing a sample of a marker that is not currently on any video; back on the Speed tab the ${PRESET} chip cannot be pressed at all and the video stays at 1.0×; and finally the switch goes back on, the line goes away, the controls come back, and the same key that did nothing works again — stepping from 1.0× to ${alive}×, from where the video actually is rather than from where it was before the pause. What to watch is the line above the tabs, which stays put through all three tabs, and which parts of the panel go quiet and which deliberately do not.`,
+      `The same visit as a recording, at real speed, filmed in a window the width of the panel; the page with the video on it is a separate tab and is never in frame. In order: the panel opens on the Speed tab showing ${showing}, which was set from the keyboard on that page; the "Enabled" switch at the very top is turned off, and the panel answers in three ways at once — a line appears between the title and the tabs, in a shaded band of its own, the readout drops its number for "${stillShowing}", and the whole Speed tab greys out — while off screen the video drops back to 1.0× and the keyboard stops answering, both measured; the Sites tab is visited and is entirely live, still listing this site at ${remembered}; the Settings tab is visited and is entirely live, still drawing a sample of a marker that is not currently on any video; back on the Speed tab the ${PRESET} chip cannot be pressed at all and the video stays at 1.0×; and finally the switch goes back on, the line goes away, the controls come back reading "1.0×" rather than the ${showing} they were showing before the pause — because the pause put the video back to normal and the panel asks again rather than reprinting what it was holding — and the same key that did nothing works again — stepping from 1.0× to ${alive}×, from where the video actually is rather than from where it was before the pause. What to watch is the line above the tabs, which stays put through all three tabs, and which parts of the panel go quiet and which deliberately do not.`,
     )
   },
 }
