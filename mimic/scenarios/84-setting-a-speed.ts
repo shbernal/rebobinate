@@ -15,7 +15,11 @@ import { look, metaOf, openVideoPage, type Ctx } from '../page.ts'
  * beside it. A still taken before is a different screen from a still taken
  * after, and nothing in either says the panel changed on its own a second
  * later. That delay is deliberate and legible, and a judge should get to see it
- * arrive rather than be told about it.
+ * arrive rather than be told about it. The row is as tall as the button
+ * whether or not the button is in it, so what arrives is the control and not
+ * eight pixels of panel; that is asserted here rather than described, since a
+ * window growing under a hand that has stopped moving is the other thing only
+ * a recording can show.
  *
  * The second is the two ways to the same number. Six presets sit under a pair
  * of steppers, and 1.5× is one click on a chip or ten on the plus. A recording
@@ -29,7 +33,7 @@ import { look, metaOf, openVideoPage, type Ctx } from '../page.ts'
  * this scenario never leaves it.
  */
 
-/** The panel's own height, which grows when the receipt appears. */
+/** The panel's own height, which the arrival of the receipt is not allowed to move. */
 const panelHeight = (panel: Page): Promise<number> =>
   panel
     .locator('main.popup')
@@ -84,6 +88,10 @@ export default {
       { name: 'stepped', mustShow: readout },
     )
 
+    // Read while the line is still the promise, so the frame after this one
+    // can say whether the panel moved when the receipt landed in it.
+    const promised = await panelHeight(panel)
+
     // The service worker debounces the write by a second. Waited out rather
     // than slept past, so the caption below cannot describe a receipt that is
     // not there.
@@ -96,14 +104,20 @@ export default {
       throw new Error(`the receipt reads "${kept ?? ''}"`)
     }
 
+    const withReceipt = await panelHeight(panel)
+
+    if (withReceipt !== promised) {
+      throw new Error(
+        `the panel is ${withReceipt}px with the receipt in it and was ${promised}px with the promise, so it moved a second after the clicking stopped`,
+      )
+    }
+
     await look(
       s,
       panel,
-      `About a second after the last click, with nothing touched in between, the line at the foot rewrote itself. It now reads "${kept}" — a record of what is stored rather than a promise about what will be — and a Forget button has appeared beside it, which is the way to undo the thing the panel has just announced. The panel grew a little to fit it.`,
+      `About a second after the last click, with nothing touched in between, the line at the foot rewrote itself. It now reads "${kept}" — a record of what is stored rather than a promise about what will be — and a Forget button has appeared beside it, which is the way to undo the thing the panel has just announced. The panel is the same ${withReceipt}px it was: the row was already as tall as that button, so what arrives is the button and not a taller window.`,
       { name: 'kept', mustShow: forget },
     )
-
-    const withReceipt = await panelHeight(panel)
 
     // The same number the other way round, so the two routes are in one
     // recording rather than in two exhibits nobody compares.
@@ -129,7 +143,7 @@ export default {
     await panel.waitForTimeout(1200)
 
     s.showVideo(
-      `The same visit as a recording, at real speed, filmed in a window the width of the panel and a little over the height of this tab — the Speed tab is the shortest of the three and this scenario never leaves it, so the panel fills the frame bar a thin grey band along the bottom, which is the window it is being filmed in rather than the panel. In order: the panel opens showing 1.0× and an underlined line promising that speeds set here are kept for the site; the plus is clicked ten times and the readout walks up to 1.5× while that line stays a promise; then, a second after the clicking stops and with nothing touched, the line rewrites itself into a receipt naming 1.5× and a Forget button appears beside it, growing the panel to ${withReceipt}px. Forget is then pressed, which puts the promise back, and the 2.0× chip in the row of six is pressed once — one click to a number the plus took ten to reach — after which the receipt returns naming 2.0×. The thing to watch for is the delay: the receipt is always about a second behind the last click, and it arrives on its own.`,
+      `The same visit as a recording, at real speed, filmed in a window the width of the panel and a little over the height of this tab — the Speed tab is the shortest of the three and this scenario never leaves it, so the panel fills the frame bar a thin grey band along the bottom, which is the window it is being filmed in rather than the panel. In order: the panel opens showing 1.0× and an underlined line promising that speeds set here are kept for the site; the plus is clicked ten times and the readout walks up to 1.5× while that line stays a promise; then, a second after the clicking stops and with nothing touched, the line rewrites itself into a receipt naming 1.5× and a Forget button appears beside it, with the panel holding at the ${withReceipt}px it already was. Forget is then pressed, which puts the promise back, and the 2.0× chip in the row of six is pressed once — one click to a number the plus took ten to reach — after which the receipt returns naming 2.0×. The thing to watch for is the delay: the receipt is always about a second behind the last click, and it arrives on its own.`,
     )
   },
 }

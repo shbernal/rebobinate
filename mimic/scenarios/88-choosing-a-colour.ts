@@ -116,7 +116,7 @@ export default {
     await look(
       s,
       panel,
-      'The two colour rows in the block about the marker drawn over the video, scrolled up under that block\'s own header. The header has stopped at the top of the scrolling area and stays there: it carries the switch that turns the marker off and a live sample of the marker, drawn on a striped backdrop so that a white marker on it is still visible. Under it, "Text color" reads #ffffff and ends in a white square, and "Background color" reads #000000 and ends in a black one. Each square is a button, and each row prints its colour as a code as well as painting it, so a white square on a white panel is still legible as a value.',
+      'The two colour rows in the block about the marker drawn over the video, scrolled up under that block\'s own header. The header has stopped at the top of the scrolling area and stays there: it carries the switch that turns the marker off and a live sample of the marker, drawn on a striped backdrop so that a white marker on it is still visible. Under it, "Text color" reads #ffffff and ends in a white square, and "Background color" reads #000000 and ends in a black one. Each square is a button, and each row prints its colour as a code as well as painting it — in a monospaced face, the same one the picker\'s own box uses further down, so the two places the same code appears are set in the same type. A white square on a white panel is still legible as a value.',
       { name: 'colours', mustShow: backRow },
     )
 

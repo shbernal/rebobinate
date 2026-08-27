@@ -23,13 +23,21 @@ import {
  * judgement about a transition, and a still of the tab afterwards is a still of
  * a short tab.
  *
- * The collapse takes about 350px out of a 440px pane, and what it moves is not
- * the panel. Backup sits under this block and keeps the tab overflowing either
- * way, so the panel stays the height it was; the pane simply has less to scroll
- * and slides back, carrying the switch that was just clicked away from the top
- * of the pane and pulling controls from further up the tab into view. A click
- * that moves the view under the pointer is exactly the sort of thing a still
- * taken afterwards cannot report, so this scenario measures it and says so.
+ * The collapse takes about 330px out of a 440px pane, and the question that
+ * asks is what happens to the view. Backup sits under this block and keeps the
+ * tab overflowing either way, so the panel stays the height it was — but the
+ * pane is left with that much less to scroll, and the plain answer to that is
+ * the browser clamping the scroll position, which drags the switch that was
+ * just clicked a long way down the pane and pulls rows from further up the tab
+ * in above it. The panel pays for the collapse instead: it holds the vanished
+ * height as empty space at the foot of the pane, so the old scroll position is
+ * still a valid one and nothing moves, and it melts that space away as the
+ * pane is scrolled back up — so the cost is a stretch of bare pane under the
+ * last section on the tab, spent by one scroll, rather than a hole in the
+ * middle of it. A click that
+ * does or does not move the view under the pointer is exactly the sort of
+ * thing a still taken afterwards cannot report, so this scenario measures it
+ * and says so.
  *
  * The scenario changes two settings before it throws the switch, because the
  * question a person actually has here is not what disappears. It is whether
@@ -47,9 +55,39 @@ const blockHeight = (panel: Page): Promise<number> =>
     .locator('.badge-settings')
     .evaluate(node => Math.round(node.getBoundingClientRect().height))
 
-/** Where the pane is scrolled to, which one click here changes without being asked. */
+/** Where the pane is scrolled to, which one click here used to change unasked. */
 const paneScrollTop = (panel: Page): Promise<number> =>
   panel.locator('.pane').evaluate(pane => Math.round(pane.scrollTop))
+
+/**
+ * The empty space held at the foot of the pane to pay for the collapse, in
+ * pixels. It is nothing at rest, so its absence is as much a reading as its
+ * presence.
+ */
+const paneSlack = async (panel: Page): Promise<number> => {
+  const slack = panel.locator('.pane-slack')
+
+  return (await slack.count()) === 0
+    ? 0
+    : slack.evaluate(node => Math.round(node.getBoundingClientRect().height))
+}
+
+/** Wheeled back up to the top of the pane, the way the space at its foot is spent. */
+const wheelToTop = async (panel: Page): Promise<void> => {
+  await panel.mouse.move(160, 300)
+
+  for (let notch = 0; notch < 30; notch += 1) {
+    if ((await paneScrollTop(panel)) === 0) {
+      await panel.waitForTimeout(300)
+      return
+    }
+
+    await panel.mouse.wheel(0, -80)
+    await panel.waitForTimeout(90)
+  }
+
+  throw new Error('the pane never wheeled back to the top')
+}
 
 /** Whether the pane has more in it than it can show, which is what makes it scroll. */
 const overflows = (panel: Page): Promise<boolean> =>
@@ -137,15 +175,15 @@ export default {
 
     const wasBlock = await blockHeight(panel)
     const wasPanel = await panelHeight(panel)
-    const wasScroll = await paneScrollTop(panel)
+    const wasOffset = await offsetInPane(master)
 
     await master.click()
     await panel.waitForTimeout(700)
 
     const nowBlock = await blockHeight(panel)
     const nowPanel = await panelHeight(panel)
-    const nowScroll = await paneScrollTop(panel)
     const nowOffset = await offsetInPane(master)
+    const heldSlack = await paneSlack(panel)
 
     if (nowPanel !== wasPanel) {
       throw new Error(
@@ -159,9 +197,17 @@ export default {
       )
     }
 
-    if (nowScroll >= wasScroll) {
+    // The whole claim of the frame below: the control that was pressed is
+    // where it was pressed, to the pixel.
+    if (nowOffset !== wasOffset) {
       throw new Error(
-        `the pane was at ${wasScroll}px before the switch and ${nowScroll}px after, so it did not slide back`,
+        `the switch was ${wasOffset}px down the pane before the click and ${nowOffset}px after it`,
+      )
+    }
+
+    if (heldSlack <= 0) {
+      throw new Error(
+        'nothing is holding the foot of the pane open, so the scroll position that did not move is not the one being reported',
       )
     }
 
@@ -194,9 +240,28 @@ export default {
     await look(
       s,
       panel,
-      `The "On-video badge" switch has been turned off, and this is the whole of what is left of the block: the switch itself, and under it one line of small text reading "Size, colours and timing are kept." Gone at once are the sample from under the switch, the grid of corners, the two sliders, both colour rows, "Hide after", the switch about normal speed and the sentence that read the last two back. The block went from ${wasBlock}px to ${nowBlock}px. The panel is the same ${nowPanel}px it was — what sits under this block still fills the pane — but the view moved on its own: with ${wasBlock - nowBlock}px gone from the middle of the tab there was less left to scroll, so the pane slid back by ${wasScroll - nowScroll}px, taking the switch that was just clicked from the top of the scrolling area to ${nowOffset}px down it. What has arrived above it, unasked, is the foot of the block of keyboard shortcuts and the row for the number drawn on the extension's own toolbar icon. That row is a different marker in a different place and was not touched by any of this: it is still on.`,
+      `The "On-video badge" switch has been turned off, and this is the whole of what is left of the block: the switch itself, and under it one line of small text reading "Size, colours and timing are kept." Gone at once are the sample from under the switch, the grid of corners, the two sliders, both colour rows, "Hide after", the switch about normal speed and the sentence that read the last two back. The block went from ${wasBlock}px to ${nowBlock}px. Nothing else moved: the panel is the same ${nowPanel}px it was, and the switch that was clicked is still the top line of the scrolling area, ${nowOffset}px down it, exactly where it was when it was pressed. Underneath it the Backup section, which was already the last thing on the tab, has come up into view whole. That is bought rather than free, and the price is the bottom of this frame: ${wasBlock - nowBlock}px left the middle of the tab, the pane would have had that much less to scroll, and rather than let the view be dragged back to fill it the panel is holding ${heldSlack}px of bare pane under the Backup section. It is a temporary gap and not a permanent one — it shrinks as the pane is scrolled and is gone by the time the top of the tab is reached — so what is being chosen here is a stretch of empty pane that one scroll spends, over a view that slides under the hand that just clicked.`,
       { name: 'off', mustShow: master },
     )
+
+    // The other half of that claim, which no still can hold: the space at the
+    // foot is temporary. Wheeled rather than jumped, because melting it is
+    // what scrolling does.
+    await wheelToTop(panel)
+
+    const leftOver = await paneSlack(panel)
+
+    if (leftOver !== 0) {
+      throw new Error(
+        `${leftOver}px of empty space is still at the foot of the pane with it scrolled to the top`,
+      )
+    }
+
+    if (!(await overflows(panel))) {
+      throw new Error(
+        'the collapsed tab stopped overflowing once the held space was spent, so it is no longer the tab the frames above describe',
+      )
+    }
 
     await master.click()
     await panel.waitForTimeout(800)
@@ -230,7 +295,7 @@ export default {
     )
 
     s.showVideo(
-      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of its tallest tab, which is the one it is on throughout. In order: the Settings tab is picked and the pane scrolled down to the block about the marker over the video, whose header stops at the top of the scrolling area and holds a live sample; "Size" is walked from 14px to 30px and "Opacity" from 75% to 100%, the sample growing and solidifying as they go; the "On-video badge" switch at the top of the block is turned off, and the sample, the corner grid, both sliders, both colour rows, the dropdown, the second switch and the sentence at the foot all go at once, leaving the switch and a line of text under it, while the pane slides back by ${wasScroll - nowScroll}px under the pointer because there is that much less of the tab left to scroll; and the switch is turned back on, where all of it returns at the values it had. What to watch is the moment of the collapse — how much of the panel changes on one click, whether the one line left behind is enough to explain where the rest went, and where the person's eye is left afterwards.`,
+      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of its tallest tab, which is the one it is on throughout. In order: the Settings tab is picked and the pane scrolled down to the block about the marker over the video, whose header stops at the top of the scrolling area and holds a live sample; "Size" is walked from 14px to 30px and "Opacity" from 75% to 100%, the sample growing and solidifying as they go; the "On-video badge" switch at the top of the block is turned off, and the sample, the corner grid, both sliders, both colour rows, the dropdown, the second switch and the sentence at the foot all go at once, leaving the switch and a line of text under it — and the switch itself does not budge, because the panel holds ${heldSlack}px of bare pane under the Backup section rather than let the view slide back to fill the gap; the pane is then wheeled back up to the top of the tab and that bare stretch shrinks away as it goes, so it is a gap on the way out rather than a hole to scroll through; and the switch is turned back on, where all of it returns at the values it had. What to watch is the moment of the collapse — how much of the panel changes on one click, whether the one line left behind is enough to explain where the rest went, and whether the eye has to go looking for the switch afterwards.`,
     )
   },
 }

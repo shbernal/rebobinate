@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import type { BackupContents } from '@/shared/backup'
 import type { DomainStore } from '@/shared/domains'
 import type { KeyBindings } from '@/shared/keys'
@@ -63,6 +63,13 @@ type SettingsPaneProps = {
   /** Only for the backup panel, which exports the site list with the rest. */
   domains: DomainStore
   onImport: (contents: BackupContents) => void
+  /**
+   * Hands the shell the block that is about to stop taking up room, or `null`
+   * when one is about to come back. The pane is the shell's element and the
+   * scroll position is its property, so what a collapse costs is worked out
+   * there; this pane only knows when one is coming.
+   */
+  onHoldSlack: (block: HTMLElement | null) => void
 }
 
 const SettingsPane = ({
@@ -71,6 +78,7 @@ const SettingsPane = ({
   speed,
   domains,
   onImport,
+  onHoldSlack,
 }: SettingsPaneProps) => {
   /**
    * The step is typed digit by digit, and the halfway states are not valid
@@ -84,8 +92,27 @@ const SettingsPane = ({
   const [openColor, setOpenColor] = useState<ColorFieldKey | null>(null)
   const openField = COLOR_FIELDS.find(field => field.key === openColor)
 
+  /**
+   * The block the master switch below collapses, so that the collapse can be
+   * paid for before it happens.
+   *
+   * Turning the badge off hides eight of the block's nine children at once,
+   * which takes the pane's scroll range down with it and leaves the browser to
+   * clamp `scrollTop` — the switch the user just pressed slides down the pane
+   * and rows from further up the tab arrive above it. Handed over on the click
+   * and before the state changes, because this is the only moment the block is
+   * still the size it is about to stop being; the shell holds that much slack
+   * at the foot of the pane and melts it away on the next scroll.
+   */
+  const blockRef = useRef<HTMLElement>(null)
+
   const saveBadge = (patch: Partial<BadgeSettings>) => {
     save({ ...settings, badge: { ...settings.badge, ...patch } })
+  }
+
+  const setBadgeEnabled = (enabled: boolean) => {
+    onHoldSlack(enabled ? null : blockRef.current)
+    saveBadge({ enabled })
   }
 
   const saveKeys = (keys: KeyBindings) => {
@@ -162,7 +189,7 @@ const SettingsPane = ({
           section arrives, rather than covering it. The header leads the block
           for the same reason — a top-stuck element covers what has already
           scrolled past it, never a control being scrolled toward. */}
-      <section className="badge-settings">
+      <section className="badge-settings" ref={blockRef}>
         {/* The switch that governs the block travels with the sample rather
             than scrolling away under the tab strip: a master switch that is
             off screen while its block is being edited leaves no way to turn
@@ -177,7 +204,7 @@ const SettingsPane = ({
             <Toggle
               label="On-video badge"
               checked={settings.badge.enabled}
-              onChange={enabled => saveBadge({ enabled })}
+              onChange={setBadgeEnabled}
             />
           </section>
 
