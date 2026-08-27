@@ -346,10 +346,11 @@ const App = () => {
               domain !== null &&
               domains.entries[domain]?.never !== true
             }
-            /* The stored speed itself, so the receipt can name it. Read from
-               the same subscribed map the Sites tab follows, so it costs no
-               extra read and trails the readout by exactly the service
-               worker's debounce. */
+            /* Whether there is an entry to be a receipt about, read from the
+               same subscribed map the Sites tab follows. It picks the tense
+               rather than the figure: while the extension is on, the receipt
+               names the readout's speed, so the two cannot disagree across the
+               service worker's write debounce. */
             rememberedSpeed={
               domain !== null ? (domains.entries[domain]?.speed ?? null) : null
             }

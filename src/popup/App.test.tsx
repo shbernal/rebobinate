@@ -358,14 +358,20 @@ describe('popup with the extension switched off', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('1.5')
   })
 
-  // What is remembered for the site is still true and still applies the moment
-  // the switch goes back on, so the receipt stays.
-  it('keeps the per-site receipt', async () => {
-    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+  /**
+   * What is remembered for the site is still true and still applies the moment
+   * the switch goes back on, so the receipt stays — and it names the stored
+   * speed rather than the one the panel arrived holding. With the switch on
+   * the receipt follows the readout, because a write may be in its debounce;
+   * with it off nothing is pending and the readout has no number, so the
+   * stored figure is the only true one.
+   */
+  it('keeps the per-site receipt, at the speed that is stored', async () => {
+    seedDomains({ 'youtube.com': { speed: 1.25, updatedAt: 1 } })
     render(<App />)
 
     expect(
-      await screen.findByText('1.5× remembered for youtube.com'),
+      await screen.findByText('1.25× remembered for youtube.com'),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Forget' })).toBeEnabled()
   })
@@ -460,18 +466,59 @@ describe('popup speed tab receipt', () => {
   })
 
   /**
-   * The service worker debounces the write by a second, so the number here is
-   * the one in storage rather than the one on the readout above. Saying only
-   * "Remembered for youtube.com" made those two indistinguishable for that
-   * second, while claiming the memory was already current.
+   * The service worker debounces the write by a second. This line used to read
+   * the stored map, so for that second the panel printed one speed in the
+   * readout and a different one directly under it — on the one screen whose
+   * job is to say what speed this site plays at. The stored entry still picks
+   * the tense; the number is the readout's.
    */
-  it('names the stored speed, not the one the tab is at', async () => {
+  it('names the speed the tab is at, not the one still in the debounce', async () => {
     answerPopupState('youtube.com', 1.75)
     seedDomains({ 'youtube.com': { speed: 1.25, updatedAt: 1 } })
     render(<App />)
 
     expect(
-      await screen.findByText('1.25× remembered for youtube.com'),
+      await screen.findByText('1.75× remembered for youtube.com'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/1\.25× remembered/)).toBeNull()
+  })
+
+  // The same thing as it actually happens: a step, and no window in which the
+  // two lines disagree.
+  it('keeps the readout and the receipt on the same number through a step', async () => {
+    const user = userEvent.setup()
+    answerPopupState('youtube.com', 1.5)
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+
+    // The service worker's answer to an intent. Its write to the domain map is
+    // a second away and is not made here, which is exactly the window this is
+    // about.
+    getChromeMock().runtime.sendMessage.mockImplementation(
+      (message: unknown, callback?: (response?: unknown) => void) => {
+        const sent = message as { type?: string }
+
+        if (sent.type === 'rebobinate:popup-state') {
+          callback?.({ speed: 1.5, hasVideo: true, domain: 'youtube.com' })
+          return
+        }
+
+        if (sent.type === 'rebobinate:intent') {
+          callback?.({ speed: 1.6 })
+          return
+        }
+
+        callback?.()
+      },
+    )
+
+    render(<App />)
+    await screen.findByText('1.5× remembered for youtube.com')
+
+    await user.click(screen.getByRole('button', { name: 'Faster' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('1.6×')
+    expect(
+      screen.getByText('1.6× remembered for youtube.com'),
     ).toBeInTheDocument()
   })
 
