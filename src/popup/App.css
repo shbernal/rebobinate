@@ -1122,9 +1122,18 @@ hr {
   border-left: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
 }
 
+/* The panel's own selected treatment, the one the speed presets, the corner
+   buttons and the colour presets all use, rather than a second and louder
+   vocabulary for the same word. A solid `AccentColor` fill with
+   `AccentColorText` on it made this pair the loudest thing on any tab and had
+   readers taking the chosen half for a primary action — the button to press to
+   get on with it — when it is a statement of which way the slot is facing.
+   The weight is what keeps it legible at 11px now that the fill is a tint; the
+   note above still holds, since a tint is a fill and not an outline. */
 .backup-modes button[aria-pressed='true'] {
-  background: AccentColor;
-  color: AccentColorText;
+  background: color-mix(in srgb, AccentColor 18%, Canvas);
+  color: inherit;
+  font-weight: 600;
 }
 
 /* Inset, because the group clips its children to the shared radius and an
