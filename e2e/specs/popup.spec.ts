@@ -35,8 +35,8 @@ test.describe('popup', () => {
     await page.bringToFront()
     await popup.getByRole('button', { name: 'Faster' }).dispatchEvent('click')
 
-    await expect(popup.locator('.readout')).toHaveText('1.05×')
-    await expect.poll(() => rateOf(page)).toBeCloseTo(1.05, 3)
+    await expect(popup.locator('.readout')).toHaveText('1.1×')
+    await expect.poll(() => rateOf(page)).toBeCloseTo(1.1, 3)
 
     await popup.getByRole('button', { name: 'Reset' }).dispatchEvent('click')
 
@@ -99,7 +99,7 @@ test.describe('popup', () => {
     await page.bringToFront()
     await page.keyboard.press('u')
 
-    await expect.poll(() => rateOf(page)).toBeCloseTo(1.05, 3)
+    await expect.poll(() => rateOf(page)).toBeCloseTo(1.1, 3)
   })
 
   /**
@@ -175,7 +175,7 @@ test.describe('popup backup', () => {
     await pressSpeedKey(page, '+')
     await expect
       .poll(async () => (await rememberedSites())['player.test']?.speed)
-      .toBeCloseTo(1.05, 3)
+      .toBeCloseTo(1.1, 3)
 
     const popup = await openPopup()
     await openTab(popup, 'Settings')
@@ -278,7 +278,7 @@ test.describe('popup sites tab', () => {
     await pressSpeedKey(page, '+')
     await expect
       .poll(async () => (await rememberedSites())['player.test']?.speed)
-      .toBeCloseTo(1.05, 3)
+      .toBeCloseTo(1.1, 3)
 
     const popup = await openPopupOver(page, await openPopup())
     await popup.getByRole('tab', { name: 'Sites' }).dispatchEvent('click')
@@ -292,7 +292,7 @@ test.describe('popup sites tab', () => {
     // option, so its label contains this one as a substring.
     await expect(
       thisTab.getByLabel('Speed for player.test', { exact: true }),
-    ).toHaveValue('1.05')
+    ).toHaveValue('1.1')
   })
 
   // Chromium answers for the popup's own tab with no URL at all — the key is
@@ -312,7 +312,7 @@ test.describe('popup sites tab', () => {
     await pressSpeedKey(page, '+')
     await expect
       .poll(async () => (await rememberedSites())['player.test']?.speed)
-      .toBeCloseTo(1.05, 3)
+      .toBeCloseTo(1.1, 3)
 
     // Deliberately not handed back to the page. The popup asks once, on mount,
     // so it has to be brought to the front and re-mounted — opening it and
@@ -337,7 +337,7 @@ test.describe('popup sites tab', () => {
     await pressSpeedKey(first, '+')
     await expect
       .poll(async () => (await rememberedSites())['player.test']?.speed)
-      .toBeCloseTo(1.05, 3)
+      .toBeCloseTo(1.1, 3)
 
     const popup = await openPopup()
     await openTab(popup, 'Sites')

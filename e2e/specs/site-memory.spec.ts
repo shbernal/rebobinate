@@ -16,16 +16,16 @@ test.describe('per-site speed memory', () => {
 
     await pressSpeedKey(first, '+')
     await pressSpeedKey(first, '+')
-    expect(await rateOf(first)).toBeCloseTo(1.1, 3)
+    expect(await rateOf(first)).toBeCloseTo(1.2, 3)
 
     // The write is debounced, so wait for it rather than for a fixed delay.
     await expect
       .poll(async () => (await rememberedSites())[SITE]?.speed)
-      .toBeCloseTo(1.1, 3)
+      .toBeCloseTo(1.2, 3)
 
     const second = await openFixture('/simple')
 
-    await expect.poll(() => rateOf(second)).toBeCloseTo(1.1, 3)
+    await expect.poll(() => rateOf(second)).toBeCloseTo(1.2, 3)
   })
 
   test('starts a site it has not seen at the default speed', async ({
@@ -87,7 +87,7 @@ test.describe('per-site speed memory', () => {
     await pressSpeedKey(first, '+')
     await expect
       .poll(async () => (await rememberedSites())[SITE]?.speed)
-      .toBeCloseTo(1.05, 3)
+      .toBeCloseTo(1.1, 3)
 
     const embedder = await openFixture('/embedder')
     const frame = embedder.frameLocator('iframe')
@@ -98,7 +98,7 @@ test.describe('per-site speed memory', () => {
           return (video as HTMLVideoElement).playbackRate
         }),
       )
-      .toBeCloseTo(1.05, 3)
+      .toBeCloseTo(1.1, 3)
 
     expect(Object.keys(await rememberedSites())).toEqual([SITE])
   })

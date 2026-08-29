@@ -6,7 +6,7 @@ Control the playback speed of any video from the keyboard.
 - `-` slows it down
 - `0` returns to your default speed
 
-The step is 0.05 and you can change it. The toolbar icon carries the speed of
+The step is 0.1 and you can change it. The toolbar icon carries the speed of
 the tab you are on, and an optional badge shows it on the video itself, in the
 corner and style you pick.
 

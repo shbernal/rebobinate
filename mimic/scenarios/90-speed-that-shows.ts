@@ -26,9 +26,9 @@ import {
  * than something a judge has to feel.
  *
  * The recording is in three parts on purpose — normal, the climb, then fast —
- * because the middle is the honest part. Twenty presses is what the default
- * 0.05 step costs to reach 2.0×, the caption says twenty, and if that is too
- * many the judge should be free to say so.
+ * because the middle is the honest part. Ten presses is what the default 0.1
+ * step costs to reach 2.0×, the caption says ten, and if that is too many the
+ * judge should be free to say so.
  */
 export default {
   id: 'speed-that-shows',
@@ -52,18 +52,18 @@ export default {
       { name: 'normal' },
     )
 
-    // Twenty, because the step ships at 0.05 and 1.0 plus twenty steps is 2.0.
-    // Pressed one at a time rather than jumped, so the climb is on camera.
-    await pressSpeed(video, '+', 20)
+    // Ten, because the step ships at 0.1 and 1.0 plus ten steps is 2.0. Pressed
+    // one at a time rather than jumped, so the climb is on camera.
+    await pressSpeed(video, '+', 10)
 
     const reached = await speedOf(video)
     if (reached !== 2) {
-      throw new Error(`twenty presses of "+" landed on ${reached}×, not 2×`)
+      throw new Error(`ten presses of "+" landed on ${reached}×, not 2×`)
     }
 
     await assertMarker(video, 'doubled', { shown: true, text: '2.0×' })
     await s.show(
-      'The person pressed the "+" key twenty separate times, which is what the extension\'s default step of 0.05 costs to get from normal speed to double. The marker in the top-left corner of the video reads "2.0×" and the talk is now playing at twice its normal rate — from here the test page\'s counter underneath gains two seconds of video for every second that passes.',
+      'The person pressed the "+" key ten separate times, which is what the extension\'s default step of 0.1 costs to get from normal speed to double. The marker in the top-left corner of the video reads "2.0×" and the talk is now playing at twice its normal rate — from here the test page\'s counter underneath gains two seconds of video for every second that passes.',
       { name: 'doubled' },
     )
 
@@ -84,7 +84,7 @@ export default {
     )
 
     s.showVideo(
-      'The same visit as a recording of the page, at real speed, in three stretches. First about five seconds of the talk at its normal speed, during which the counter under it climbs by about one per second — that counter is the test page\'s, not the extension\'s, and it counts seconds of video played. Then the "+" key is pressed twenty times in a row, over roughly two seconds, and the marker in the top-left counts up as it goes. Then about six seconds at double speed, during which the marker disappears on its own and the counter climbs by about two per second instead of one. That change of rate is the whole claim: the same footage, the same real seconds, twice as much talk getting through. What the marker says is too small to read here — the pictures above are for that.',
+      'The same visit as a recording of the page, at real speed, in three stretches. First about five seconds of the talk at its normal speed, during which the counter under it climbs by about one per second — that counter is the test page\'s, not the extension\'s, and it counts seconds of video played. Then the "+" key is pressed ten times in a row, over about a second, and the marker in the top-left counts up as it goes. Then about six seconds at double speed, during which the marker disappears on its own and the counter climbs by about two per second instead of one. That change of rate is the whole claim: the same footage, the same real seconds, twice as much talk getting through. What the marker says is too small to read here — the pictures above are for that.',
     )
   },
 }

@@ -444,7 +444,7 @@ box.
 `src/popup/speeds.ts` holds the handful of speeds the popup offers directly:
 `SPEEDS`, behind the Sites pane's selects and the default speed, and
 `SPEED_PRESETS`, the chip row under the Speed pane's readout. The chips are a
-shortcut past the step grid — at the default 0.05 step, 1.0× to 2.0× is twenty
+shortcut past the step grid — at the default 0.1 step, 1.0× to 2.0× is ten
 presses — and they send the same `rebobinate:set` a frame does, so
 `resolveSpeed` clamps them like anything else. With a non-default step a chip
 can land off the grid; `stepSpeed` snaps back on the next press.

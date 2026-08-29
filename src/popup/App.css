@@ -938,7 +938,11 @@ hr {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* 6px rather than the block's own 8px. This is the one part of the tab that
+     is pinned, so every pixel in it is a pixel of pane the controls under it
+     do not get, and the "Preview" caption between the switch and the box costs
+     a line. Two tighter gaps give most of that back. */
+  gap: 6px;
   padding-bottom: 7px;
   margin-bottom: -8px;
   border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
@@ -1034,21 +1038,31 @@ hr {
   cursor: pointer;
 }
 
-/* Text that goes somewhere, so it is underlined and not made to look like a
-   button: the row's own button is the one on the receipt, and two buttons of
-   equal weight would be two offers rather than one. `.rule` sets the size and
-   the opacity; only what the UA gives a button is overridden here.
+/* Text that goes somewhere, so it is underlined and coloured and not made to
+   look like a button: the row's own button is the one on the receipt, and two
+   buttons of equal weight would be two offers rather than one. `.rule` sets
+   the size; only what the UA gives a button is overridden here.
 
    Solid, not dotted. A dotted underline is the abbr and tooltip convention,
    not the link one, and readers looking straight at this line read it as an
-   annotation on the domain and never tried it. The hover is the other half:
-   with only `:focus-visible` the pointer got no answer at all, so the line
-   brightens and its underline thickens under it. */
+   annotation on the domain and never tried it. The underline alone did not
+   carry it: the same reading came back after the switch to solid, so the
+   colour is the other half.
+
+   `LinkText` rather than a blue of our own. It is the system colour for
+   exactly this, and it joins the vocabulary the rest of the panel already
+   speaks — Canvas, CanvasText, AccentColor, Highlight — so it follows the
+   platform and both themes without a value to keep in step. The inherited 0.9
+   goes with it: a colour that means something should not be delivered muddied.
+
+   The hover thickens the underline. It used to brighten as well, back when the
+   line sat at 0.9 and had nowhere else to go. */
 .memory-link {
   padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: LinkText;
+  opacity: 1;
   text-align: left;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -1056,7 +1070,6 @@ hr {
 }
 
 .memory-link:hover {
-  opacity: 1;
   text-decoration-thickness: 2px;
 }
 
@@ -1113,9 +1126,18 @@ hr {
   border-left: 1px solid color-mix(in srgb, CanvasText 30%, transparent);
 }
 
+/* The panel's own selected treatment, the one the speed presets, the corner
+   buttons and the colour presets all use, rather than a second and louder
+   vocabulary for the same word. A solid `AccentColor` fill with
+   `AccentColorText` on it made this pair the loudest thing on any tab and had
+   readers taking the chosen half for a primary action — the button to press to
+   get on with it — when it is a statement of which way the slot is facing.
+   The weight is what keeps it legible at 11px now that the fill is a tint; the
+   note above still holds, since a tint is a fill and not an outline. */
 .backup-modes button[aria-pressed='true'] {
-  background: AccentColor;
-  color: AccentColorText;
+  background: color-mix(in srgb, AccentColor 18%, Canvas);
+  color: inherit;
+  font-weight: 600;
 }
 
 /* Inset, because the group clips its children to the shared radius and an
@@ -1137,21 +1159,41 @@ hr {
   min-height: 14px;
 }
 
-/* And the same for what follows it, which is where the section changes shape:
-   Export's two-line note, Import's price, and Import's price plus a preview
-   once a valid backup is pasted. Sized for the tallest of the three so a mode
-   switch, a bad paste and a good paste all land inside the box the section
-   already has. */
+/* What a restore costs, in the slot above the button that spends it. Reserved
+   at its own tallest, for the same reason the status line below is: the
+   sentence swaps between a price and a parse refusal on every keystroke in the
+   box, and an unreserved line would move the button under the pointer that is
+   about to press it.
+
+   28px is the two-line branch, measured — "You have no remembered sites to
+   lose" wraps at 296px where the counted branch does not — and that is the one
+   a fresh profile takes. */
+.backup-price {
+  min-height: 28px;
+}
+
+/* And the same for what follows the status line, which is where the rest of
+   the section's shape change lands: Export's two-line note, and Import's
+   preview of what a valid paste holds. Two reservations rather than one,
+   because the two halves are no longer the same shape — Import carries the
+   price slot above the button and Export does not, so a single figure here
+   would move the foot of the tab on the switch between them.
+
+   Import: 12px of preview, which with the 28px price and the 6px gap between
+   them comes to the 46px Export reserves on its own. Export: two lines of
+   note come to 24, and the rest is what keeps the two halves level. */
 .backup-foot {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  /* The tallest of the three, measured. The price is what sets it, and the
-     branch that sets it is the one a fresh profile takes: "You have no
-     remembered sites to lose" is two lines at 296px where the counted branch
-     is one, so 28px of price, the 6px gap and a 12px preview under it.
-     Export's two lines of note come to 24, and sit in the same box. */
+}
+
+.backup-foot-export {
   min-height: 46px;
+}
+
+.backup-foot-import {
+  min-height: 12px;
 }
 
 .backup-text {

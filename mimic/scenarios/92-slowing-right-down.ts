@@ -48,18 +48,18 @@ export default {
       { name: 'normal' },
     )
 
-    // Ten presses of the 0.05 step, from 1.0 down to 0.5. Half speed rather
+    // Five presses of the 0.1 step, from 1.0 down to 0.5. Half speed rather
     // than a nudge, because a nudge is not something a recording can show.
-    await pressSpeed(video, '-', 10)
+    await pressSpeed(video, '-', 5)
 
     const slowed = await speedOf(video)
     if (slowed !== 0.5) {
-      throw new Error(`ten presses of "-" landed on ${slowed}×, not 0.5×`)
+      throw new Error(`five presses of "-" landed on ${slowed}×, not 0.5×`)
     }
 
     await assertMarker(video, 'halved', { shown: true, text: '0.5×' })
     await s.show(
-      'The person pressed the "−" key ten times. The marker in the top-left corner reads "0.5×" and the talk is now playing at half its normal rate, slowly enough to watch something happen in it — from here the counter underneath gains one second of video for every two seconds that pass.',
+      'The person pressed the "−" key five times. The marker in the top-left corner reads "0.5×" and the talk is now playing at half its normal rate, slowly enough to watch something happen in it — from here the counter underneath gains one second of video for every two seconds that pass.',
       { name: 'halved' },
     )
 
@@ -77,14 +77,14 @@ export default {
 
     await assertMarker(video, 'reset', { shown: false })
     await s.show(
-      'The person pressed "0" once. The talk is back at its normal speed — not ten presses back up, one key from wherever it happened to be. The marker has gone from the corner as well, because the extension ships hiding it at normal speed, so apart from the counter having moved on this is the same picture the page started as.',
+      'The person pressed "0" once. The talk is back at its normal speed — not five presses back up, one key from wherever it happened to be. The marker has gone from the corner as well, because the extension ships hiding it at normal speed, so apart from the counter having moved on this is the same picture the page started as.',
       { name: 'reset' },
     )
 
     await video.waitForTimeout(3000)
 
     s.showVideo(
-      'The same visit as a recording of the page, at real speed. First about four seconds of the talk at its normal speed, during which the counter under it climbs by about one per second — that counter is the test page\'s, not the extension\'s, and it counts seconds of video played. Then the "−" key is pressed ten times and the marker counts down to 0.5×, and for the six seconds after that the counter climbs at about half its earlier rate: the same footage, getting through half as much talk per real second. Then "0" is pressed once, and in a single frame the counter goes back to climbing at its original rate and the marker disappears with it, because the extension ships hiding the marker at normal speed. What the marker says is too small to read here — the pictures above are for that.',
+      'The same visit as a recording of the page, at real speed. First about four seconds of the talk at its normal speed, during which the counter under it climbs by about one per second — that counter is the test page\'s, not the extension\'s, and it counts seconds of video played. Then the "−" key is pressed five times and the marker counts down to 0.5×, and for the six seconds after that the counter climbs at about half its earlier rate: the same footage, getting through half as much talk per real second. Then "0" is pressed once, and in a single frame the counter goes back to climbing at its original rate and the marker disappears with it, because the extension ships hiding the marker at normal speed. What the marker says is too small to read here — the pictures above are for that.',
     )
   },
 }

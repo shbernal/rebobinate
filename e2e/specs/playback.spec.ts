@@ -43,7 +43,7 @@ test.describe('real media playback', () => {
     openFixture,
     seedSettings,
   }) => {
-    // One press to 2x, instead of the twenty a 0.05 step would need.
+    // One press to 2x, instead of the ten a 0.1 step would need.
     await seedSettings({ step: 1 })
     const page = await openFixture('/playing')
 
@@ -67,7 +67,7 @@ test.describe('real media playback', () => {
     const page = await openFixture('/playing')
 
     await pressSpeedKey(page, '+')
-    expect(await rateOf(page)).toBeCloseTo(1.05, 3)
+    expect(await rateOf(page)).toBeCloseTo(1.1, 3)
 
     // Reloading `src` on the same element is how players change quality or
     // move to the next item, and Chromium really does drop the rate back to
@@ -98,6 +98,6 @@ test.describe('real media playback', () => {
         .evaluate(node => (node as HTMLVideoElement).videoHeight),
     ).toBe(180)
 
-    await expect.poll(() => rateOf(page)).toBeCloseTo(1.05, 3)
+    await expect.poll(() => rateOf(page)).toBeCloseTo(1.1, 3)
   })
 })

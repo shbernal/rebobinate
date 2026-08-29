@@ -22,7 +22,7 @@ import { look, metaOf, openVideoPage, type Ctx } from '../page.ts'
  * a recording can show.
  *
  * The second is the two ways to the same number. Six presets sit under a pair
- * of steppers, and 1.5× is one click on a chip or ten on the plus. A recording
+ * of steppers, and 1.5× is one click on a chip or five on the plus. A recording
  * of both in a row is the only honest way to ask whether the chips read as the
  * shortcut they are.
  *
@@ -66,16 +66,16 @@ export default {
       { name: 'opened', mustShow: promise },
     )
 
-    // Ten clicks on the plus, the long way to a number the row below reaches in
-    // one. Ten and not three, because the comparison is the point.
-    for (let click = 0; click < 10; click += 1) {
+    // Five clicks on the plus, the long way to a number the row below reaches in
+    // one. Five and not two, because the comparison is the point.
+    for (let click = 0; click < 5; click += 1) {
       await panel.getByRole('button', { name: 'Faster' }).click()
       await panel.waitForTimeout(90)
     }
 
     if ((await readout.textContent()) !== '1.5×') {
       throw new Error(
-        `ten clicks on the plus left the readout at ${await readout.textContent()}, not 1.5×`,
+        `five clicks on the plus left the readout at ${await readout.textContent()}, not 1.5×`,
       )
     }
 
@@ -84,7 +84,7 @@ export default {
     await look(
       s,
       panel,
-      'The plus has been clicked ten times, one after another, and the readout has walked up to "1.5×" — ten clicks, because the extension moves in steps of 0.05 out of the box. The line at the foot has not changed yet: it is still the underlined promise about speeds being kept for the site, with nothing beside it.',
+      'The plus has been clicked five times, one after another, and the readout has walked up to "1.5×" — five clicks, because the extension moves in steps of 0.1 out of the box. The line at the foot has not changed yet: it is still the underlined promise about speeds being kept for the site, with nothing beside it.',
       { name: 'stepped', mustShow: readout },
     )
 
@@ -136,14 +136,14 @@ export default {
     await look(
       s,
       panel,
-      'Forget was pressed, which dropped what had just been stored and put the promise back. Then the last chip in the row of six was pressed once: the readout went straight from 1.5× to "2.0×" in one click rather than the ten it would have taken on the plus, and the chip itself is now shown as the one in use. A second later the line at the foot has settled into a receipt again, this time naming 2.0×.',
+      'Forget was pressed, which dropped what had just been stored and put the promise back. Then the last chip in the row of six was pressed once: the readout went straight from 1.5× to "2.0×" in one click rather than the five it would have taken on the plus, and the chip itself is now shown as the one in use. A second later the line at the foot has settled into a receipt again, this time naming 2.0×.',
       { name: 'chip', mustShow: panel.locator('.speed-presets') },
     )
 
     await panel.waitForTimeout(1200)
 
     s.showVideo(
-      `The same visit as a recording, at real speed, filmed in a window the width of the panel and a little over the height of this tab — the Speed tab is the shortest of the three and this scenario never leaves it, so the panel fills the frame bar a thin grey band along the bottom, which is the window it is being filmed in rather than the panel. In order: the panel opens showing 1.0× and an underlined line promising that speeds set here are kept for the site; the plus is clicked ten times and the readout walks up to 1.5× while that line stays a promise; then, a second after the clicking stops and with nothing touched, the line rewrites itself into a receipt naming 1.5× and a Forget button appears beside it, with the panel holding at the ${withReceipt}px it already was. Forget is then pressed, which puts the promise back, and the 2.0× chip in the row of six is pressed once — one click to a number the plus took ten to reach — after which the receipt returns naming 2.0×. The thing to watch for is the delay: the receipt is always about a second behind the last click, and it arrives on its own.`,
+      `The same visit as a recording, at real speed, filmed in a window the width of the panel and a little over the height of this tab — the Speed tab is the shortest of the three and this scenario never leaves it, so the panel fills the frame bar a thin grey band along the bottom, which is the window it is being filmed in rather than the panel. In order: the panel opens showing 1.0× and an underlined line promising that speeds set here are kept for the site; the plus is clicked five times and the readout walks up to 1.5× while that line stays a promise; then, a second after the clicking stops and with nothing touched, the line rewrites itself into a receipt naming 1.5× and a Forget button appears beside it, with the panel holding at the ${withReceipt}px it already was. Forget is then pressed, which puts the promise back, and the 2.0× chip in the row of six is pressed once — one click to a number the plus took five to reach — after which the receipt returns naming 2.0×. The thing to watch for is the delay: the receipt is always about a second behind the last click, and it arrives on its own.`,
     )
   },
 }

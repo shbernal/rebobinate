@@ -29,7 +29,7 @@ test.describe('speed badge', () => {
     await pressSpeedKey(page, '+')
 
     await expect(badge(page)).toBeAttached()
-    await expect.poll(() => badgeText(page)).toBe('1.05×')
+    await expect.poll(() => badgeText(page)).toBe('1.1×')
 
     await expect.poll(() => badgeDisplay(page), { timeout: 5000 }).toBe('none')
   })
@@ -90,7 +90,7 @@ test.describe('speed badge', () => {
 
     await pressSpeedKey(page, '+')
 
-    expect(await rateOf(page)).toBeCloseTo(1.05, 3)
+    expect(await rateOf(page)).toBeCloseTo(1.1, 3)
     await expect(badge(page)).toHaveCount(0)
   })
 

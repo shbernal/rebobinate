@@ -22,11 +22,11 @@ import {
  * one continuous shot can.
  *
  * So the three things this films are all movement. The pointer going over the
- * line, where it brightens and its underline thickens under the cursor. The
- * click, where the panel changes tab and grows. And what is on screen at the
- * end of that — because landing at the top of a tab and having to look for the
- * row about the site you came from is a different design from landing with that
- * row in front of you, and only the arrival says which one this is.
+ * line, where its underline thickens under the cursor. The click, where the
+ * panel changes tab and grows. And what is on screen at the end of that —
+ * because landing at the top of a tab and having to look for the row about the
+ * site you came from is a different design from landing with that row in front
+ * of you, and only the arrival says which one this is.
  *
  * Then the return leg, which is what makes the link's destination matter: the
  * row that is now on screen is set to "Never remember", and back on Speed the
@@ -54,6 +54,10 @@ const linkPaint = (panel: Page) =>
       style: style.textDecorationStyle,
       thickness: style.textDecorationThickness,
       cursor: style.cursor,
+      color: style.color,
+      /* What everything else on the tab is set in, so the line's own colour
+         can be said to be a departure from it rather than merely named. */
+      around: getComputedStyle(node.parentElement as HTMLElement).color,
     }
   })
 
@@ -93,10 +97,16 @@ export default {
       )
     }
 
+    if (resting.color === resting.around) {
+      throw new Error(
+        `the line is set in ${resting.color}, the same colour as the text around it`,
+      )
+    }
+
     await look(
       s,
       panel,
-      'The panel on the Speed tab, over a site playing a talk, with nothing yet remembered for it. Under the row of six speeds is a single line of small text: "Speeds set here are kept for player.test". It is underlined — a solid underline, the whole width of the sentence — and it is the only thing on this tab that is neither a number, a button with a border, nor the grey key reminder at the foot.',
+      `The panel on the Speed tab, over a site playing a talk, with nothing yet remembered for it. Under the row of six speeds is a single line of small text: "Speeds set here are kept for player.test". It is underlined — a solid underline, the whole width of the sentence — and it is set in the system's own link colour, ${resting.color}, where every other word on the tab is ${resting.around}. It is the only thing on this tab that is neither a number, a button with a border, nor the grey key reminder at the foot.`,
       { name: 'line', mustShow: link },
     )
 
@@ -122,7 +132,7 @@ export default {
     await look(
       s,
       panel,
-      `The pointer has been moved over that line and nothing else has happened. The line answered: it is a shade brighter than it was, its underline has thickened from ${resting.thickness} to ${hovered.thickness}, and the cursor over it is the hand a link gets rather than the arrow the rest of the panel gets. It is a button, and this is the panel saying so before it is pressed.`,
+      `The pointer has been moved over that line and nothing else has happened. The line answered: its underline has thickened from ${resting.thickness} to ${hovered.thickness}, and the cursor over it is the hand a link gets rather than the arrow the rest of the panel gets. It is a button, and this is the panel saying so before it is pressed.`,
       { name: 'hover', mustShow: link },
     )
 
@@ -208,7 +218,7 @@ export default {
     )
 
     s.showVideo(
-      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of the taller of the two tabs it visits — so on Speed the grey band under the panel is the window, tinted so it is not read as the panel having an empty bottom. In order: the panel opens on Speed with an underlined line under the six speeds naming the site; the pointer moves onto that line and it brightens while its underline thickens, with no click yet; the line is clicked and the panel changes to the Sites tab and grows from ${onSpeed}px to ${onSites}px, arriving at the top of that tab with the row for that same site ${at}px down it; that row's dropdown is set to "Never remember"; and the Speed tab is picked again, where the line has gone entirely and the panel has shrunk to ${after}px. The thing to watch is the click: the line and the tab change are in one shot, so there is no gap in which the sentence could have been static text and the tab could have been picked by hand.`,
+      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height of the taller of the two tabs it visits — so on Speed the grey band under the panel is the window, tinted so it is not read as the panel having an empty bottom. In order: the panel opens on Speed with an underlined line under the six speeds naming the site, set in the system link colour rather than the panel's own text colour; the pointer moves onto that line and its underline thickens under the cursor, with no click yet; the line is clicked and the panel changes to the Sites tab and grows from ${onSpeed}px to ${onSites}px, arriving at the top of that tab with the row for that same site ${at}px down it; that row's dropdown is set to "Never remember"; and the Speed tab is picked again, where the line has gone entirely and the panel has shrunk to ${after}px. The thing to watch is the click: the line and the tab change are in one shot, so there is no gap in which the sentence could have been static text and the tab could have been picked by hand.`,
     )
   },
 }

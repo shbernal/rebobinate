@@ -160,10 +160,15 @@ const SettingsPane = ({
         />
       </section>
       {/* The buttons and the keys this governs are on another tab, so the
-          field is the only place that can say what it moves. The unit is not
-          appended inside the input: it is a numeric field with a draft state,
-          and a suffix would fight both. */}
-      <p className="note">How far + and − move the speed.</p>
+          field is the only place that can say what it moves. It names the
+          actions rather than the keys: "Faster" and "Slower" are the labels in
+          the Keys block underneath and the labels on the two steppers on the
+          Speed tab, so one wording covers the buttons, the keys and any
+          rebinding — where "+ and −" stops being true the moment somebody
+          binds something else. The unit is not appended inside the input: it
+          is a numeric field with a draft state, and a suffix would fight
+          both. */}
+      <p className="note">How far Faster and Slower move the speed.</p>
 
       <hr />
 
@@ -216,6 +221,16 @@ const SettingsPane = ({
               state, not a statement of what the badge will do. */}
           <p className="note" hidden={settings.badge.enabled}>
             Size, colours and timing are kept.
+          </p>
+
+          {/* What the striped box is. Without it the box is a badge reading
+              1.0× sitting at the top of the tab, and the sentence at the foot
+              of the block says the badge is hidden at 1.0× — so the block
+              contradicts itself and the reader is left deciding which half to
+              believe. Under the same `hidden` as the box it captions, so the
+              collapsed state is exactly what it was. */}
+          <p className="note" hidden={!settings.badge.enabled}>
+            Preview
           </p>
 
           {/* The sample's own size reaches the stylesheet, which sizes the box

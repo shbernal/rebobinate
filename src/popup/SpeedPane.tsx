@@ -27,8 +27,9 @@ type SpeedPaneProps = {
   remembered: boolean
   /**
    * The speed written down for it already, or null while nothing is — the
-   * difference between what will happen and what has. The number rather than a
-   * flag, because the receipt says which speed is stored.
+   * difference between what will happen and what has. It picks the tense, and
+   * it is the figure the receipt names while the master switch is off, when
+   * `speed` is a number this panel is not holding.
    */
   rememberedSpeed: number | null
   /** Drops the entry this pane has just said it wrote. */
@@ -105,8 +106,8 @@ const SpeedPane = ({
       </button>
     </section>
 
-    {/* A shortcut past the grid, not a replacement for it: at the default 0.05
-        step, walking from 1.0× to 2.0× on the buttons is twenty presses.
+    {/* A shortcut past the grid, not a replacement for it: at the default 0.1
+        step, walking from 1.0× to 2.0× on the buttons is ten presses.
 
         The chip that lands on the default speed is Reset under another name,
         so it sends what Reset sends. As an ordinary set it wrote an entry at
@@ -147,14 +148,27 @@ const SpeedPane = ({
         the rule is set for every site. A control appearing is also a louder
         change of state than a verb changing.
 
-        The receipt names the stored speed rather than only the site. The
-        service worker debounces the write by a second, so for that second the
-        number here trails the readout above — which is the honest reading of
-        what is stored, and makes the delay legible without a spinner. */}
+        The receipt names a speed rather than only the site, and while the
+        extension is on that speed is the readout's. The two used to be
+        different numbers: the service worker debounces the write by a second
+        and this line read the stored map, so for that second the panel printed
+        one speed above and another below it, on the one screen whose job is to
+        say what speed this site plays at. The write is the service worker's
+        timer and lands whether or not the popup survives it, so naming the
+        live speed is accurate a second early rather than wrong a second late.
+        What still waits for the write is the tense: the promise becomes a
+        receipt once there is a stored fact to report, which is what makes the
+        delay legible.
+
+        With the switch off the readout has no number to agree with and the
+        panel is holding a speed nothing is at, so the stored figure is the
+        only true one and the receipt goes back to naming it. Nothing is
+        pending down there either: the service worker refuses every intent
+        while the switch is off. */}
     {remembered && domain !== null ? (
       rememberedSpeed !== null ? (
         <section className="memory">
-          <p className="rule">{`${formatSpeedLabel(rememberedSpeed)} remembered for ${domain}`}</p>
+          <p className="rule">{`${formatSpeedLabel(enabled ? speed : rememberedSpeed)} remembered for ${domain}`}</p>
           <button
             type="button"
             className="forget"

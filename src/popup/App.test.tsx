@@ -155,8 +155,8 @@ describe('popup tabs', () => {
   })
 
   /**
-   * The chips exist because the step grid is a long walk: at the default 0.05
-   * step, 1.0× to 2.0× is twenty presses. They reuse the ordinary set message,
+   * The chips exist because the step grid is a long walk: at the default 0.1
+   * step, 1.0× to 2.0× is ten presses. They reuse the ordinary set message,
    * so the service worker clamps them like any other.
    */
   it('jumps straight to a preset speed', async () => {
@@ -358,14 +358,20 @@ describe('popup with the extension switched off', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('1.5')
   })
 
-  // What is remembered for the site is still true and still applies the moment
-  // the switch goes back on, so the receipt stays.
-  it('keeps the per-site receipt', async () => {
-    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+  /**
+   * What is remembered for the site is still true and still applies the moment
+   * the switch goes back on, so the receipt stays — and it names the stored
+   * speed rather than the one the panel arrived holding. With the switch on
+   * the receipt follows the readout, because a write may be in its debounce;
+   * with it off nothing is pending and the readout has no number, so the
+   * stored figure is the only true one.
+   */
+  it('keeps the per-site receipt, at the speed that is stored', async () => {
+    seedDomains({ 'youtube.com': { speed: 1.25, updatedAt: 1 } })
     render(<App />)
 
     expect(
-      await screen.findByText('1.5× remembered for youtube.com'),
+      await screen.findByText('1.25× remembered for youtube.com'),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Forget' })).toBeEnabled()
   })
@@ -379,7 +385,34 @@ describe('popup with the extension switched off', () => {
 
     expect(screen.queryByText(/^Off\./)).toBeNull()
     expect(screen.getByRole('button', { name: 'Faster' })).toBeEnabled()
-    expect(screen.getByRole('status')).toHaveTextContent('1.5×')
+  })
+
+  /**
+   * Throwing the switch off drops the tab's speed in the service worker and
+   * puts the video back to 1.0×, so the number the popup was holding describes
+   * nothing by the time the switch comes back on. Asking again is the only way
+   * to find out, and the chip's pressed state comes along with it: it is
+   * derived from the same speed.
+   */
+  it('asks again for the speed when the switch goes back on', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await screen.findByText(/^Off\./)
+
+    // What the service worker answers once the switch has cleared the tab:
+    // `tabSpeeds.get(tab.id) ?? 1`, with nothing left in the map.
+    answerPopupState('youtube.com', 1)
+    await act(async () => {
+      await user.click(screen.getByLabelText('Enabled'))
+    })
+
+    expect(screen.getByRole('status')).toHaveTextContent('1.0×')
+    expect(screen.getByRole('status')).not.toHaveTextContent('1.5')
+    expect(screen.getByRole('button', { name: '1.5×' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   })
 })
 
@@ -433,18 +466,59 @@ describe('popup speed tab receipt', () => {
   })
 
   /**
-   * The service worker debounces the write by a second, so the number here is
-   * the one in storage rather than the one on the readout above. Saying only
-   * "Remembered for youtube.com" made those two indistinguishable for that
-   * second, while claiming the memory was already current.
+   * The service worker debounces the write by a second. This line used to read
+   * the stored map, so for that second the panel printed one speed in the
+   * readout and a different one directly under it — on the one screen whose
+   * job is to say what speed this site plays at. The stored entry still picks
+   * the tense; the number is the readout's.
    */
-  it('names the stored speed, not the one the tab is at', async () => {
+  it('names the speed the tab is at, not the one still in the debounce', async () => {
     answerPopupState('youtube.com', 1.75)
     seedDomains({ 'youtube.com': { speed: 1.25, updatedAt: 1 } })
     render(<App />)
 
     expect(
-      await screen.findByText('1.25× remembered for youtube.com'),
+      await screen.findByText('1.75× remembered for youtube.com'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/1\.25× remembered/)).toBeNull()
+  })
+
+  // The same thing as it actually happens: a step, and no window in which the
+  // two lines disagree.
+  it('keeps the readout and the receipt on the same number through a step', async () => {
+    const user = userEvent.setup()
+    answerPopupState('youtube.com', 1.5)
+    seedDomains({ 'youtube.com': { speed: 1.5, updatedAt: 1 } })
+
+    // The service worker's answer to an intent. Its write to the domain map is
+    // a second away and is not made here, which is exactly the window this is
+    // about.
+    getChromeMock().runtime.sendMessage.mockImplementation(
+      (message: unknown, callback?: (response?: unknown) => void) => {
+        const sent = message as { type?: string }
+
+        if (sent.type === 'rebobinate:popup-state') {
+          callback?.({ speed: 1.5, hasVideo: true, domain: 'youtube.com' })
+          return
+        }
+
+        if (sent.type === 'rebobinate:intent') {
+          callback?.({ speed: 1.6 })
+          return
+        }
+
+        callback?.()
+      },
+    )
+
+    render(<App />)
+    await screen.findByText('1.5× remembered for youtube.com')
+
+    await user.click(screen.getByRole('button', { name: 'Faster' }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('1.6×')
+    expect(
+      screen.getByText('1.6× remembered for youtube.com'),
     ).toBeInTheDocument()
   })
 
@@ -1660,6 +1734,78 @@ describe('popup backup', () => {
       },
       expect.any(Function),
     )
+  })
+
+  /**
+   * The largest irreversible action in the product, made reversible with what
+   * the section already had: the export box is the serialization of what is
+   * live, and at the moment Replace settings is pressed it still describes
+   * what is about to be replaced.
+   */
+  it('puts back what a restore replaced', async () => {
+    const user = await openBackup('Import')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+        domains: {
+          schemaVersion: DOMAINS_SCHEMA_VERSION,
+          entries: { 'restored.example': { speed: 2, updatedAt: 3 } },
+        },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    expect(storedSettings().step).toBe(0.5)
+
+    await user.click(screen.getByRole('button', { name: 'Undo restore' }))
+
+    expect(storedSettings().step).toBe(0.25)
+    // The same road back: the snapshot goes through the same import the paste
+    // did, so the map is the service worker's to write either way.
+    expect(getChromeMock().runtime.sendMessage).toHaveBeenCalledWith(
+      {
+        type: 'rebobinate:import-domains',
+        store: {
+          schemaVersion: DOMAINS_SCHEMA_VERSION,
+          entries: { 'vimeo.com': { speed: 1.75, updatedAt: 7, never: false } },
+        },
+      },
+      expect.any(Function),
+    )
+    expect(backupStatus()).toHaveTextContent(
+      'Put back the settings and sites from before the restore.',
+    )
+    expect(screen.queryByRole('button', { name: 'Undo restore' })).toBeNull()
+  })
+
+  /**
+   * A place rather than a countdown, the rule the dropped row's Undo on the
+   * Sites tab already follows. Leaving the pair is leaving the place.
+   */
+  it('spends the undo when the pair is switched back to Import', async () => {
+    const user = await openBackup('Import')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    expect(
+      screen.getByRole('button', { name: 'Undo restore' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+
+    expect(screen.queryByRole('button', { name: 'Undo restore' })).toBeNull()
   })
 
   // The button that overwrites both stores is live exactly while there is

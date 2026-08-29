@@ -9,13 +9,13 @@ test.describe('keyboard speed controls', () => {
     const page = await openFixture('/simple')
 
     await pressSpeedKey(page, '+')
-    expect(await rateOf(page)).toBeCloseTo(1.05, 3)
-
-    await pressSpeedKey(page, '+')
     expect(await rateOf(page)).toBeCloseTo(1.1, 3)
 
+    await pressSpeedKey(page, '+')
+    expect(await rateOf(page)).toBeCloseTo(1.2, 3)
+
     await pressSpeedKey(page, '-')
-    expect(await rateOf(page)).toBeCloseTo(1.05, 3)
+    expect(await rateOf(page)).toBeCloseTo(1.1, 3)
 
     await pressSpeedKey(page, '0')
     expect(await rateOf(page)).toBeCloseTo(1, 3)
@@ -41,7 +41,7 @@ test.describe('keyboard speed controls', () => {
     await page.keyboard.press('+')
 
     await expect(page.locator('#search')).toHaveValue('+')
-    expect(await rateOf(page)).toBeCloseTo(1.05, 3)
+    expect(await rateOf(page)).toBeCloseTo(1.1, 3)
   })
 
   test('holds the speed when the site resets it', async ({ openFixture }) => {
@@ -54,7 +54,7 @@ test.describe('keyboard speed controls', () => {
       video.playbackRate = 1
     })
 
-    await expect.poll(() => rateOf(page)).toBeCloseTo(1.05, 3)
+    await expect.poll(() => rateOf(page)).toBeCloseTo(1.1, 3)
   })
 
   test('applies the speed to a video added after the page loaded', async ({
@@ -71,7 +71,7 @@ test.describe('keyboard speed controls', () => {
       document.body.append(replacement)
     })
 
-    await expect.poll(() => rateOf(page)).toBeCloseTo(1.05, 3)
+    await expect.poll(() => rateOf(page)).toBeCloseTo(1.1, 3)
   })
 
   test('finds a video inside a web component', async ({ openFixture }) => {
@@ -86,7 +86,7 @@ test.describe('keyboard speed controls', () => {
 
     await pressSpeedKey(page, '+', shadowRate)
 
-    expect(await shadowRate()).toBeCloseTo(1.05, 3)
+    expect(await shadowRate()).toBeCloseTo(1.1, 3)
   })
 
   test('reaches a player inside an iframe from the top frame', async ({
@@ -99,7 +99,7 @@ test.describe('keyboard speed controls', () => {
     await page.locator('h1').click()
     await pressSpeedKey(page, '+', embeddedRate)
 
-    expect(await embeddedRate()).toBeCloseTo(1.05, 3)
+    expect(await embeddedRate()).toBeCloseTo(1.1, 3)
   })
 
   test('leaves a page without video alone', async ({ openFixture }) => {

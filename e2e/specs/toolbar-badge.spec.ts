@@ -19,8 +19,8 @@ test.describe('the speed on the toolbar icon', () => {
 
     await pressSpeedKey(page, '+')
 
-    await expect.poll(async () => (await actionBadge(SIMPLE)).text).toBe('1.05')
-    expect((await actionBadge(SIMPLE)).title).toBe('Rebobinate — 1.05×')
+    await expect.poll(async () => (await actionBadge(SIMPLE)).text).toBe('1.1')
+    expect((await actionBadge(SIMPLE)).title).toBe('Rebobinate — 1.1×')
   })
 
   test('shows a remembered speed before the first keystroke', async ({
@@ -35,7 +35,7 @@ test.describe('the speed on the toolbar icon', () => {
     // nothing to remember until it lands.
     await expect
       .poll(async () => (await rememberedSites())['player.test']?.speed)
-      .toBeCloseTo(1.05, 3)
+      .toBeCloseTo(1.1, 3)
 
     await page.close()
 
@@ -43,7 +43,7 @@ test.describe('the speed on the toolbar icon', () => {
     // icon has to say so without the user touching anything.
     await openFixture('/simple')
 
-    await expect.poll(async () => (await actionBadge(SIMPLE)).text).toBe('1.05')
+    await expect.poll(async () => (await actionBadge(SIMPLE)).text).toBe('1.1')
   })
 
   test('shows the default on a tab it has never heard from', async ({

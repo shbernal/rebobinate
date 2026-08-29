@@ -96,6 +96,23 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
   const [mode, setMode] = useState<Mode>('export')
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<Status | null>(null)
+  /**
+   * The export of what was there a moment ago, held from the press of Replace
+   * settings until it is spent.
+   *
+   * A restore overwrites the settings and the whole site map at once, and by
+   * the time it happens the pair has been on Import long enough that the
+   * export the user might have kept is gone from the box. It is the largest
+   * irreversible action in the product, and it costs nothing to make it not
+   * one: `text` below is already the serialization of the live settings and
+   * domains, and at the moment `restore` runs it is still the pre-import
+   * snapshot.
+   *
+   * Spent on a mode change and on any edit to the draft, the same rule the
+   * dropped row's Undo in `SitesPane` follows: it is a place rather than a
+   * countdown, and the popup closing spends it too.
+   */
+  const [undoText, setUndoText] = useState<string | null>(null)
 
   const text = useMemo(
     () => serializeBackup(settings, domains),
@@ -137,6 +154,7 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
   const choose = (next: Mode) => {
     setMode(next)
     setStatus(null)
+    setUndoText(null)
   }
 
   const say = (text: string, rule = false) => setStatus({ text, rule })
@@ -161,12 +179,39 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
       return
     }
 
+    // Read before the write, while it still describes what is about to be
+    // replaced. `setMode` below does not spend it: `choose` is what carries
+    // that rule, and this is not a choice the user made.
+    setUndoText(text)
     onImport(parsed)
     setDraft('')
     // Back to Export rather than to nothing, which also leaves the freshly
     // restored settings on screen as the backup they now are.
     setMode('export')
     say(restoredNote(parsed), true)
+  }
+
+  /**
+   * The same road back, travelled by the same code: the snapshot goes through
+   * `parseBackup` and `onImport` exactly as a paste would, so an undo cannot
+   * write a shape a restore could not.
+   */
+  const undo = () => {
+    if (undoText === null) {
+      return
+    }
+
+    const snapshot = parseBackup(undoText)
+
+    setUndoText(null)
+
+    if (!snapshot.ok) {
+      say(snapshot.error)
+      return
+    }
+
+    onImport(snapshot)
+    say('Put back the settings and sites from before the restore.', true)
   }
 
   return (
@@ -213,9 +258,34 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
           aria-label="Backup to restore"
           placeholder="Paste a backup from Export on your other computer"
           value={draft}
-          onChange={event => setDraft(event.target.value)}
+          onChange={event => {
+            setDraft(event.target.value)
+            setUndoText(null)
+          }}
         />
       )}
+
+      {/* What pressing the button costs, in front of the button rather than
+          behind it. It used to print under "Replace settings", which is to say
+          under the press it was about — a warning a reader reaches after they
+          have spent the thing it warns about. A confirmation step is the wrong
+          shape here: on Gecko the popup autohides on focus loss, so an extra
+          step is another way to lose the paste. The order is the whole of it.
+
+          The refusal takes the same slot and is painted the way the key editor
+          paints its own, so the panel does not say no in the voice it says
+          how. */}
+      {mode === 'import' ? (
+        <p
+          className={
+            refusal === null
+              ? 'backup-price rule'
+              : 'backup-price rule rule-refused'
+          }
+        >
+          {refusal ?? replacesNote}
+        </p>
+      ) : null}
 
       <div className="backup-actions">
         {mode === 'export' ? (
@@ -234,6 +304,16 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
             Replace settings
           </button>
         )}
+
+        {/* Beside Copy rather than in a row of its own: the restore has
+            already flipped the pair back to Export, so this row is on screen
+            holding one button and the way back fits in it without the section
+            growing. */}
+        {undoText === null ? null : (
+          <button key="undo" type="button" onClick={undo}>
+            Undo restore
+          </button>
+        )}
       </div>
 
       {/* Directly under the button that fills it, and above the paragraph
@@ -248,14 +328,13 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
         {status?.text}
       </p>
 
-      {/* The foot, in a box sized for its tallest state. This section is the
-          last on the tallest tab, so every line that appears down here moves
-          the bottom edge of the popup itself — and the foot is where the
-          section changes shape most: two lines of explanation under Export,
-          one line of price under Import, a price and a preview once a valid
-          backup is pasted. Reserving the tallest is what makes copy, mode
-          switch, bad paste and good paste all land inside the same box. */}
-      <div className="backup-foot">
+      {/* The foot, in a box sized for whichever half is showing. This section
+          is the last on the tallest tab, so every line that appears down here
+          moves the bottom edge of the popup itself. Export's two lines of
+          explanation and Import's preview are different heights, and the price
+          above the button is a slot Export does not have at all, so the two
+          reservations are what keep the mode switch from moving the foot. */}
+      <div className={`backup-foot backup-foot-${mode}`}>
         {mode === 'export' ? (
           /* Names where the text goes, which is the half of the job the pair's
              two words do not say: this is a backup you paste into the other
@@ -267,24 +346,13 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
             your other computer.
           </p>
         ) : (
-          <>
-            {/* Why the button is dead, or what pressing it costs. A
-                confirmation step is the wrong shape here: on Gecko the popup
-                autohides on focus loss, so an extra step is another way to
-                lose the paste. The refusal is painted the way the key editor
-                paints its own, so the panel does not say no in the voice it
-                says how. */}
-            <p className={refusal === null ? 'rule' : 'rule rule-refused'}>
-              {refusal ?? replacesNote}
-            </p>
-
-            {/* What the paste is, under what replacing costs. Two tiers rather
-                than one sentence: a price and a preview read as one warning if
-                they are painted the same. Mounted empty rather than absent, so
-                the line it will need is already reserved and a valid paste
-                fills a slot instead of pushing the popup down. */}
-            <p className="note">{parsed.ok ? holdsNote(parsed) : ''}</p>
-          </>
+          /* What the paste is, as against what replacing costs, which is above
+             the button. Two tiers rather than one sentence: a price and a
+             preview read as one warning if they are painted the same. Mounted
+             empty rather than absent, so the line it will need is already
+             reserved and a valid paste fills a slot instead of pushing the
+             popup down. */
+          <p className="note">{parsed.ok ? holdsNote(parsed) : ''}</p>
         )}
       </div>
     </section>
