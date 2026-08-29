@@ -133,7 +133,10 @@ export default {
     const opacity = panel.locator('#badge-opacity')
     const autoHide = panel.locator('#badge-autohide')
     const rule = panel.locator('.badge-settings > .rule')
-    const kept = panel.locator('.badge-header > .note')
+    // By its words, not its place: the header holds two notes now — this one
+    // and the "Preview" caption over the sample — and they are never on screen
+    // together, which a positional selector cannot say.
+    const kept = panel.getByText('Size, colours and timing are kept.')
     const toolbar = panel.locator('.field').filter({ hasText: 'Toolbar badge' })
 
     // Far enough that the block's header sticks, which puts the whole block on
