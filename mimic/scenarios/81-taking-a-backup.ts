@@ -116,11 +116,11 @@ export default {
     const replace = panel.getByRole('button', { name: 'Replace settings' })
     const box = panel.locator('textarea.backup-text')
     // Not the status line, which earns the same tier once it has something to
-    // report: both are `.rule` after a restore.
-    const rule = panel.locator('.backup p.rule:not([role="status"])')
-    const preview = panel.locator(
-      '.backup p.rule:not([role="status"]) + p.note',
-    )
+    // report: both are `.rule` after a restore. The price sits above the
+    // button now, and the preview alone under it, so they are no longer
+    // adjacent and are found in their own slots.
+    const rule = panel.locator('.backup p.backup-price')
+    const preview = panel.locator('.backup .backup-foot p.note')
     const status = panel.locator('.backup p[role="status"]')
 
     await wheelToFoot(panel)
@@ -189,7 +189,7 @@ export default {
     await look(
       s,
       panel,
-      `"Import" has been pressed. The pair is one switch over one slot rather than two panels, so nothing opened underneath: the filled half moved from left to right and everything below it was replaced where it stood — the JSON is gone from the box, which now holds grey placeholder text reading "Paste a backup from Export on your other computer"; "Copy" has become "Replace settings", greyed out and unpressable; and the line under it is no longer about what the text is but about what pressing that button would cost: "${waiting.trim()}" There is nothing about what the box holds, because it holds nothing yet. The slot is exactly the same height it was, measured — Export's two lines of explanation and Import's one line of price are set in a box sized for the taller of the two, so the switch changes what the foot says without changing where the foot is. Nothing above the "Backup" heading moved either. The "${copied}" line from a moment ago has gone with the switch, so the only trace that anything was copied is that it is on the clipboard.`,
+      `"Import" has been pressed. The pair is one switch over one slot rather than two panels, so nothing opened underneath: the filled half moved from left to right and everything below it was replaced where it stood — the JSON is gone from the box, which now holds grey placeholder text reading "Paste a backup from Export on your other computer", and "Copy" has become "Replace settings", greyed out and unpressable. Between the box and that button a line has appeared saying what pressing it would cost: "${waiting.trim()}" It is above the button rather than below it, which is the only place a price can be read before it is paid. Under the button there is nothing yet about what the box holds, because it holds nothing. The tab is exactly the height it was, measured — Export's two lines of explanation at the foot and Import's price above the button with its preview slot below are reserved to the same total, so the switch changes what the section says without changing where its bottom edge is. Nothing above the "Backup" heading moved either. The "${copied}" line from a moment ago has gone with the switch, so the only trace that anything was copied is that it is on the clipboard.`,
       { name: 'import', mustShow: replace },
     )
 
@@ -218,7 +218,7 @@ export default {
     await look(
       s,
       panel,
-      `A paste that went wrong: the selection stopped part of the way down the text, so what landed in the box is the first ${Math.round(PARTIAL * 100)}% of the backup. The box has scrolled to where the paste ended and it looks full and ordinary — indented JSON, the same face as before — with the only sign of trouble at the very bottom, where the last line stops mid-word. "Replace settings" is still greyed out, and the line under it has changed from what a restore would cost to why there will not be one: "${complained}" — and it is red where the price was the panel's ordinary grey, which is the panel refusing in a different voice from the one it explains in. The line under it is the same length either way and the foot has not moved. It answered the paste itself; nothing was pressed to make it check, and there is no third state where the button is live and the press then fails.`,
+      `A paste that went wrong: the selection stopped part of the way down the text, so what landed in the box is the first ${Math.round(PARTIAL * 100)}% of the backup. The box has scrolled to where the paste ended and it looks full and ordinary — indented JSON, the same face as before — with the only sign of trouble at the very bottom, where the last line stops mid-word. "Replace settings" is still greyed out, and the line above it has changed from what a restore would cost to why there will not be one: "${complained}" — and it is red where the price was the panel's ordinary grey, which is the panel refusing in a different voice from the one it explains in. That line holds its place either way and the foot has not moved. It answered the paste itself; nothing was pressed to make it check, and there is no third state where the button is live and the press then fails.`,
       { name: 'half', mustShow: rule },
     )
 
@@ -248,7 +248,7 @@ export default {
     await look(
       s,
       panel,
-      `The paste has been done again, all of it this time. Nothing else was touched and no button was pressed, and three things under the box have changed together: "Replace settings" has come alive — it is a solid, pressable button rather than a grey one — the line beside it has gone back from the red complaint to the grey price, "${costs.trim()}", and a smaller line has appeared under that one, in the slot that was being held for it, saying what the paste actually holds: "${holds}" The two are in different sizes because they are different questions — one is what the press costs, the other is what it buys — and a backup carrying only one of the two stores says so here rather than nowhere. There is no "are you sure" after the press, deliberately, because this panel closes the instant anything outside it is clicked and a second step is one more way to lose the paste; the warning is put in front of the button instead of behind it.`,
+      `The paste has been done again, all of it this time. Nothing else was touched and no button was pressed, and three things around the box have changed together: "Replace settings" has come alive — it is a solid, pressable button rather than a grey one — the line above it has gone back from the red complaint to the grey price, "${costs.trim()}", and a smaller line has appeared below the button, in the slot that was being held for it, saying what the paste actually holds: "${holds}" The two are in different sizes because they are different questions — one is what the press costs, the other is what it buys — and they sit either side of the button for the same reason: the price is what a reader has to have before they press, the preview is what confirms afterwards that they pasted the right thing. A backup carrying only one of the two stores says so here rather than nowhere. There is no "are you sure" after the press, deliberately, because this panel closes the instant anything outside it is clicked and a second step is one more way to lose the paste; the warning is put in front of the button instead of behind it.`,
       { name: 'live', mustShow: replace },
     )
 
@@ -292,7 +292,7 @@ export default {
     )
 
     s.showVideo(
-      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height it tops out at; the Settings tab is taller than the window, which is why it is scrolled. In order: the Settings tab is picked and the pane wheeled all the way down to the "Backup" section at its foot; "Copy" is pressed and "${copied}" appears directly under the button; "Import" is pressed and the whole slot changes over in place — the JSON out of the box, the button from "Copy" to a dead "Replace settings", the line under it from what the text is to what replacing it costs, and the "${copied}" gone; a partial backup is pasted in and the button stays dead while the line under it turns red and reads "${complained}"; the whole backup is pasted over it and the button comes alive as the line goes back to the price, with a second, smaller line appearing under it to say what the paste holds; and it is pressed, leaving "${done}" under the button, the pair back on Export, and an "Undo restore" button beside "Copy" holding the way back to what was there a moment earlier. Through all of that the foot of the section stays at ${exportSlot}px from the top of the tab — every line that comes and goes down here is landing in a slot that was already held for it. The thing to watch is the second paste — the button and the two sentences beside it change on the text itself, with nothing pressed in between.`,
+      `The same visit as a recording, at real speed, filmed in a window the width of the panel and the height it tops out at; the Settings tab is taller than the window, which is why it is scrolled. In order: the Settings tab is picked and the pane wheeled all the way down to the "Backup" section at its foot; "Copy" is pressed and "${copied}" appears directly under the button; "Import" is pressed and the whole slot changes over in place — the JSON out of the box, the button from "Copy" to a dead "Replace settings", the explanation from a line under the button saying what the text is to a line above it saying what replacing it costs, and the "${copied}" gone; a partial backup is pasted in and the button stays dead while the line above it turns red and reads "${complained}"; the whole backup is pasted over it and the button comes alive as that line goes back to the price, with a second, smaller line appearing below the button to say what the paste holds; and it is pressed, leaving "${done}" under the button, the pair back on Export, and an "Undo restore" button beside "Copy" holding the way back to what was there a moment earlier. Through all of that the foot of the section stays at ${exportSlot}px from the top of the tab — every line that comes and goes down here is landing in a slot that was already held for it. The thing to watch is the second paste — the button and the two sentences either side of it change on the text itself, with nothing pressed in between.`,
     )
   },
 }
