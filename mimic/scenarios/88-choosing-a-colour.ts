@@ -101,11 +101,28 @@ export default {
      * when it opens decides whether the frame can show the rows and the panel
      * at once — which is the whole claim this scenario makes about it.
      */
+    const headerHeight = await panel
+      .locator('.badge-header')
+      .evaluate(node => Math.round(node.getBoundingClientRect().height))
+
     await wheelUntil(
       panel,
-      async () => (await offsetInPane(textRow)) <= 120,
+      async () => (await offsetInPane(textRow)) <= headerHeight + 26,
       'the colour rows, under the block header',
     )
+
+    // Under the header, not behind it. The stop used to be a flat 120px, which
+    // was that band measured against a shorter header — and when a line was
+    // added to the header the same number put the first row underneath it,
+    // where the frame's own caption stops being true.
+    const textAt = await offsetInPane(textRow)
+
+    if (textAt < headerHeight) {
+      throw new Error(
+        `the first colour row is behind the pinned header, not under it: ` +
+          `row at ${textAt} in a header ${headerHeight}px tall`,
+      )
+    }
 
     if (!(await pinned(panel))) {
       throw new Error(
@@ -121,14 +138,26 @@ export default {
     )
 
     const before = await paneContentHeight(panel)
+    const scrolledBefore = await panel
+      .locator('.pane')
+      .evaluate(pane => Math.round(pane.scrollTop))
     await panel.getByRole('button', { name: 'Text color', exact: true }).click()
     await panel.waitForTimeout(600)
 
     const grew = (await paneContentHeight(panel)) - before
 
     if (!(await insidePane(textRow)) || !(await insidePane(backRow))) {
+      // With the numbers, and with where the pane was standing. The rows only
+      // leave the frame if something moved them, and "a row is off screen"
+      // without saying whether the pane scrolled costs a whole re-capture to
+      // find out which.
       throw new Error(
-        'a colour row was pushed out of sight by the panel that opened under it',
+        `a colour row was pushed out of sight by the panel that opened under it: ` +
+          `text at ${await offsetInPane(textRow)}, background at ${await offsetInPane(backRow)}, ` +
+          `in a pane whose contents grew ${grew}px to ${await paneContentHeight(panel)}px, ` +
+          `scrolled from ${scrolledBefore} to ${await panel
+            .locator('.pane')
+            .evaluate(pane => Math.round(pane.scrollTop))}`,
       )
     }
 

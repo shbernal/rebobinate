@@ -909,6 +909,22 @@ hr {
   gap: 8px;
 }
 
+/* How much pinned header a row has to clear when the browser scrolls it into
+   view of its own accord. Clicking a swatch focuses it, and a focus the
+   browser has to reveal is one it scrolls to — with nothing said about the
+   header, a row tucked under it is one the browser cannot uncover, and it
+   overshoots by the length of the pane. Measured at 344px on a row 118px down
+   a 440px pane, which is the whole block leaving under the hand that clicked
+   it.
+
+   140px is the header at its tallest, measured: 112px around the default 14px
+   sample, and the box grows with the size slider to 48px. Larger than it needs
+   to be at the default costs nothing — it is room above the row, not a jump —
+   and smaller would leave the same overshoot at the top of the range. */
+.badge-settings > * {
+  scroll-margin-top: 140px;
+}
+
 /* Stuck to the top, and first in the block, because a top-stuck element only
    ever covers what has already scrolled past it — never Size, Opacity or the
    colour rows, which are the controls it is a header for.
