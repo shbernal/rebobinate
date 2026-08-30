@@ -52,6 +52,24 @@ export const PACE_MARGIN_MS = 1_000
 // should say so rather than sleep until tomorrow.
 export const MAX_PACE_WAIT_MS = 3_700_000
 
+// Only the long windows count as budget: a burst hold is seconds, and sitting
+// one out stalls nothing. What this answers is how much work can start now
+// without the run going to sleep for the rest of the hour.
+const SLOW_WINDOW_MS = 3_600_000
+
+export const budgetLeft = (history, now, limits) =>
+  Math.max(
+    0,
+    Math.min(
+      ...limits
+        .filter(rule => rule.windowMs >= SLOW_WINDOW_MS)
+        .map(
+          rule =>
+            rule.calls - history.filter(at => at > now - rule.windowMs).length,
+        ),
+    ),
+  )
+
 // `history` is the ascending list of times this process sent an unsafe call in
 // the given scope, including ones AMO rejected — those counted too.
 export const paceDelay = (history, now, limits) => {

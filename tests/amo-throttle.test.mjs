@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   FALLBACK_THROTTLE_WAIT_MS,
+  budgetLeft,
   MAX_PACE_WAIT_MS,
   PACE_MARGIN_MS,
   SCOPE_LIMITS,
@@ -88,6 +89,33 @@ describe('paceDelay', () => {
     expect(paceDelay(sentAgo(10, 1000), NOW, submission).waitMs).toBeLessThan(
       MAX_PACE_WAIT_MS,
     )
+  })
+})
+
+// What a release checks before starting preview work: how much can be done now
+// without the job going to sleep for the rest of the hour.
+describe('budgetLeft', () => {
+  it('is the whole allowance when nothing has been sent', () => {
+    expect(budgetLeft([], NOW, submission)).toBe(10)
+  })
+
+  it('counts what this run has already spent', () => {
+    expect(budgetLeft(sentAgo(3, 1000), NOW, submission)).toBe(7)
+  })
+
+  // A burst hold is seconds; deferring work over one would defer everything.
+  it('ignores the minute limit, which is a wait rather than a budget', () => {
+    expect(budgetLeft(sentAgo(3, 100), NOW, submission)).toBe(7)
+  })
+
+  it('takes the tightest of the long windows', () => {
+    const history = [...sentAgo(9, 80_000_000), ...sentAgo(9, 100)]
+
+    expect(budgetLeft(history, NOW, submission)).toBe(1)
+  })
+
+  it('does not go negative once a limit is spent', () => {
+    expect(budgetLeft(sentAgo(30, 1000), NOW, submission)).toBe(0)
   })
 })
 

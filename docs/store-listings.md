@@ -92,10 +92,10 @@ as multipart form-data only and refuses `icon` at add-on creation. Both are
 applied after the version is created, which is also when the add-on record first
 exists on a maiden submission.
 
-| Asset    | Endpoint                                   | When                        |
-| -------- | ------------------------------------------ | --------------------------- |
-| Icon     | `PATCH /addons/addon/{guid}/` (`icon`)     | when the file has changed   |
-| Previews | `POST`/`PATCH`/`DELETE .../previews/{id}/` | only with `--sync-previews` |
+| Asset    | Endpoint                                   | When                       |
+| -------- | ------------------------------------------ | -------------------------- |
+| Icon     | `PATCH /addons/addon/{guid}/` (`icon`)     | when the file has changed  |
+| Previews | `POST`/`PATCH`/`DELETE .../previews/{id}/` | when the manifest has, too |
 
 The icon is sent only when its bytes have changed since the last apply, or when
 AMO is still serving the placeholder — the lock cannot know an upload was
@@ -174,18 +174,31 @@ but `TranslationSerializerField` deserializes a dictionary only outside the
 carry a dictionary. Using v4 to get flat captions would cost the `position`
 field, which v4 removes.
 
-Because an unchanged listing now costs nothing, a sync is no longer something to
-keep away from a release hour.
+Because an unchanged listing now costs nothing, this runs on every release
+rather than as a step someone has to remember.
 
-### Why Previews Are Still Opt-In
+### What A Release Will And Will Not Do
 
-`--sync-previews` stays off by default because a sync is the only thing here
-that can delete a published image, and a screenshot changes about once a year.
-A release without it reconciles anyway and prints exactly what a sync would do —
-"in sync with amo/previews.json", or the counts and the call cost — so a
-screenshot change nobody synced cannot go quiet. `--dry-run` prints the same
-comparison against the lock, without AMO's side, since it makes no authenticated
-calls.
+A release applies the preview delta it can afford. Before starting, it asks how
+much of the hourly budget is left after what it has already spent — the version
+`PUT`, the source `PATCH`, and the icon if it changed — and defers if the work
+does not fit, printing what it would have done and the command that does it:
+
+```text
+previews: 3 uploads, 3 removals needs 9 calls and only 8 are left this hour
+— deferred. Run pnpm publish:amo --assets-only --sync-previews
+```
+
+In practice that only happens on a full replace, which means the lock does not
+account for what is published: a first sync, or a lock that was deleted or never
+committed. Everything a normal change produces — a re-worded caption, a
+reorder, a swapped screenshot — is a handful of calls and ships with the
+release. Only the minute limit is left to the pacer, since sitting out a
+twenty-second hold stalls nothing.
+
+`--sync-previews` overrides the deferral and does the whole plan, waiting out
+the throttle however long that takes. It is the flag for the standalone
+`--assets-only` run, where nothing is waiting on the job.
 
 Order in `amo/previews.json` is the display order. `position` is derived from
 the index rather than written out, so reordering the file reorders the listing.
@@ -196,12 +209,12 @@ listing.
 
 ### Repairing A Live Listing
 
-`pnpm publish:amo --assets-only` applies the icon if it has changed, and with
-`--sync-previews` whatever the previews need, to the add-on that already exists.
-It uploads no package and creates no version, which is what makes it usable
-between releases. AMO accepts
-both while a version sits in review, since they are add-on metadata rather than
-version metadata.
+`pnpm publish:amo --assets-only` applies whatever the icon and previews need to
+the add-on that already exists, and with `--sync-previews` it does so however
+long the throttle makes it wait. It uploads no package and creates no version,
+which is what makes it usable between releases, and it is where a full replace
+belongs. AMO accepts both while a version sits in review, since they are add-on
+metadata rather than version metadata.
 
 ## Before A Submission
 

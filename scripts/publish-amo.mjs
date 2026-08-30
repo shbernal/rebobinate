@@ -11,8 +11,10 @@ import crypto from 'node:crypto'
 import { printHelpAndExit } from './help.mjs'
 import {
   EMPTY_LOCK,
+  PREVIEWS_IN_SYNC,
   checkImageBytes,
-  describePreviewPlan,
+  describeDeferredPlan,
+  describeSyncStart,
   iconNeedsUpload,
   imageContentType,
   isPlanEmpty,
@@ -25,6 +27,7 @@ import {
 import {
   MAX_PACE_WAIT_MS,
   SCOPE_LIMITS,
+  budgetLeft,
   paceDelay,
   throttleScope,
   throttleWaitMs,
@@ -60,7 +63,7 @@ const dryRun = process.argv.includes('--dry-run')
 const checkOnly = process.argv.includes('--check')
 const validateOnly = process.argv.includes('--validate-only')
 const assetsOnly = process.argv.includes('--assets-only')
-const syncPreviews = process.argv.includes('--sync-previews')
+const forcePreviews = process.argv.includes('--sync-previews')
 
 const read = file => fs.readFileSync(path.resolve(root, file), 'utf8')
 const readJson = file => JSON.parse(read(file))
@@ -73,9 +76,10 @@ Usage: pnpm publish:amo [--dry-run | --check | --validate-only | --assets-only]
 
 Submits the built Firefox package to addons.mozilla.org against API v5: uploads
 the package, waits for server-side validation, creates the version, attaches the
-source archive, then applies the listing icon if it has changed. A listed
-submission is queued for human review, so a successful run ends with the add-on
-nominated, not public.
+source archive, then brings the listing icon and previews in line with the
+repository. Only what has changed is sent, against ${ASSET_LOCK}, so a
+listing that already matches costs nothing. A listed submission is queued for
+human review, so a successful run ends with the add-on nominated, not public.
 
 Unsafe calls are paced against AMO's per-account limits (3/minute, 10/hour,
 24/day, shared with every other extension published from this account) so a run
@@ -89,14 +93,14 @@ Flags
   --validate-only  upload through AMO's real validator without creating a
                    version; nothing is submitted and the add-on id is not
                    claimed
-  --assets-only    apply the listing icon and, with --sync-previews, the
-                   previews to the existing add-on; submits no version
-  --sync-previews  bring the published previews in line with
-                   ${PREVIEW_MANIFEST}. Only what changed is sent, against
-                   ${ASSET_LOCK}; an unchanged listing costs
-                   nothing. Off by default, so a run without it reports what a
-                   sync would do instead of doing it. Delete the lock file to
-                   force a full replace
+  --assets-only    apply the icon and previews to the existing add-on; submits
+                   no version
+  --sync-previews  apply the previews even when the work does not fit in the
+                   hour's remaining budget, waiting out the throttle. Without
+                   it, a plan that large — in practice a full replace, because
+                   ${ASSET_LOCK} does not account for what is
+                   published — is reported and deferred rather than stalling a
+                   release. Delete the lock file to force a full replace
   --help, -h       show this text
 
 Environment
@@ -489,8 +493,8 @@ const uploadIcon = async () => {
 // What is sent is a delta: the lock says which published preview came from
 // which file and with what bytes, AMO's own response says which of those still
 // exist and what captions and positions they carry, and only the difference is
-// written. A listing that already matches costs nothing, which is what makes a
-// sync safe to run in the same hour as a release.
+// written. A listing that already matches costs nothing, which is what makes
+// this safe to do on every release rather than as a remembered extra step.
 const applyListingAssets = async addon => {
   const lock = readLock()
   const iconDigest = digestOf(ICON)
@@ -509,20 +513,27 @@ const applyListingAssets = async addon => {
   )
   const plan = planPreviewSync(addon.previews ?? [], manifest, lock, digests)
 
-  if (!syncPreviews) {
-    console.log(describePreviewPlan(plan))
-    return
-  }
-
   if (isPlanEmpty(plan)) {
-    console.log('previews: already in sync, nothing to send')
+    console.log(PREVIEWS_IN_SYNC)
     return
   }
 
   // Every call below is an unsafe method on the add-on, so all of them draw on
-  // the same 10/hour budget as the release itself. Saying the count up front is
-  // the difference between a paced run and one that looks hung.
-  console.log(`syncing previews in ${planCalls(plan)} throttled calls`)
+  // the same 10/hour budget the release itself spends from. What fits is done
+  // here; what does not is deferred rather than parking a release job on a
+  // throttle wait, unless the run asked for it outright.
+  const budget = budgetLeft(
+    sent.submission,
+    Date.now(),
+    SCOPE_LIMITS.submission,
+  )
+
+  if (!forcePreviews && planCalls(plan) > budget) {
+    console.log(describeDeferredPlan(plan, budget))
+    return
+  }
+
+  console.log(describeSyncStart(plan))
 
   const ids = new Map(lock.previews.map(row => [row.file, row.id]))
 

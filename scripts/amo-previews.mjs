@@ -178,24 +178,30 @@ export const isPlanEmpty = plan => planCalls(plan) === 0
 
 const countOf = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`
 
-export const describePreviewPlan = plan => {
-  if (isPlanEmpty(plan)) {
-    return 'previews: in sync with amo/previews.json'
-  }
+export const PREVIEWS_IN_SYNC = 'previews: in sync with amo/previews.json'
 
-  const work = [
-    plan.uploads.length > 0 && `${countOf(plan.uploads.length, 'upload')}`,
-    plan.patches.length > 0 &&
-      `${countOf(plan.patches.length, 'metadata fix')}`,
-    plan.deletes.length > 0 && `${countOf(plan.deletes.length, 'removal')}`,
-  ].filter(Boolean)
+export const describePlanWork = plan =>
+  [
+    plan.uploads.length > 0 && countOf(plan.uploads.length, 'upload'),
+    plan.patches.length > 0 && countOf(plan.patches.length, 'metadata fix'),
+    plan.deletes.length > 0 && countOf(plan.deletes.length, 'removal'),
+  ]
+    .filter(Boolean)
+    .join(', ')
 
-  return (
-    `previews: out of sync — ${work.join(', ')} ` +
-    `(${countOf(planCalls(plan), 'call')}). ` +
-    'Run pnpm publish:amo --assets-only --sync-previews'
-  )
-}
+export const describeSyncStart = plan =>
+  `syncing previews: ${describePlanWork(plan)} in ` +
+  countOf(planCalls(plan), 'call')
+
+// Printed when a release finds more preview work than the hour has room for,
+// which in practice means a full replace: the lock does not account for what is
+// published, so every image has to go up again. That is a deliberate act, not
+// something a release should stall an hour on, so it is handed back as a
+// command to run on its own.
+export const describeDeferredPlan = (plan, budget) =>
+  `previews: ${describePlanWork(plan)} needs ` +
+  `${countOf(planCalls(plan), 'call')} and only ${budget} are left this hour ` +
+  '— deferred. Run pnpm publish:amo --assets-only --sync-previews'
 
 // The listing icon has no id to reconcile against, so the digest is the whole
 // check — with one exception. If AMO is still serving its placeholder then no

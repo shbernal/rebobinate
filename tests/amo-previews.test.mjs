@@ -5,7 +5,8 @@ import {
   EMPTY_LOCK,
   MAX_IMAGE_BYTES,
   checkImageBytes,
-  describePreviewPlan,
+  describeDeferredPlan,
+  describeSyncStart,
   iconNeedsUpload,
   imageContentType,
   isPlanEmpty,
@@ -253,23 +254,35 @@ describe('planPreviewSync', () => {
   })
 })
 
-describe('describePreviewPlan', () => {
-  it('says so plainly when there is nothing to do', () => {
-    const plan = planPreviewSync(remoteSynced, valid, synced, digests)
+describe('describeSyncStart', () => {
+  it('counts the work, in the singular where there is one of it', () => {
+    const reworded = [valid[0], preview('store/screenshots/b.png', 'clearer')]
+    const plan = planPreviewSync(remoteSynced, reworded, synced, digests)
 
-    expect(describePreviewPlan(plan)).toBe(
-      'previews: in sync with amo/previews.json',
+    expect(describeSyncStart(plan)).toBe(
+      'syncing previews: 1 metadata fix in 1 call',
     )
   })
+})
 
-  it('counts the work and names the command that does it', () => {
-    const line = describePreviewPlan(
-      planPreviewSync([], valid, EMPTY_LOCK, digests),
-    )
+describe('describeDeferredPlan', () => {
+  // The case that reaches it is the expensive one: nothing recorded, so every
+  // image goes up again and the ones already published come down.
+  it('says what the work is, what it costs, and who should do it', () => {
+    const plan = planPreviewSync(remoteSynced, valid, EMPTY_LOCK, digests)
+    const line = describeDeferredPlan(plan, 3)
 
-    expect(line).toContain('2 uploads')
-    expect(line).toContain('4 calls')
+    expect(planCalls(plan)).toBe(6)
+    expect(line).toContain('2 uploads, 2 removals')
+    expect(line).toContain('needs 6 calls and only 3 are left this hour')
     expect(line).toContain('--sync-previews')
+  })
+
+  it('counts one of a thing as one', () => {
+    const changed = new Map(digests).set('store/screenshots/a.png', 'zzz')
+    const plan = planPreviewSync(remoteSynced, valid, synced, changed)
+
+    expect(describeDeferredPlan(plan, 0)).toContain('1 upload, 1 removal')
   })
 })
 
