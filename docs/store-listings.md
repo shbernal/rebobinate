@@ -204,6 +204,11 @@ a 4-space indented block for commands, which renders as code in the doc and
 arrives as plain indentation. Headings are labels rather than answers, so they
 keep their Markdown.
 
+A form field keeps every newline it is given, so an answer that is hard-wrapped
+in the source arrives in the field ragged. Answer paragraphs are therefore
+written as one unwrapped line each, whatever their length; the prose around them
+wraps normally.
+
 ## Source Archive (AMO Only)
 
 AMO requires the source of any bundled add-on, and reviewers rebuild it and diff

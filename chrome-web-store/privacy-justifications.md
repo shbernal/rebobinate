@@ -10,40 +10,26 @@ goes into a plain-text form field verbatim. Keep it free of Markdown — no
 backticks, emphasis, blockquotes, or lists — so nothing reaches the reviewer as
 stray punctuation. Headings are labels, not answers, so they may keep their
 markup, and anything explaining an answer belongs in a section that is never
-pasted.
+pasted. Each answer is one unwrapped line, however long, because a form field
+keeps the newlines it is given and a hard-wrapped paragraph arrives ragged.
 
 Last reviewed against `manifest.config.ts` at version 0.2.0.
 
 ## Single Purpose
 
-Rebobinate has one purpose: to let the user change the playback speed of videos
-on web pages, from the keyboard or from the extension popup, and to show the
-current speed on the video and on the toolbar icon.
+Rebobinate has one purpose: to let the user change the playback speed of videos on web pages, from the keyboard or from the extension popup, and to show the current speed on the video and on the toolbar icon.
 
 ## Permission: `storage`
 
-The extension stores the user's own preferences in local extension storage so
-they persist between sessions: the speed increment, the keyboard bindings, and
-the appearance of the on-video speed badge. It also stores the playback speed
-the user chose on a site, so the same speed applies on the next visit. That
-per-site memory is keyed by domain, is written only when the user changes the
-speed on that site, holds at most 500 entries, and can be switched off or
-cleared from the popup. No other data is stored, and nothing is written to a
-remote service.
+The extension stores the user's own preferences in local extension storage so they persist between sessions: the speed increment, the keyboard bindings, and the appearance of the on-video speed badge. It also stores the playback speed the user chose on a site, so the same speed applies on the next visit. That per-site memory is keyed by domain, is written only when the user changes the speed on that site, holds at most 500 entries, and can be switched off or cleared from the popup. No other data is stored, and nothing is written to a remote service.
 
 ## Host Permission: `<all_urls>`
 
-Videos are not confined to a list of sites: a user may want to change the
-playback speed of a video on any page, including players embedded in iframes on
-third-party sites. The content script runs only to find video elements, set
-their playbackRate, and draw the optional speed badge over them. It does not
-read page content, cookies, form fields, or any personal data, and it sends
-nothing anywhere.
+Videos are not confined to a list of sites: a user may want to change the playback speed of a video on any page, including players embedded in iframes on third-party sites. The content script runs only to find video elements, set their playbackRate, and draw the optional speed badge over them. It does not read page content, cookies, form fields, or any personal data, and it sends nothing anywhere.
 
 ## Remote Code
 
-No. The extension executes no remote code. All scripts are bundled in the
-package.
+No. The extension executes no remote code. All scripts are bundled in the package.
 
 ## Data Usage Disclosures
 
@@ -53,9 +39,7 @@ Check nothing. The extension collects and transmits no user data:
 - no health, financial, or authentication information;
 - no personal communications;
 - no location;
-- no web history — the extension does not record which sites the user visits.
-  The per-site speed memory saves a domain only when the user changes the speed
-  on it, stays in local extension storage, and is never transmitted;
+- no web history — the extension does not record which sites the user visits. The per-site speed memory saves a domain only when the user changes the speed on it, stays in local extension storage, and is never transmitted;
 - no user activity — the extension does not log clicks, keystrokes, or views;
 - no website content — page content is never read or copied.
 
