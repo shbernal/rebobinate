@@ -58,15 +58,20 @@ _before_ building (so the archive cannot pick up build output), builds and zips
 the Firefox package, lints it, then runs `scripts/publish-amo.mjs`, which
 uploads the package, waits for AMO validation, creates the version with the
 reviewer notes from `amo/source-submission.md`, re-applies `amo/listing.json`
-and `store/description.txt`, attaches the source archive, and reapplies the
-listing icon.
+and `store/description.txt`, attaches the source archive, and applies the
+listing icon if it has changed.
 
-The listing screenshots are not reapplied on a release. A sync replaces every
-published preview and is throttled hard enough to stall a release, so it is a
-separate `pnpm publish:amo --assets-only --sync-previews` run — see
-[Store Listings](./store-listings.md#preview-writes-are-throttled-hard). Each
-release prints how far the published previews have drifted from
-`amo/previews.json`, so a screenshot change nobody synced stays visible.
+Every unsafe call is paced against AMO's per-account limits, which are shared
+with the other extensions published from this account. A release spends three of
+the ten an hour; the package upload is a separate scope and does not compete.
+
+The listing screenshots are not applied on a release. Only a sync can delete a
+published image, so it stays a separate `pnpm publish:amo --assets-only
+--sync-previews` run — see
+[Store Listings](./store-listings.md#writes-are-throttled-hard). Each release
+reconciles them anyway and prints what a sync would do, so a screenshot change
+nobody synced stays visible. It no longer has to avoid a release hour: only what
+changed is sent, so an unchanged listing costs nothing.
 
 Required secrets: `MOZILLA_ADDON_JWT_ISSUER`, `MOZILLA_ADDON_JWT_SECRET`. They
 are account-scoped, so they are the same values used by the other extensions

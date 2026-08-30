@@ -46,15 +46,22 @@ catch, and both are explained in [Build Targets](./build-targets.md):
   comments before scanning, since the doc comments are where the rule is
   written down.
 
-The third covers the publishing side. `amo-previews.test.mjs` unit-tests
-`scripts/amo-previews.mjs` — the pure decision logic behind the AMO listing-asset
-sync, kept out of `publish-amo.mjs` so it can be exercised without an HTTP layer
-or a credential. It also parses the checked-in `amo/previews.json` and asserts
-every file it names is present and within AMO's 4MB limit, so a moved or
-oversized screenshot fails here rather than partway through a release. The file
-is `.mjs` because the module under test is: the publish scripts are plain ESM run
-by node, not part of a TypeScript project reference. See
-[Store Listings](./store-listings.md#preview-writes-are-throttled-hard).
+The third covers the publishing side, in two files. `amo-previews.test.mjs`
+unit-tests `scripts/amo-previews.mjs` — the pure decision logic behind the AMO
+listing-asset sync, kept out of `publish-amo.mjs` so it can be exercised without
+an HTTP layer or a credential. Most of it is the reconcile: what a sync does
+given the manifest, the lock file, and what AMO says it holds.
+`amo-throttle.test.mjs` covers `scripts/amo-throttle.mjs`, which decides how long
+to hold before an unsafe call so AMO never has to reject one.
+
+`amo-previews.test.mjs` also parses the checked-in `amo/previews.json` and
+asserts every file it names is present and within AMO's 4MB limit, so a moved or
+oversized screenshot fails here rather than partway through a release, and that
+`amo/previews.lock.json` still parses — a lock that has stopped being readable
+would silently turn every sync back into a full replace. Both files are `.mjs`
+because the modules under test are: the publish scripts are plain ESM run by
+node, not part of a TypeScript project reference. See
+[Store Listings](./store-listings.md#writes-are-throttled-hard).
 
 ## Playwright
 

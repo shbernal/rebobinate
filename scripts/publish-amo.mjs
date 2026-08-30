@@ -10,13 +10,25 @@ import process from 'node:process'
 import crypto from 'node:crypto'
 import { printHelpAndExit } from './help.mjs'
 import {
+  EMPTY_LOCK,
   checkImageBytes,
-  describePreviewDrift,
+  describePreviewPlan,
+  iconNeedsUpload,
   imageContentType,
+  isPlanEmpty,
+  lockPreviews,
+  parseAssetLock,
   parsePreviewManifest,
+  planCalls,
   planPreviewSync,
-  throttleWaitMs,
 } from './amo-previews.mjs'
+import {
+  MAX_PACE_WAIT_MS,
+  SCOPE_LIMITS,
+  paceDelay,
+  throttleScope,
+  throttleWaitMs,
+} from './amo-throttle.mjs'
 
 const API = 'https://addons.mozilla.org/api/v5'
 const GUID = 'rebobinate@shbernal.github.io'
@@ -28,6 +40,11 @@ const LICENSE = 'MIT'
 // unless something here rewrites them.
 const ICON = 'public/icons/icon128.png'
 const PREVIEW_MANIFEST = 'amo/previews.json'
+
+// What was last applied, and what AMO called it. Writes here are throttled hard
+// enough that reapplying an unchanged asset is worth avoiding; see
+// `amo-previews.mjs` for what the file is trusted for.
+const ASSET_LOCK = 'amo/previews.lock.json'
 
 // Firefox only. The manifest declares no Android support, and
 // `data_collection_permissions` needs Firefox for Android 142 while the desktop
@@ -56,9 +73,13 @@ Usage: pnpm publish:amo [--dry-run | --check | --validate-only | --assets-only]
 
 Submits the built Firefox package to addons.mozilla.org against API v5: uploads
 the package, waits for server-side validation, creates the version, attaches the
-source archive, then reapplies the listing icon. A listed submission is queued
-for human review, so a successful run ends with the add-on nominated, not
-public.
+source archive, then applies the listing icon if it has changed. A listed
+submission is queued for human review, so a successful run ends with the add-on
+nominated, not public.
+
+Unsafe calls are paced against AMO's per-account limits (3/minute, 10/hour,
+24/day, shared with every other extension published from this account) so a run
+never spends budget on a request the server rejects.
 
 Flags
   --dry-run        resolve the listing, approval notes, previews, and file
@@ -70,10 +91,12 @@ Flags
                    claimed
   --assets-only    apply the listing icon and, with --sync-previews, the
                    previews to the existing add-on; submits no version
-  --sync-previews  replace the published previews with ${PREVIEW_MANIFEST}.
-                   Off by default: screenshots change about once a year and a
-                   sync deletes and re-uploads all of them, so every run
-                   without it prints how far the listing has drifted instead
+  --sync-previews  bring the published previews in line with
+                   ${PREVIEW_MANIFEST}. Only what changed is sent, against
+                   ${ASSET_LOCK}; an unchanged listing costs
+                   nothing. Off by default, so a run without it reports what a
+                   sync would do instead of doing it. Delete the lock file to
+                   force a full replace
   --help, -h       show this text
 
 Environment
@@ -145,6 +168,28 @@ const listing = () => ({
 const previewManifest = () =>
   parsePreviewManifest(readJson(PREVIEW_MANIFEST), PREVIEW_MANIFEST)
 
+const digestOf = file =>
+  crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(path.resolve(root, file)))
+    .digest('hex')
+
+// A missing or unreadable lock means nothing is reusable, which is always a
+// correct answer: the sync falls back to replacing everything.
+const readLock = () => {
+  try {
+    return parseAssetLock(readJson(ASSET_LOCK))
+  } catch {
+    return structuredClone(EMPTY_LOCK)
+  }
+}
+
+const writeLock = lock =>
+  fs.writeFileSync(
+    path.resolve(root, ASSET_LOCK),
+    `${JSON.stringify(lock, null, 2)}\n`,
+  )
+
 const base64url = value => Buffer.from(value).toString('base64url')
 
 // AMO caps a token's life at five minutes past `iat`, so every request mints its
@@ -176,16 +221,56 @@ const parse = text => {
   }
 }
 
+// Every unsafe call this process sends, per throttle scope, including the ones
+// AMO rejected — those spent budget too. Only what this run did is known, so a
+// collision with an earlier run still surfaces as a 429, which is what the
+// retry below is for.
+const sent = { submission: [], upload: [] }
+
+// Waiting before a call rather than after a rejection is the whole point: a
+// 429 costs a slot on every limit that was not the one rejecting it, so the
+// cheapest request is the one that is never sent.
+const pace = async scope => {
+  if (scope === null) {
+    return
+  }
+
+  const { waitMs, limit } = paceDelay(
+    sent[scope],
+    Date.now(),
+    SCOPE_LIMITS[scope],
+  )
+
+  if (waitMs <= 0) {
+    return
+  }
+
+  if (waitMs > MAX_PACE_WAIT_MS) {
+    throw new Error(
+      `AMO's ${limit} limit is spent for this account; the next call could ` +
+        `not be sent for another ${Math.round(waitMs / 60_000)} minutes. ` +
+        'Run this again later: a sync resumes from what the lock records, so ' +
+        'nothing already applied is sent twice.',
+    )
+  }
+
+  console.log(`holding ${Math.round(waitMs / 1000)}s to stay under ${limit}`)
+  await sleep(waitMs)
+}
+
 // A 429 is the one status worth retrying: it says the same request will work
-// shortly, where every other failure says the request is wrong. Uploading
-// previews trips AMO's submission throttle after the first image, so without
-// this a sync of three screenshots can never finish in one run. The token is
-// minted inside the loop because a throttle wait is long enough to matter
-// against its five-minute life.
+// shortly, where every other failure says the request is wrong. With pacing in
+// front it should only happen when an earlier run has already spent the budget.
+// The token is minted inside the loop because a throttle wait is long enough to
+// matter against its five-minute life.
 const THROTTLE_ATTEMPTS = 5
 
 const request = async (method, endpoint, { json, form } = {}) => {
+  const scope = throttleScope(method, endpoint)
+
   for (let attempt = 1; ; attempt += 1) {
+    await pace(scope)
+
     const headers = { Authorization: `JWT ${mintToken()}` }
 
     if (json !== undefined) {
@@ -201,6 +286,10 @@ const request = async (method, endpoint, { json, form } = {}) => {
       headers,
       ...(payload === undefined ? {} : { body: payload }),
     })
+
+    if (scope !== null) {
+      sent[scope].push(Date.now())
+    }
 
     const body = parse(await response.text())
 
@@ -377,12 +466,11 @@ const attachSource = async versionId => {
 // The listing icon is separate metadata from the icons in the package. The
 // manifest `icons` key drives about:addons, not the AMO page, and the JSON PUT
 // that carries the rest of the listing cannot carry a file at all — AMO
-// documents `icon` as multipart-only and unsettable at creation. So there was
-// never a code path that could set it, which is why the listing sits on AMO's
-// placeholder while the shipped XPI has every icon it declares.
+// documents `icon` as multipart-only and unsettable at creation.
 //
-// Reapplied unconditionally, like the description: it is one small file that
-// replaces itself in place, so there is no churn to opt out of.
+// Sent only when the file has changed since the lock recorded it, or when AMO
+// is still serving its placeholder. It is a call out of ten an hour, spent on
+// re-uploading identical bytes on every release otherwise.
 const uploadIcon = async () => {
   const form = new FormData()
   form.set('icon', imagePart(ICON))
@@ -397,31 +485,52 @@ const uploadIcon = async () => {
 // AMO accepts them while a version sits in review — the same path that already
 // lets the release PUT rewrite the description. Every call throws on a non-2xx,
 // so a rejection stops the run instead of half-applying.
-const applyListingAssets = async remotePreviews => {
-  await uploadIcon()
+//
+// What is sent is a delta: the lock says which published preview came from
+// which file and with what bytes, AMO's own response says which of those still
+// exist and what captions and positions they carry, and only the difference is
+// written. A listing that already matches costs nothing, which is what makes a
+// sync safe to run in the same hour as a release.
+const applyListingAssets = async addon => {
+  const lock = readLock()
+  const iconDigest = digestOf(ICON)
+
+  if (iconNeedsUpload(lock, ICON, iconDigest, addon.icon_url)) {
+    await uploadIcon()
+    lock.icon = { file: ICON, sha256: iconDigest }
+    writeLock(lock)
+  } else {
+    console.log(`listing icon already applied from ${ICON}`)
+  }
 
   const manifest = previewManifest()
+  const digests = new Map(
+    manifest.map(entry => [entry.file, digestOf(entry.file)]),
+  )
+  const plan = planPreviewSync(addon.previews ?? [], manifest, lock, digests)
 
   if (!syncPreviews) {
-    console.log(describePreviewDrift(remotePreviews, manifest))
+    console.log(describePreviewPlan(plan))
     return
   }
 
-  const { uploads, deletes } = planPreviewSync(remotePreviews, manifest)
+  if (isPlanEmpty(plan)) {
+    console.log('previews: already in sync, nothing to send')
+    return
+  }
 
-  // Preview writes are throttled per user at 3/minute, 10/hour and 24/day, and
-  // every call below is an unsafe method, so all of them count. Two calls per
-  // image plus the deletes means a three-screenshot sync nearly exhausts an
-  // hour's budget on its own. Crossing the hourly boundary has been seen to
-  // cost a single wait of just under an hour, so saying this up front is the
-  // difference between a slow run and one that looks hung.
-  console.log(
-    `syncing ${uploads.length} previews in ` +
-      `${uploads.length * 2 + deletes.length} throttled calls; AMO allows 10 ` +
-      'an hour, so a single wait can approach that',
-  )
+  // Every call below is an unsafe method on the add-on, so all of them draw on
+  // the same 10/hour budget as the release itself. Saying the count up front is
+  // the difference between a paced run and one that looks hung.
+  console.log(`syncing previews in ${planCalls(plan)} throttled calls`)
 
-  for (const upload of uploads) {
+  const ids = new Map(lock.previews.map(row => [row.file, row.id]))
+
+  // Uploads before deletes, so a run that dies halfway leaves the listing with
+  // too many images rather than too few. The orphan it leaves is not recorded
+  // in the lock, so the next sync deletes it as something the manifest does not
+  // account for.
+  for (const upload of plan.uploads) {
     const form = new FormData()
     form.set('image', imagePart(upload.file))
     form.set('position', String(upload.position))
@@ -438,13 +547,31 @@ const applyListingAssets = async remotePreviews => {
       json: { caption: upload.caption },
     })
 
+    // Recorded only once both calls have landed: a preview claimed by the lock
+    // is a preview a later run will not touch, and one with no caption is worse
+    // than one uploaded twice.
+    ids.set(upload.file, preview.id)
+    lock.previews = lockPreviews(manifest, digests, ids)
+    writeLock(lock)
+
     console.log(`uploaded preview ${upload.position} from ${upload.file}`)
   }
 
-  for (const id of deletes) {
+  for (const { id, file, ...fields } of plan.patches) {
+    await request('PATCH', `/addons/addon/${GUID}/previews/${id}/`, {
+      json: fields,
+    })
+
+    console.log(`updated the ${Object.keys(fields).join(' and ')} of ${file}`)
+  }
+
+  for (const id of plan.deletes) {
     await request('DELETE', `/addons/addon/${GUID}/previews/${id}/`)
     console.log(`removed superseded preview ${id}`)
   }
+
+  lock.previews = lockPreviews(manifest, digests, ids)
+  writeLock(lock)
 }
 
 const requireEnv = () => {
@@ -488,14 +615,27 @@ const main = async () => {
 
     // The manifest is parsed and every image resolved and size-checked here,
     // which is the point of printing it: a bad path or an oversized screenshot
-    // fails now rather than partway through a real sync. What cannot be shown
-    // is how far the listing has drifted — that needs AMO's side, and a dry run
-    // makes no authenticated calls. The drift line is printed by a real run.
+    // fails now rather than partway through a real sync. Each file is also
+    // compared against the lock, so a dry run says what a sync would upload.
+    // What it cannot say is what AMO holds — that needs an authenticated call,
+    // and a dry run makes none.
     console.log('\n--- previews ---')
+
+    const lock = readLock()
+    const rows = new Map(lock.previews.map(row => [row.file, row]))
 
     for (const preview of previewManifest()) {
       imagePart(preview.file)
-      console.log(`${preview.file}\n  ${preview.caption['en-US']}`)
+
+      const row = rows.get(preview.file)
+      const state =
+        row === undefined
+          ? 'no recorded upload'
+          : row.sha256 === digestOf(preview.file)
+            ? `unchanged since it was uploaded as preview ${row.id}`
+            : `changed since it was uploaded as preview ${row.id}`
+
+      console.log(`${preview.file} (${state})\n  ${preview.caption['en-US']}`)
     }
 
     console.log()
@@ -511,7 +651,7 @@ const main = async () => {
   // what makes it the way to repair a listing that is already public.
   if (assetsOnly) {
     const addon = await request('GET', `/addons/addon/${GUID}/`)
-    await applyListingAssets(addon.previews ?? [])
+    await applyListingAssets(addon)
     console.log(`\nlisting  https://addons.mozilla.org/addon/${addon.slug}/`)
     return
   }
@@ -534,8 +674,8 @@ const main = async () => {
 
   // After `submitVersion`, because on a first-ever submission the add-on record
   // does not exist until that PUT creates it. Its response already carries the
-  // current previews, so the drift line costs no extra call.
-  await applyListingAssets(addon.previews ?? [])
+  // current previews and icon, so reconciling costs no extra call.
+  await applyListingAssets(addon)
 
   // A listed submission is queued for human review; it does not go live the way
   // a Chrome Web Store publish does. A file status of `unreviewed` and an

@@ -16,6 +16,7 @@ chrome-web-store/
 amo/
   listing.json                 slug, summary, categories, tags, support links
   previews.json                caption and order for store/screenshots/
+  previews.lock.json           what was last applied, and what AMO called it
   data-collection.md           data_collection_permissions basis + answers
   source-submission.md         reviewer build instructions + archive procedure
 ```
@@ -91,10 +92,16 @@ as multipart form-data only and refuses `icon` at add-on creation. Both are
 applied after the version is created, which is also when the add-on record first
 exists on a maiden submission.
 
-| Asset    | Endpoint                               | When                        |
-| -------- | -------------------------------------- | --------------------------- |
-| Icon     | `PATCH /addons/addon/{guid}/` (`icon`) | every release               |
-| Previews | `POST`/`DELETE .../previews/{id}/`     | only with `--sync-previews` |
+| Asset    | Endpoint                                   | When                        |
+| -------- | ------------------------------------------ | --------------------------- |
+| Icon     | `PATCH /addons/addon/{guid}/` (`icon`)     | when the file has changed   |
+| Previews | `POST`/`PATCH`/`DELETE .../previews/{id}/` | only with `--sync-previews` |
+
+The icon is sent only when its bytes have changed since the last apply, or when
+AMO is still serving the placeholder — the lock cannot know an upload was
+accepted, but a placeholder proves none was. Everything below about the preview
+budget applies to it too: it is one call out of ten an hour, spent re-uploading
+identical bytes on every release otherwise.
 
 Constraints, which the script checks locally so a bad file fails before anything
 is uploaded: PNG or JPEG only, not animated, under 4MB. The icon must also be
@@ -102,66 +109,97 @@ square — AMO enforces that server-side. Previews have no minimum dimension; th
 1000×750 in AMO's documentation is a resize target, not a rejection threshold,
 so the 1280×800 screenshots are accepted as they are.
 
-### Preview Writes Are Throttled Hard
+### Writes Are Throttled Hard
 
-Every call on the previews endpoint is an unsafe method, so all of them count
-against AMO's add-on submission throttles: 3/minute, 10/hour and 24/day per
-user. Reads are free. Syncing three screenshots costs three uploads, three
-caption patches and a delete per superseded image — close to a whole hour's
-budget, and enough to trip the limit partway through.
+`addon_submission_throttles` in addons-server applies three per-user limits —
+3/minute, 10/hour and 24/day — to every unsafe method on the add-on, version and
+preview endpoints. Reads are free; all three viewsets share the one budget, so a
+release and a preview sync spend from the same ten an hour. Package uploads are
+the exception: `/addons/upload/` is a different viewset with its own, larger
+scope (`file_upload_throttles`, 20/hour), so it does not compete. A release
+itself is two calls — the version `PUT` and the source `PATCH` — plus the icon
+`PATCH` on the releases where the icon has actually changed.
 
-The script waits out the `Retry-After` header and retries, so a sync works but
-spends most of its wall-clock idle; it prints the call count up front so a slow
-run is not mistaken for a hung one. The decisions here — what to upload, what to
-delete, how long to wait — are in `scripts/amo-previews.mjs`, split out from
-`publish-amo.mjs` so they can be tested without an HTTP layer or a credential;
-`publish-amo.mjs` keeps the calls. A 429 is the only status it retries, since
-every other failure means the request itself is wrong. Waits are not short: a
-sync that crosses the hourly boundary can be handed a `Retry-After` of most of
-an hour and has to sit out the full window.
+Two properties of the server decide how the script behaves.
 
-The throttle is not specific to previews. `AddonViewSet` carries the same
-classes, so the listing `PUT` and the icon `PATCH` draw on one shared budget — a
-release already spends about four calls of the ten. **Do not run a preview sync
-in the same hour as a release**: eight plus four exceeds the cap, and the sync is
-what will stall. This is the other reason `--assets-only` is a separate command
-rather than a flag on the release path.
+**A rejected request still costs.** DRF checks every throttle class on every
+request, and each one that is not the one rejecting records a hit before another
+returns 429. So a call bounced by the 3/minute limit has still spent a slot of
+the 10/hour and the 24/day. Retrying into throttles burns budget on requests
+that never ran, and enough of it locks the account out for a day — across every
+extension published from this account, since the limits key on the authenticated
+user and the JWT is account-scoped. `scripts/amo-throttle.mjs` therefore paces
+ahead of the call: it tracks what this run has sent, holds until the sliding
+window has room, and refuses rather than sleeps when the wait says the daily cap
+is gone. The `Retry-After` retry stays as the backstop for budget an earlier run
+spent, and a 429 is the only status retried, since every other failure means the
+request itself is wrong.
 
-There is no way to raise the ceiling. `GranularUserRateThrottle` honors one
+**There is no way to raise the ceiling.** `GranularUserRateThrottle` honors one
 bypass, the `API_BYPASS_THROTTLING` permission, and that is a group membership
 granted to Mozilla's own release-engineering and QA accounts — not something a
-token, key, or scope can obtain. The throttle keys on the authenticated user
-with independent per-IP limits on top, so re-minting credentials changes
-nothing. The only lever is making fewer calls.
+token, key, or scope can obtain. Per-IP limits sit on top, so re-minting
+credentials changes nothing. The only lever is making fewer calls.
 
-The two calls per image are not avoidable either. `caption` is writable when a
-preview is created, but `TranslationSerializerField` deserializes a dictionary
-only — a bare string needs the `l10n_flat_input_output` gate — and multipart
-cannot carry one, so the localized caption has to follow as JSON.
+### Only The Difference Is Sent
 
-### Why Previews Are Opt-In
+The lever is `amo/previews.lock.json`. AMO re-encodes every image on ingest, so
+a local file and its published copy never share a hash, and nothing on a preview
+records which manifest entry produced it — the pairing exists only if the side
+that uploaded writes it down. So the lock records, per entry, the digest of the
+bytes that were sent and the id AMO returned, and the same for the icon.
 
-A sync replaces: it uploads every entry in `amo/previews.json` and deletes what
-was published before. It cannot do less. AMO re-encodes images on ingest, so a
-local file and its published copy never share a hash, and nothing on a preview
-records which manifest entry produced it. Any attempt to reuse a published
-preview would amount to assuming its bytes are still the ones on disk — and a
-swapped screenshot that silently never uploads is the failure worth avoiding.
+A sync then reconciles three sides: the manifest, the lock, and what AMO's own
+(free) response says it holds. An entry is reused only when its recorded id is
+still published _and_ its recorded digest still matches the file on disk.
+Anything else is re-uploaded, so a screenshot swapped on disk cannot pass as the
+one that was uploaded. Deleting the lock file forces a full replace, which is
+the escape hatch for drift nothing here can see.
 
-Replacing on every release would churn the public listing for description-only
-changes, so `--sync-previews` is off by default. To keep that from going quiet,
-every release without the flag prints how many previews the manifest holds
-versus how many AMO has. Equal counts are reported as equal counts, not as a
-match — the images themselves are not comparable from here.
+What that costs, for three screenshots:
+
+| Change                     | Calls | Why                                    |
+| -------------------------- | ----- | -------------------------------------- |
+| Nothing                    | 0     | reconciles against free reads only     |
+| One screenshot replaced    | 3     | upload, caption, delete the superseded |
+| A caption re-worded        | 1     | `caption` is writable in place         |
+| A reorder                  | 1     | per moved image; `position` likewise   |
+| No lock, or a deleted lock | 9     | full replace, as before                |
+
+An image cannot be replaced in place: `PreviewSerializer` marks `image`
+create-only, so a changed screenshot is always an upload plus a delete. The two
+calls per upload are not avoidable either — `caption` is writable at creation,
+but `TranslationSerializerField` deserializes a dictionary only outside the
+`l10n_flat_input_output` gate, which API v5 does not carry, and multipart cannot
+carry a dictionary. Using v4 to get flat captions would cost the `position`
+field, which v4 removes.
+
+Because an unchanged listing now costs nothing, a sync is no longer something to
+keep away from a release hour.
+
+### Why Previews Are Still Opt-In
+
+`--sync-previews` stays off by default because a sync is the only thing here
+that can delete a published image, and a screenshot changes about once a year.
+A release without it reconciles anyway and prints exactly what a sync would do —
+"in sync with amo/previews.json", or the counts and the call cost — so a
+screenshot change nobody synced cannot go quiet. `--dry-run` prints the same
+comparison against the lock, without AMO's side, since it makes no authenticated
+calls.
 
 Order in `amo/previews.json` is the display order. `position` is derived from
 the index rather than written out, so reordering the file reorders the listing.
 
+Anything published that the lock does not account for is deleted by a sync,
+including a preview uploaded by hand in the dashboard. The manifest is the
+listing.
+
 ### Repairing A Live Listing
 
-`pnpm publish:amo --assets-only` applies the icon, and with `--sync-previews`
-the previews, to the add-on that already exists. It uploads no package and
-creates no version, which is what makes it usable between releases. AMO accepts
+`pnpm publish:amo --assets-only` applies the icon if it has changed, and with
+`--sync-previews` whatever the previews need, to the add-on that already exists.
+It uploads no package and creates no version, which is what makes it usable
+between releases. AMO accepts
 both while a version sits in review, since they are add-on metadata rather than
 version metadata.
 

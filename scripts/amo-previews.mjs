@@ -1,7 +1,7 @@
 // Decision logic for the AMO listing-asset sync, kept out of `publish-amo.mjs`
 // so it can be unit-tested without an HTTP layer or a credential. Everything
-// here is pure: it takes the manifest and whatever AMO reports, and returns the
-// work to do.
+// here is pure: it takes the manifest, the lock file and whatever AMO reports,
+// and returns the work to do.
 import path from 'node:path'
 
 // `ImageField` in addons-server rejects anything that is not a non-animated
@@ -75,49 +75,144 @@ export const parsePreviewManifest = (raw, source = 'amo/previews.json') => {
   })
 }
 
-// Creating a preview goes through AMO's add-on submission throttles, and three
-// screenshots is already enough to trip them: the first upload succeeds and the
-// next comes back 429 with a Retry-After of about a minute. DRF sets that header
-// on every throttled response, so the wait is read rather than guessed; the
-// fallback only matters if it ever goes missing. The extra second keeps a
-// rounded-down header from retrying a moment early and burning an attempt.
-export const FALLBACK_THROTTLE_WAIT_MS = 60_000
+// The ledger that makes a delta sync possible. AMO re-encodes every image on
+// ingest, so a local file and its published copy never share a hash, and
+// nothing on a preview says which manifest entry produced it — the pairing
+// exists only if the side that uploaded records it. So this file records, per
+// entry, the digest of the bytes that were sent and the id AMO gave back.
+//
+// It is only ever trusted alongside AMO's own answer: a recorded id has to
+// still exist on the add-on, and a recorded digest has to still match the file
+// on disk. Anything else is re-uploaded. Deleting the file forces a full
+// replace, which is the escape hatch when the two sides have drifted in a way
+// nothing here can see.
+export const EMPTY_LOCK = { icon: null, previews: [] }
 
-export const throttleWaitMs = retryAfter => {
-  const seconds = Number(retryAfter)
+const isRow = row =>
+  typeof row?.file === 'string' &&
+  typeof row?.sha256 === 'string' &&
+  Number.isInteger(row?.id)
 
-  return seconds > 0 && Number.isFinite(seconds)
-    ? seconds * 1000 + 1000
-    : FALLBACK_THROTTLE_WAIT_MS
+// A lock that cannot be read is not an error: it means nothing is reusable, and
+// a full replace is always a correct answer. Failing the run instead would turn
+// a bookkeeping file into something that can block a release.
+export const parseAssetLock = raw => {
+  const icon =
+    typeof raw?.icon?.file === 'string' && typeof raw?.icon?.sha256 === 'string'
+      ? { file: raw.icon.file, sha256: raw.icon.sha256 }
+      : null
+
+  const previews = Array.isArray(raw?.previews)
+    ? raw.previews.filter(isRow).map(({ file, sha256, id }) => ({
+        file,
+        sha256,
+        id,
+      }))
+    : []
+
+  return { icon, previews }
 }
 
-// Identity is the part of this the reconcile cannot solve. AMO re-encodes every
-// image on ingest, so a local file and its published copy never share a hash,
-// and nothing on a preview says which manifest entry produced it. Reusing a
-// remote preview would therefore mean assuming its bytes are still the ones on
-// disk — and a swapped screenshot that silently never uploads is exactly the
-// failure this is meant to prevent. So a sync replaces rather than reconciles:
-// it uploads the whole manifest and drops whatever was there before.
-//
-// Uploads are ordered before deletes so a run that dies halfway leaves the
-// listing with too many images rather than none.
-export const planPreviewSync = (remote, manifest) => ({
-  uploads: manifest.map((entry, index) => ({ ...entry, position: index })),
-  deletes: remote.map(preview => preview.id),
-})
+// Only the locales the manifest sets are compared: nothing here ever writes the
+// others, so a translation AMO holds that we do not is not drift.
+const captionMatches = (published, wanted) =>
+  Object.entries(wanted).every(([locale, text]) => published?.[locale] === text)
 
-// Printed on every release that does not pass `--sync-previews`, so a
-// screenshot change nobody synced stays visible instead of going quiet. Equal
-// counts are not proof the images match: there is nothing to compare bytes
-// against, so a same-count swap looks identical from here.
-export const describePreviewDrift = (remote, manifest) => {
-  const state =
-    remote.length === manifest.length
-      ? 'same count, though the images themselves cannot be compared'
-      : 'out of sync'
+// The image of a published preview cannot be replaced — `PreviewSerializer`
+// marks it create-only — so a changed screenshot is always an upload plus a
+// delete. Caption and position are ordinary writable fields, which is what
+// makes a re-worded caption or a reorder cost one call instead of a replace.
+export const planPreviewSync = (remote, manifest, lock, digests) => {
+  const byId = new Map(remote.map(preview => [preview.id, preview]))
+  const rows = new Map(lock.previews.map(row => [row.file, row]))
+
+  const uploads = []
+  const patches = []
+  const kept = new Set()
+
+  manifest.forEach((entry, position) => {
+    const row = rows.get(entry.file)
+    const published = row === undefined ? undefined : byId.get(row.id)
+
+    if (published === undefined || row.sha256 !== digests.get(entry.file)) {
+      uploads.push({ ...entry, position })
+      return
+    }
+
+    kept.add(published.id)
+
+    const patch = { id: published.id, file: entry.file }
+
+    if (!captionMatches(published.caption, entry.caption)) {
+      patch.caption = entry.caption
+    }
+
+    if (published.position !== position) {
+      patch.position = position
+    }
+
+    if (patch.caption !== undefined || patch.position !== undefined) {
+      patches.push(patch)
+    }
+  })
+
+  // Whatever is left is either superseded or something this repository did not
+  // put there. Both are dropped: the manifest is the listing.
+  return {
+    uploads,
+    patches,
+    deletes: remote
+      .filter(preview => !kept.has(preview.id))
+      .map(({ id }) => id),
+    kept: [...kept],
+  }
+}
+
+// Uploading is two calls because a localized caption cannot ride the multipart
+// create: `TranslationSerializerField` takes a dictionary only outside the
+// `l10n_flat_input_output` gate, which API v5 does not carry.
+export const planCalls = plan =>
+  plan.uploads.length * 2 + plan.patches.length + plan.deletes.length
+
+export const isPlanEmpty = plan => planCalls(plan) === 0
+
+const countOf = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`
+
+export const describePreviewPlan = plan => {
+  if (isPlanEmpty(plan)) {
+    return 'previews: in sync with amo/previews.json'
+  }
+
+  const work = [
+    plan.uploads.length > 0 && `${countOf(plan.uploads.length, 'upload')}`,
+    plan.patches.length > 0 &&
+      `${countOf(plan.patches.length, 'metadata fix')}`,
+    plan.deletes.length > 0 && `${countOf(plan.deletes.length, 'removal')}`,
+  ].filter(Boolean)
 
   return (
-    `previews: ${manifest.length} in the manifest, ${remote.length} on AMO ` +
-    `— ${state}. Pass --sync-previews to reapply them.`
+    `previews: out of sync — ${work.join(', ')} ` +
+    `(${countOf(planCalls(plan), 'call')}). ` +
+    'Run pnpm publish:amo --assets-only --sync-previews'
   )
 }
+
+// The listing icon has no id to reconcile against, so the digest is the whole
+// check — with one exception. If AMO is still serving its placeholder then no
+// icon was ever accepted, whatever the lock claims, and it has to be sent.
+export const iconNeedsUpload = (lock, file, digest, iconUrl) =>
+  iconUrl === undefined ||
+  iconUrl.includes('/addon-icons/default-') ||
+  lock.icon?.file !== file ||
+  lock.icon?.sha256 !== digest
+
+// Rewritten from the manifest each time rather than patched, so a row for a
+// screenshot the manifest no longer lists cannot survive in the file.
+export const lockPreviews = (manifest, digests, ids) =>
+  manifest
+    .filter(entry => ids.has(entry.file))
+    .map(entry => ({
+      file: entry.file,
+      sha256: digests.get(entry.file),
+      id: ids.get(entry.file),
+    }))
