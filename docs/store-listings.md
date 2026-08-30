@@ -211,7 +211,7 @@ the result against the submitted package.
 
 ```sh
 pnpm package:source          # archives HEAD
-pnpm package:source v0.1.1   # archives a release tag
+pnpm package:source v0.2.0   # archives a release tag
 ```
 
 `scripts/package-source.mjs` wraps `git archive`, so the archive holds exactly
