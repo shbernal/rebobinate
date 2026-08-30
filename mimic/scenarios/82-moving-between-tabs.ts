@@ -1,10 +1,4 @@
-import {
-  look,
-  metaOf,
-  openVideoPage,
-  panelHeight,
-  type Ctx,
-} from '../page.ts'
+import { look, metaOf, openVideoPage, panelHeight, type Ctx } from '../page.ts'
 
 /**
  * The panel as a place with three rooms in it, rather than three separate
