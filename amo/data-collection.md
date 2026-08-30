@@ -6,7 +6,7 @@ build. This is the AMO counterpart to
 `chrome-web-store/privacy-justifications.md`; the underlying claims are the
 same, but AMO asks for them in a different shape.
 
-Last reviewed against `manifest.config.ts` at version 0.1.1.
+Last reviewed against `manifest.config.ts` at version 0.2.0.
 
 ## Declared Data Collection
 
@@ -29,13 +29,16 @@ other value. It is only correct while every one of the following holds.
 - The manifest requests `storage` and the host permission `<all_urls>`. Nothing
   else.
 - The entire non-test extension API surface is `storage.local` get/set plus
-  `storage.onChanged`, `tabs.query`, `tabs.sendMessage` and `tabs.onRemoved`,
-  and `runtime.sendMessage`, `runtime.onMessage`, `runtime.lastError`.
+  `storage.onChanged`; `tabs.query`, `tabs.sendMessage`, `tabs.onUpdated` and
+  `tabs.onRemoved`; `runtime.sendMessage`, `runtime.onMessage`,
+  `runtime.lastError`; and the `action` badge calls that put the tab's speed on
+  the toolbar icon.
 - `src/` contains no `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon`,
   `EventSource`, `new Image(`, or HTTP client dependency. The only remote URLs
   in the tree are example.com string literals inside tests.
-- Settings are written to and read from `chrome.storage.local` only. There is no
-  sync storage, no remote endpoint, and no telemetry.
+- Settings and the per-site speed map are written to and read from
+  `chrome.storage.local` only. There is no sync storage, no remote endpoint, and
+  no telemetry.
 - The tab-level speed the service worker keeps in memory is discarded when the
   tab closes and is never written anywhere.
 - The content script touches the page only to find `<video>` elements, set their
@@ -47,9 +50,11 @@ If a future change transmits anything off the device — analytics, sync, crash
 reporting, a remote config fetch — `data_collection_permissions` must change
 before that ships. It is a user-facing promise, not a formality.
 
-Per-site speed memory and usage statistics are planned. Both stay on the device,
-so `none` still holds, but both store more than preferences: re-read this file
-when either ships.
+The per-site speed memory stores more than preferences. It holds a speed against
+each domain the user changed the speed on, so `none` rests on the same fact the
+rest of this file does: that map is written to `storage.local` and read back
+from it, and nothing sends it anywhere. Usage statistics are still only planned;
+re-read this file if they ship.
 
 ## Permission Justifications
 
@@ -60,8 +65,10 @@ free of Markdown; the headings are labels and may keep their markup.
 ### `storage`
 
 Saves the user's own preferences: the speed increment, the keyboard bindings,
-and the appearance of the on-video speed badge. Written to storage.local. It is
-not used to collect or transmit browsing data.
+and the appearance of the on-video speed badge. It also saves the speed the user
+chose on a site, keyed by domain, so the same speed applies on the next visit,
+and the user can switch that off or clear it from the popup. All of it is
+written to storage.local. It is not used to collect or transmit browsing data.
 
 ### Host permission `<all_urls>`
 

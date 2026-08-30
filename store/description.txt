@@ -1,14 +1,16 @@
-Rebobinate puts video speed on your keyboard. Press + to speed up, - to slow down, and 0 to go back to normal — on any site with a video, without hunting for a settings menu.
+Rebobinate puts video speed on your keyboard. Press + to speed up, - to slow down, and 0 to go back to normal, on any site with a video, without hunting for a settings menu.
 
 Features:
 
 - Speed any HTML5 video up or down from the keyboard
-- Fine-grained control: the step is 0.05 by default and you can change it
+- The step is 0.1 by default, and you can set it anywhere from 0.01 to 1
+- Rebind Faster, Slower and Reset to whatever keys you press
+- Remembers the speed you chose on a site and applies it on your next visit
+- Shows the tab's speed on the toolbar icon, so you can read it with the popup closed
 - An optional speed badge on the video, with your choice of corner, size, colors, opacity, and how long it stays on screen
 - Holds your speed when a site tries to reset it
 - Works on players inside embeds and iframes
+- Export your settings and remembered sites as text, and paste them back on another computer
 - Popup controls for when you would rather click than type
 
 Your settings are stored locally in your browser. The extension collects nothing, sends nothing, and has no account.
-
-Watch at the speed that suits you.

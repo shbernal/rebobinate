@@ -23,10 +23,8 @@ and you can switch the memory off in the popup.
 Chromium browsers: install from the
 [Chrome Web Store](https://chromewebstore.google.com/detail/rebobinate/konpdajknakndebpaeoaceceimlfajcg).
 
-Firefox: the addons.mozilla.org listing is still in review, so there is no
-install link yet. Grab `rebobinate-firefox-<version>.zip` from the
-[latest release](https://github.com/shbernal/rebobinate/releases/latest) and
-load it from `about:debugging` as a temporary add-on, or build from source.
+Firefox: install from
+[addons.mozilla.org](https://addons.mozilla.org/en-US/firefox/addon/rebobinate/).
 
 ## Build from source
 
@@ -44,8 +42,10 @@ mode on. For Firefox, run `pnpm build:firefox` and load
 Open the extension popup to change the speed step, set the default speed, turn
 the per-site memory on or off, forget the site you are on, toggle the speed on
 the toolbar icon, toggle the on-video badge, and set its corner, size, opacity,
-colors, and how long it stays on screen. Settings are stored locally in your
-browser.
+colors, and how long it stays on screen. `+`, `-` and `0` are only the defaults;
+you can bind each action to whatever keys you press. Settings are stored locally
+in your browser, and you can export them and your remembered sites as text to
+paste into another browser.
 
 ## Privacy
 

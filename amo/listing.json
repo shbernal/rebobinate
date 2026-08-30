@@ -2,7 +2,7 @@
   "slug": "rebobinate",
   "default_locale": "en-US",
   "summary": {
-    "en-US": "Change the playback speed of any video from the keyboard: + faster, - slower, 0 back to normal. Adjustable step and an optional speed badge on the video. Nothing leaves your device."
+    "en-US": "Change the playback speed of any video from the keyboard: + faster, - slower, 0 back to normal. Rebindable keys, an adjustable step, a speed remembered per site and an optional badge on the video. Nothing leaves your device."
   },
   "categories": ["photos-music-videos"],
   "tags": ["streaming", "youtube"],
