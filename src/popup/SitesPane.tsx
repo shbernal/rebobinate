@@ -232,6 +232,14 @@ const SitesPane = ({
    * its slot so the undo can put the row back where the row was.
    */
   const stored = new Set(others.map(([key]) => key))
+  /*
+   * Read and written during render on purpose. The order has to be settled
+   * before the rows are painted, so an effect is a render too late, and the
+   * merge is idempotent: a second pass over the same store finds every key
+   * already placed and writes back the list it just read, which is what makes
+   * this safe under a double render.
+   */
+  // oxlint-disable react/refs
   const kept = order.current.filter(
     key => stored.has(key) || key === dropped?.domain,
   )
@@ -239,6 +247,7 @@ const SitesPane = ({
   const arrived = others.map(([key]) => key).filter(key => !placed.has(key))
   const rows = [...arrived, ...kept]
   order.current = rows
+  // oxlint-enable react/refs
 
   const query = filter.trim().toLowerCase()
   const matching = query ? rows.filter(key => key.includes(query)) : rows
