@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import crypto from 'node:crypto'
-import { printHelpAndExit } from './help.mjs'
+import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 import {
   EMPTY_LOCK,
   PREVIEWS_IN_SYNC,
@@ -115,6 +115,16 @@ Both defaults are produced by pnpm package:firefox and pnpm package:source.
 
 See docs/ci-release-flow.md and docs/store-listings.md.
 `)
+rejectUnknownArguments({
+  flags: [
+    '--dry-run',
+    '--check',
+    '--validate-only',
+    '--assets-only',
+    '--sync-previews',
+  ],
+  positionals: false,
+})
 
 const packagePath = path.resolve(
   root,
@@ -705,7 +715,10 @@ const main = async () => {
   )
 }
 
+// The stack too, in CI: a release job cannot be cleanly re-run, so one line with
+// no frame is all there would be to go on. No credential reaches a message; the
+// secret is only ever an HMAC key.
 main().catch(error => {
-  console.error(error.message)
+  console.error(process.env.CI ? (error.stack ?? error.message) : error.message)
   process.exit(1)
 })

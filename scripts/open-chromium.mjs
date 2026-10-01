@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
-import { printHelpAndExit } from './help.mjs'
+import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
 printHelpAndExit(`
 Usage: pnpm dev:chrome [url] [--help]
@@ -23,6 +23,7 @@ Environment
   REBOBINATE_OPEN_URL      start URL when no positional argument is given
   REBOBINATE_HEADLESS=1    new headless mode, for driving over CDP
 `)
+rejectUnknownArguments({})
 
 const defaultProfilePath = 'node_modules/.tmp/dev-profile'
 const defaultOpenUrl = 'https://www.youtube.com/'

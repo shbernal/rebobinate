@@ -106,6 +106,12 @@ was published. There is nothing to re-run at that point, so the tag has to
 move. The dry run now validates the listing against AMO's tag and category
 vocabularies before any of that can happen.
 
+A mistyped flag stops before anything is read or sent. Every script under
+`scripts/` goes through `rejectUnknownArguments` in `scripts/help.mjs`, which
+exits 1 on a flag it does not know, so `--dryrun` cannot fall through to the
+default path, which for this script is a real, irreversible submission. In CI a
+failure prints its stack, since the job cannot be cleanly re-run.
+
 It also resolves and size-checks every entry in `amo/previews.json`, so a moved
 or oversized screenshot fails there rather than partway through a sync.
 

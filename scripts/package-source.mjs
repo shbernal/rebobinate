@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { execFileSync } from 'node:child_process'
-import { printHelpAndExit } from './help.mjs'
+import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
 printHelpAndExit(`
 Usage: pnpm package:source [ref] [--help]
@@ -22,6 +22,7 @@ because the archive holds committed state only.
 
 See amo/source-submission.md.
 `)
+rejectUnknownArguments({})
 
 // Flags are skipped rather than taken positionally, so `--help` cannot reach
 // `git archive` as a ref.

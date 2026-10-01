@@ -17,7 +17,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { execFileSync } from 'node:child_process'
-import { printHelpAndExit } from './help.mjs'
+import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
 const BLOCKERS = {
   ubol: {
@@ -110,7 +110,9 @@ const fetchBlocker = async (name, force) => {
 }
 
 // Imported by the scripts that use the blockers; only run as an entry point.
-if (import.meta.url === `file://${process.argv[1]}`) {
+// `import.meta.filename` rather than the URL: the URL is percent-encoded and
+// argv is not, so a checkout path with a space would skip the whole body.
+if (import.meta.filename === process.argv[1]) {
   // Inside the entry-point guard: the other scripts import this module for
   // `installedBlocker`, and their own --help must not be answered by this one.
   printHelpAndExit(`
@@ -126,6 +128,7 @@ Fetched
   ublock    uBlock Origin, the signed XPI, for the Gecko profiles
             (pnpm dev:firefox --with-ublock)
 `)
+  rejectUnknownArguments({ flags: ['--force'], positionals: false })
 
   const force = process.argv.slice(2).includes('--force')
 
