@@ -53,12 +53,50 @@ describe('createEnforcer', () => {
     expect(enforcer.isSuppressed(video)).toBe(true)
     expect(video.playbackRate).toBe(1)
 
-    // A new window starts once the site stops hammering.
-    now += 2000
+    // Time alone does not re-arm it: a site rewriting the rate in a loop
+    // would otherwise get a burst of corrections every second, forever.
+    now += 60_000
     video.playbackRate = 1
     enforcer.reconcile(video)
 
+    expect(video.playbackRate).toBe(1)
+    expect(enforcer.isSuppressed(video)).toBe(true)
+  })
+
+  it('starts a fresh budget when the video loads a new source', () => {
+    const video = createVideo()
+    const enforcer = createEnforcer({ videos: () => [video] })
+
+    enforcer.setSpeed(2)
+
+    for (let index = 0; index < 30; index += 1) {
+      video.playbackRate = 1
+      enforcer.reconcile(video)
+    }
+
+    enforcer.apply(video)
+
+    expect(enforcer.isSuppressed(video)).toBe(false)
     expect(video.playbackRate).toBe(2)
+  })
+
+  // A feed resetting the rate once per item is the normal case, and is
+  // corrected every time no matter how long the session runs.
+  it('keeps correcting resets that come one at a time', () => {
+    const video = createVideo()
+    let now = 0
+    const enforcer = createEnforcer({ videos: () => [video], now: () => now })
+
+    enforcer.setSpeed(2)
+
+    for (let index = 0; index < 30; index += 1) {
+      now += 2000
+      video.playbackRate = 1
+      enforcer.reconcile(video)
+    }
+
+    expect(video.playbackRate).toBe(2)
+    expect(enforcer.isSuppressed(video)).toBe(false)
   })
 
   it('starts a fresh budget whenever the user sets a speed', () => {

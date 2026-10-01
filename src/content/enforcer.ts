@@ -11,8 +11,10 @@ import { speedsEqual } from '@/shared/speed'
 
 /**
  * A site that rewrites the rate in a loop would otherwise turn re-assertion
- * into a pegged CPU. After this many corrections inside the window, back off
- * and let the site win until the user asks again.
+ * into a pegged CPU, and every correction costs a badge re-render with a layout
+ * read. After this many corrections inside the window, back off and let the
+ * site win until the speed is asked for again: the user setting one, or the
+ * video's next media event (`apply`), which is how a new source arrives.
  */
 const MAX_CORRECTIONS = 12
 const CORRECTION_WINDOW_MS = 1000
@@ -29,6 +31,8 @@ export type Enforcer = {
 type CorrectionState = {
   count: number
   windowStart: number
+  /** Sticky: only `apply` clears it, by dropping the whole state. */
+  suppressed: boolean
 }
 
 export type EnforcerOptions = {
@@ -63,15 +67,8 @@ export const createEnforcer = ({
     videos().forEach(apply)
   }
 
-  const isSuppressed = (video: HTMLVideoElement) => {
-    const state = corrections.get(video)
-
-    return (
-      state !== undefined &&
-      state.count >= MAX_CORRECTIONS &&
-      now() - state.windowStart < CORRECTION_WINDOW_MS
-    )
-  }
+  const isSuppressed = (video: HTMLVideoElement) =>
+    corrections.get(video)?.suppressed === true
 
   /** Called on every `ratechange`: re-assert unless the rate is already ours. */
   const reconcile = (video: HTMLVideoElement) => {
@@ -82,13 +79,22 @@ export const createEnforcer = ({
     const timestamp = now()
     const state = corrections.get(video)
 
+    if (state?.suppressed) {
+      return
+    }
+
     if (!state || timestamp - state.windowStart >= CORRECTION_WINDOW_MS) {
-      corrections.set(video, { count: 1, windowStart: timestamp })
+      corrections.set(video, {
+        count: 1,
+        windowStart: timestamp,
+        suppressed: false,
+      })
       write(video, desired)
       return
     }
 
     if (state.count >= MAX_CORRECTIONS) {
+      state.suppressed = true
       return
     }
 
