@@ -556,6 +556,23 @@ describe('editing a site from the popup', () => {
     expect(storedDomains()['vimeo.com'].speed).toBe(1.5)
   })
 
+  // The select lists speeds on a switched-off row too, and choosing one has to
+  // mean something rather than snap back to "Never remember".
+  it('starts remembering a switched-off site at the speed picked for it', async () => {
+    seedDomains({ 'vimeo.com': { speed: 1, updatedAt: 1, never: true } })
+    const { send } = await loadBackground()
+
+    send(
+      { type: 'rebobinate:set-domain-speed', domain: 'vimeo.com', speed: 1.5 },
+      POPUP,
+    )
+
+    expect(storedDomains()['vimeo.com']).toMatchObject({
+      speed: 1.5,
+      never: false,
+    })
+  })
+
   // Editing the row for the site being watched and seeing nothing happen on
   // the page would read as broken.
   it('applies a speed set for the active tab domain to that tab', async () => {

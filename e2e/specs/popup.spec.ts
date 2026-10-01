@@ -362,4 +362,32 @@ test.describe('popup sites tab', () => {
 
     expect((await rememberedSites())['player.test'].never).toBe(true)
   })
+
+  test('starts remembering a switched-off site at a speed picked for it', async ({
+    openFixture,
+    openPopup,
+    rememberedSites,
+  }) => {
+    const page = await openFixture('/simple')
+    await page.bringToFront()
+    await pressSpeedKey(page, '+')
+    await expect
+      .poll(async () => (await rememberedSites())['player.test']?.speed)
+      .toBeCloseTo(1.1, 3)
+
+    const popup = await openPopup()
+    await openTab(popup, 'Sites')
+    const select = popup.getByLabel('Speed for player.test', { exact: true })
+
+    await select.selectOption('never')
+    await expect
+      .poll(async () => (await rememberedSites())['player.test']?.never)
+      .toBe(true)
+
+    await select.selectOption('1.5')
+    await expect
+      .poll(async () => (await rememberedSites())['player.test'])
+      .toMatchObject({ speed: 1.5, never: false })
+    await expect(select).toHaveValue('1.5')
+  })
 })

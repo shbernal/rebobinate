@@ -409,9 +409,18 @@ chrome.runtime.onMessage.addListener(
 
     if (message.type === 'rebobinate:set-domain-speed') {
       cancelPendingWrite(message.domain)
-      updateDomains(store =>
-        rememberDomain(store, message.domain, message.speed, Date.now()),
-      )
+
+      // Picking a speed for a site from the list is the explicit form of
+      // "remember this site", so it lifts a never marker first. Browsing
+      // stays bound by the marker: `rememberDomain` refuses to write under it.
+      // One update rather than two messages, since each update reads the map
+      // before writing it back and two in flight would undo each other.
+      updateDomains(store => {
+        const now = Date.now()
+        const lifted = setDomainNever(store, message.domain, false, now)
+
+        return rememberDomain(lifted, message.domain, message.speed, now)
+      })
       applyToTabOnDomain(sender, message.domain, message.speed)
 
       return false
