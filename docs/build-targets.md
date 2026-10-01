@@ -112,15 +112,32 @@ one place and behaves identically on both targets.
 devtools debugging pref: it applies to every panel in the browser, and it is not
 something a user can be asked to set.
 
+## The content script is bundled outside crxjs
+
+crxjs ships a content script as a loader that `import()`s the real chunk, which
+only works if the chunk and its imports are `web_accessible_resources` for
+`<all_urls>`, at a stable URL. With the Web Store id public, any page could fetch
+one to learn Rebobinate is installed, and which build.
+
+So `vite build` hands crxjs the manifest without `content_scripts`, and the
+`rebobinate:content-scripts` plugin in `vite.config.ts` bundles each one after
+the main build as a single self-contained IIFE, then writes it into the emitted
+manifest. Neither package has a `web_accessible_resources` key, and
+`e2e/specs/fingerprint.spec.ts` fetches every shipped file from a page to keep
+it that way. `pnpm dev` still goes through crxjs, for its hot reload, so the
+probe is open there.
+
+A content script that imports CSS or an asset would need that handled in the
+plugin too; today it imports only TypeScript.
+
 ## Entry basenames must be distinct
 
-crxjs names its output chunks after the entry file's basename. A content script
-and a service worker both named `main.ts` produce colliding chunks, and the
-generated `service-worker-loader.js` ends up importing the **content script**.
-
-The failure is silent and easy to misread: the extension loads, the content
-script works, the service worker starts — and it simply never registers its
-listeners, so every message from the page goes unanswered. Verify after a build:
+crxjs names its output chunks after the entry file's basename, and the content
+script bundle is named the same way. Two entries sharing a basename (`main.ts`)
+produce colliding chunks, and the generated `service-worker-loader.js` can end
+up importing the wrong one. The extension still loads and the service worker
+still starts, but it never registers its listeners, so every message goes
+unanswered. Verify after a build:
 
 ```sh
 cat dist/service-worker-loader.js   # must import the service-worker chunk

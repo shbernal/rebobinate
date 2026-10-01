@@ -79,9 +79,9 @@ export const extensionWorker = async context => {
  * Driven through the service worker rather than a keystroke so it does not
  * depend on the page having focus or on the current key bindings.
  *
- * crxjs loads the content script through an async loader, so a message sent
- * straight after a navigation can land before anything is listening. Same
- * answer as `e2e/fixtures/controls.ts` gives a keystroke: say it again.
+ * A message sent straight after a navigation can land before the service
+ * worker has heard from the page's frames. Same answer as
+ * `e2e/fixtures/controls.ts` gives a keystroke: say it again.
  */
 export const showBadge = async (context, page, speed = 1.5, attempts = 20) => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {

@@ -14,7 +14,6 @@ const badge = (page: import('@playwright/test').Page) =>
 const badgeDisplay = (page: import('@playwright/test').Page) =>
   badge(page).evaluate(node => getComputedStyle(node).display)
 
-
 test.describe('speed badge', () => {
   test('appears with the current speed and fades out', async ({
     openFixture,

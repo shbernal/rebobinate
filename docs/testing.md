@@ -89,10 +89,10 @@ node, not part of a TypeScript project reference. See
   [Ad Blockers](./ad-blockers.md) explains why the real uBlock Origin cannot be
   used here.
 - `e2e/fixtures/controls.ts` provides `pressSpeedKey`, which presses and retries
-  until the rate moves. crxjs loads the content script through an asynchronous
-  loader, so for a short moment after a navigation the page is live but the
-  extension is not listening yet; a single press in that window is simply lost.
-  Retrying is also what a user does.
+  until the rate moves. Right after a navigation the page is live before the
+  extension has settled whether the tab holds a video (a frame whose player is
+  in an iframe hears it from the service worker), and a press in that window is
+  left to the page. Retrying is also what a user does.
 
 Fixture pages cover a plain player, a player plus a search box, a scrolling
 page, a page with no video, a player inside a web component, a page whose only

@@ -1,9 +1,10 @@
 import type { FrameLocator, Page } from '@playwright/test'
 
 /**
- * crxjs loads the content script through an asynchronous loader, so for a short
- * moment after a navigation the page is live but the extension is not listening
- * yet. A key pressed inside that window is simply not ours and is gone.
+ * Right after a navigation the page is live before the extension has settled
+ * what it holds: a frame whose player sits in an iframe only learns the tab has
+ * a video once the service worker says so. A key pressed before that is left to
+ * the page, as it should be, and is gone.
  *
  * The helper does what a user does when nothing happens: press again. It stops
  * as soon as the rate moves, so it never overshoots by stacking presses.
