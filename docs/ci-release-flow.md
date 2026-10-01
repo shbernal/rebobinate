@@ -3,8 +3,8 @@
 ## Validation
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`:
-format check, oxlint, typecheck, Vitest, Chrome build, then the Firefox build
-with `web-ext lint`. The Firefox lint step is there because Gecko rejects
+format check, oxlint, typecheck, Vitest with coverage thresholds, Chrome build,
+then the Firefox build with `web-ext lint`. The Firefox lint step is there because Gecko rejects
 manifest keys Chrome accepts.
 
 The oxlint step runs with `--format github`, so a finding lands as an inline
@@ -24,6 +24,29 @@ anything, so a mismatched tag fails before either store is touched.
 
 The two are independent jobs, and one store failing does not roll the other
 back: if Chrome fails after AMO succeeded, the AMO version is still submitted.
+
+Both run lint, typecheck and tests, but not the format check: CI ran it on the
+way in, and a formatting nit failing a release that is already published has no
+retry but the same failure.
+
+The workflows are locked down the same way:
+
+- **Every action is pinned to a commit SHA**, with its tag in a trailing
+  comment. A tag can be repointed by its owner, and these jobs hold the AMO
+  secret and can mint a GCP token for a service account shared with every
+  extension on the account. Bump a pin by resolving the new tag's commit
+  (`git ls-remote https://github.com/<owner>/<action> refs/tags/<tag>^{}` for an
+  annotated tag).
+- **Permissions are per job.** The workflow default is `contents: read`. Only a
+  separate `attach` job in each publish workflow gets `contents: write`, and it
+  uploads the packages the publish job handed it as an artifact. Neither
+  `pnpm install` nor the step holding a store credential runs with a token that
+  can write the repository.
+- **Publishes never overlap.** Each publish workflow is its own concurrency
+  group, queued rather than cancelled. AMO's rate limits are per account and a
+  run only knows what it spent itself, so two at once would collide into 429s
+  that still bill the counters. CI cancels a run superseded by a newer push to
+  the same ref.
 
 ### Chrome Web Store — `.github/workflows/publish-cws.yml`
 
