@@ -12,7 +12,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { printHelpAndExit } from './help.mjs'
+import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 import { installedBlocker } from './fetch-blockers.mjs'
 import {
   badgeProbe,
@@ -73,6 +73,9 @@ Environment
   REBOBINATE_HEADLESS=0    run headed
   PLAYWRIGHT_CHROMIUM_EXECUTABLE   browser executable
 `)
+rejectUnknownArguments({
+  flags: ['--profile-only', '--blocker', '--print-probe', '--complete'],
+})
 
 const defaultProfilePath = 'node_modules/.tmp/inspect-profile'
 const defaultOpenUrl = 'https://www.youtube.com/'

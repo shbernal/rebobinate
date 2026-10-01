@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
-import { printHelpAndExit } from './help.mjs'
+import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
 printHelpAndExit(`
 Usage: node scripts/capture-screenshots.mjs [--help]
@@ -20,6 +20,7 @@ replacing one here means checking that manifest still describes it.
 
 See docs/store-listings.md.
 `)
+rejectUnknownArguments({ positionals: false })
 
 const root = process.cwd()
 const extensionPath = path.join(root, 'dist')

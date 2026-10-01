@@ -21,7 +21,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { printHelpAndExit } from './help.mjs'
+import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 import {
   extensionPath,
   launchWithExtension,
@@ -44,6 +44,10 @@ Base, against the badge the built extension actually renders. Run after
 Exit code is 1 when a filter matches the badge host, which is what "an ad
 blocker hides the badge on these sites" looks like from here.
 `)
+rejectUnknownArguments({
+  flags: ['--refresh', '--write-fixture', '--json'],
+  positionals: false,
+})
 
 const LISTS = {
   'ublock-filters':

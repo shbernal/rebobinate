@@ -10,7 +10,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import webExt from 'web-ext'
-import { printHelpAndExit } from './help.mjs'
+import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 import { installedBlocker } from './fetch-blockers.mjs'
 
 printHelpAndExit(`
@@ -39,6 +39,7 @@ Environment
                                 profile directory (default the one above)
   REBOBINATE_OPEN_URL           start URL when no positional argument is given
 `)
+rejectUnknownArguments({ flags: ['--with-ublock'] })
 
 const defaultOpenUrl = 'https://www.youtube.com/'
 const sourceDir = path.resolve(process.cwd(), 'dist-firefox')

@@ -20,3 +20,32 @@ export const printHelpAndExit = text => {
   console.log(text.trim())
   process.exit(0)
 }
+
+const isFlag = argument => argument.startsWith('-') && argument !== '--'
+
+/**
+ * Exits 1 on any flag the script does not know, and on any positional argument
+ * when it takes none. Reading flags with `includes` alone turns a typo into the
+ * default path, and for `publish:amo` the default path is an irreversible
+ * submission: `--dryrun` must stop here, not upload.
+ *
+ * Called right after `printHelpAndExit`, before any credential is read or any
+ * network call made.
+ */
+export const rejectUnknownArguments = ({ flags = [], positionals = true }) => {
+  const known = new Set([...flags, '--help', '-h'])
+  const args = process.argv.slice(2)
+  const unknown = [
+    ...args.filter(argument => isFlag(argument) && !known.has(argument)),
+    ...(positionals
+      ? []
+      : args.filter(argument => !isFlag(argument) && argument !== '--')),
+  ]
+
+  if (unknown.length === 0) {
+    return
+  }
+
+  console.error(`unknown argument: ${unknown.join(', ')} (see --help)`)
+  process.exit(1)
+}
