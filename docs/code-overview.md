@@ -262,9 +262,17 @@ alone:
 Open shadow roots are traversed explicitly, and each one is observed. The
 `attachShadow` patch other speed extensions use is not available here: a content
 script runs in an isolated world, so its `Element.prototype` is not the page's.
-Closed shadow roots are therefore out of reach — an accepted gap. The shadow
-walk is debounced (250 ms) because it visits every element and busy pages
-mutate constantly.
+Closed shadow roots are therefore out of reach — an accepted gap.
+
+The shadow walk visits every element it covers, and busy pages mutate
+constantly, so it is batched: every 250 ms, it walks only the subtrees the
+mutations since the last batch added. A walk of the whole frame runs at most
+every 5 s, and only while the page mutates. It is the backstop for a root
+attached to an element already in the page, which no light-DOM mutation
+reports. The same walk prunes the observer. A `MutationObserver` holds every
+node it observes strongly and has no per-node unobserve, so the walk disconnects
+it and re-observes only the roots whose host is still connected. Otherwise a
+site recycling a custom-element player would pin every root it ever made.
 
 The registry drops detached elements lazily, so a recycled player does not leave
 stale nodes behind.
