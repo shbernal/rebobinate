@@ -466,7 +466,11 @@ Two things about it are load-bearing:
 - **The tab strip follows the ARIA tab pattern**, including the part that is
   easy to skip: only the selected tab is in the focus order and the arrow keys
   move between them. Without that a keyboard user tabs through every tab to
-  reach the pane. The selected tab is not persisted — the popup opens on Speed.
+  reach the pane. Only the selected pane is mounted, so only the selected tab
+  carries `aria-controls`. The pane itself is in the focus order: it scrolls
+  with its scrollbar hidden, and the notes between controls are otherwise out
+  of a keyboard's reach. The selected tab is not persisted — the popup opens on
+  Speed.
 
 The strip is data-driven (`TABS` in `App.tsx`), which is what makes the Stats
 tab the metrics feature will need one entry rather than a rewrite. It is not
