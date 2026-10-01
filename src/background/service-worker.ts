@@ -442,12 +442,16 @@ chrome.runtime.onMessage.addListener(
       // whole map, so any debounced entry would otherwise re-appear in it a
       // second later.
       cancelAllPendingWrites()
-      writeDomains(message.store)
 
       // Nothing is applied to the tab in front of the user. A restored map is a
       // statement about the next visit to each site, and re-speeding whatever
-      // happens to be playing is not what "restore my settings" asks for.
-      return false
+      // happens to be playing is not what "restore my settings" asks for. The
+      // answer is whether the write landed, which the popup reports.
+      writeDomains(message.store, error => {
+        sendResponse({ error })
+      })
+
+      return true
     }
 
     if (message.type === 'rebobinate:query') {

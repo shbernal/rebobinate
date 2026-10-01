@@ -233,14 +233,21 @@ export const readDomains = (callback: (store: DomainStore) => void): void => {
   })
 }
 
+/**
+ * Calls back with `lastError`'s message when the write did not land — a full
+ * quota, most plausibly on a restore. A failed `set` fires no `onChanged`, so
+ * a caller following storage would otherwise never hear about it.
+ */
 export const writeDomains = (
   store: DomainStore,
-  callback?: () => void,
+  callback?: (error?: string) => void,
 ): void => {
   chrome.storage.local.set(
     { [DOMAINS_STORAGE_KEY]: normalizeDomains(store) },
     () => {
-      callback?.()
+      // Read whether or not anyone asked, so a failure is never unchecked.
+      const error = chrome.runtime.lastError?.message
+      callback?.(error)
     },
   )
 }

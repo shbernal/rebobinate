@@ -752,3 +752,12 @@ may still be pending, and only the service worker can cancel it. It cancels
 _every_ pending write, not one domain's, since a restore replaces the whole map.
 Nothing is applied to the tab in front of the user: a restored map is a
 statement about the next visit to each site.
+
+A restore is also the write most likely to hit the `storage.local` quota, and a
+failed `set` fires no `onChanged`, so nothing following storage would ever hear
+of it. `writeSettings` and `writeDomains` therefore always read `lastError` and
+call back with its message, the service worker answers `import-domains` with
+that, and the status line says _"Could not restore: …"_ in place of the
+receipt. Every other settings save is optimistic in the panel, and on a failed
+write the popup reads the stored settings back so no control shows a value that
+was not saved.

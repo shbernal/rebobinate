@@ -20,7 +20,9 @@ pnpm e2e:headed      # the same, with a visible browser
   `runtime.onMessage` and `sendMessage`, `tabs.query`, `tabs.sendMessage`, and
   `tabs.onRemoved`. Its events expose `emit()` so a test can drive a listener
   directly, and `storage.local.seed()`/`snapshot()` for arranging and asserting
-  state. `tabs.seed()` sets what a query answers with, which matters now that
+  state. `storage.local.failWrites(message)` makes every later `set` land
+  nowhere and report `message` through `runtime.lastError`, the way a full
+  quota does. `tabs.seed()` sets what a query answers with, which matters now that
   the service worker reads a tab's URL and its private-window flag and not only
   its id. A query narrowed to `active` is honoured, because the service worker
   asks twice — once for the active tab, once for all of them — and the second

@@ -156,6 +156,27 @@ describe('storage helpers', () => {
     expect(stored.step).toBe(1)
   })
 
+  it('calls back with the reason a write did not land', () => {
+    const chromeMock = getChromeMock()
+    chromeMock.storage.local.failWrites('QUOTA_BYTES quota exceeded')
+    const listener = vi.fn()
+    const written = vi.fn()
+    onSettingsChange(listener)
+
+    writeSettings({ ...DEFAULT_SETTINGS, step: 0.1 }, written)
+
+    expect(written).toHaveBeenCalledWith('QUOTA_BYTES quota exceeded')
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('calls back with nothing when the write landed', () => {
+    const written = vi.fn()
+
+    writeSettings({ ...DEFAULT_SETTINGS, step: 0.1 }, written)
+
+    expect(written).toHaveBeenCalledWith(undefined)
+  })
+
   it('notifies subscribers on change and stops after unsubscribing', () => {
     const listener = vi.fn()
     const unsubscribe = onSettingsChange(listener)

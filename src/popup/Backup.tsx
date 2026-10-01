@@ -63,7 +63,8 @@ const restoredNote = (parsed: BackupContents & BackupSummary): string => {
 type BackupProps = {
   settings: Settings
   domains: DomainStore
-  onImport: (contents: BackupContents) => void
+  /** Calls `done` once both writes have answered, with the first failure. */
+  onImport: (contents: BackupContents, done: (error?: string) => void) => void
 }
 
 /**
@@ -183,12 +184,13 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
     // replaced. `setMode` below does not spend it: `choose` is what carries
     // that rule, and this is not a choice the user made.
     setUndoText(text)
-    onImport(parsed)
+    onImport(parsed, error =>
+      say(error ? `Could not restore: ${error}` : restoredNote(parsed), true),
+    )
     setDraft('')
     // Back to Export rather than to nothing, which also leaves the freshly
     // restored settings on screen as the backup they now are.
     setMode('export')
-    say(restoredNote(parsed), true)
   }
 
   /**
@@ -210,8 +212,14 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
       return
     }
 
-    onImport(snapshot)
-    say('Put back the settings and sites from before the restore.', true)
+    onImport(snapshot, error =>
+      say(
+        error
+          ? `Could not put back what was there before: ${error}`
+          : 'Put back the settings and sites from before the restore.',
+        true,
+      ),
+    )
   }
 
   return (
