@@ -1,6 +1,8 @@
 // Downloads the real content blockers the ad-blocker checks can use.
 //
-// They are pinned, cached under node_modules/.tmp/blockers, and git-ignored:
+// They are pinned by version and by SHA-256 of the download, since a release
+// asset can be replaced under the same URL and what lands here runs as a
+// privileged extension. Cached under node_modules/.tmp/blockers, and git-ignored:
 // nothing here belongs in the repository, and a version that moves under us
 // would turn "the badge disappeared" into a question about which build of the
 // blocker was running.
@@ -17,10 +19,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
 /**
- * @typedef {{ version: string, url: string } & (
+ * @typedef {{ version: string, url: string, sha256: string } & (
  *   { kind: 'unpacked' } | { kind: 'xpi', fileName: string }
  * )} Blocker
  */
@@ -30,11 +33,13 @@ const BLOCKERS = {
   ubol: {
     version: '2026.812.1211',
     url: 'https://github.com/uBlockOrigin/uBOL-home/releases/download/2026.812.1211/uBOLite_2026.812.1211.chromium.zip',
+    sha256: 'e0daf472f352fd1eeb1d5828f70c1508d28d08bb7550a3a05865b549e49258b9',
     kind: 'unpacked',
   },
   ublock: {
     version: '1.73.0',
     url: 'https://github.com/gorhill/uBlock/releases/download/1.73.0/uBlock0_1.73.0.firefox.signed.xpi',
+    sha256: 'bccc51a773150af4af6e1fd62c7bfdeb7238b79ff2381b998fa9f2e38f64786a',
     // Gecko finds an add-on in a profile by file name, so the XPI has to be
     // named after the id in its own manifest.
     kind: 'xpi',
@@ -65,18 +70,30 @@ export const installedBlocker = name => {
 }
 
 /**
- * @param {string} url
+ * Written only once the bytes match the pinned digest, so nothing that is not
+ * the reviewed build ever reaches the disk to be loaded.
+ *
+ * @param {Blocker} blocker
  * @param {string} destination
  */
-const download = async (url, destination) => {
-  const response = await fetch(url, { redirect: 'follow' })
+const download = async (blocker, destination) => {
+  const response = await fetch(blocker.url, { redirect: 'follow' })
 
   if (!response.ok) {
-    throw new Error(`${url}: ${response.status} ${response.statusText}`)
+    throw new Error(`${blocker.url}: ${response.status} ${response.statusText}`)
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer())
+  const digest = createHash('sha256').update(bytes).digest('hex')
+
+  if (digest !== blocker.sha256) {
+    throw new Error(
+      `${blocker.url}: sha256 ${digest}, pinned ${blocker.sha256}. Refusing it; a new version needs its digest pinned alongside.`,
+    )
   }
 
   fs.mkdirSync(path.dirname(destination), { recursive: true })
-  fs.writeFileSync(destination, Buffer.from(await response.arrayBuffer()))
+  fs.writeFileSync(destination, bytes)
 }
 
 /**
@@ -93,13 +110,13 @@ const fetchBlocker = async (name, force) => {
   }
 
   if (blocker.kind === 'xpi') {
-    await download(blocker.url, target)
+    await download(blocker, target)
     console.log(`${name} ${blocker.version} -> ${target}`)
     return
   }
 
   const archive = path.join(blockersDir, `${name}.zip`)
-  await download(blocker.url, archive)
+  await download(blocker, archive)
   fs.rmSync(target, { recursive: true, force: true })
   fs.mkdirSync(target, { recursive: true })
 

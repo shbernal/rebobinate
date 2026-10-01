@@ -86,6 +86,18 @@ Those matches — the filters that hide an overlay badge but not _our_ overlay
 badge — get vendored into `e2e/fixtures/blocker/filters.json`, which is what
 makes the next tier real rather than invented.
 
+`--write-fixture` writes whatever ten list servers answered today straight into
+the repository, and the e2e blocker replays it as user-origin CSS. A selector
+can only ever reach a page through `matches()` in a `try`, so this is not a
+code path, but the diff it leaves is unreviewed third-party input: read it
+before committing it.
+
+The blockers `pnpm blockers:fetch` downloads are different, since they run as
+privileged extensions. Each is pinned by version and by the SHA-256 of its
+download in `scripts/fetch-blockers.mjs`, and bytes that do not match are
+refused before they touch the disk. A version bump needs the new digest pinned
+alongside it.
+
 This is the tier that catches a list update. Run it before a release, and after
 any change to how the badge is built.
 
