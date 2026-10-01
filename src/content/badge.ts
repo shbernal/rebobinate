@@ -1,5 +1,5 @@
 import type { BadgeCorner, BadgeSettings } from '@/shared/settings'
-import { formatSpeedLabel } from '@/shared/speed'
+import { formatSpeedLabel, speedsEqual } from '@/shared/speed'
 
 /**
  * The on-video speed counter.
@@ -419,7 +419,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       return false
     }
 
-    return !(settings.hideAtNormalSpeed && Math.abs(speed - 1) < 0.0005)
+    return !(settings.hideAtNormalSpeed && speedsEqual(speed, 1))
   }
 
   const render = (speed: number, settings: BadgeSettings) => {
@@ -470,6 +470,12 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
 
     resizeObserver?.disconnect()
     resizeObserver = null
+    // Everything a later `render` reads back, so it starts from nothing: a
+    // stale `observedVideo` would skip re-observing the same video.
+    observedVideo = null
+    visible = false
+    currentSettings = null
+    burstUntil = 0
     window.removeEventListener('scroll', handleViewportChange, {
       capture: true,
     })
