@@ -40,7 +40,13 @@ if (isControllableDocument()) {
 
       if (eventName === 'ratechange') {
         enforcer.reconcile(video)
-        badge.render(enforcer.getSpeed(), badgeSettings())
+
+        // A site that won the fight keeps firing `ratechange`, and each render
+        // reads every video's layout. Nothing changed that the badge shows.
+        if (!enforcer.isSuppressed(video)) {
+          badge.render(enforcer.getSpeed(), badgeSettings())
+        }
+
         return
       }
 

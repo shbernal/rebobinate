@@ -285,8 +285,12 @@ not the desired one. Setting the rate once is why speed extensions lose it on
 sites that reset the player.
 
 A site that rewrites the rate in a loop would turn that into a pegged CPU, so
-corrections are capped at 12 within a one-second window per video; after that
-the enforcer backs off until the site stops or the user sets a speed again.
+corrections are capped at 12 within a one-second window per video. Past that
+the enforcer backs off for that video, and time alone does not re-arm it: only
+the user setting a speed, or the video's next media event (`apply` on a new
+source or a play), does. While backed off, the content script skips the badge
+re-render a `ratechange` would cost, since each one reads every video's
+layout.
 
 ## The badge
 
