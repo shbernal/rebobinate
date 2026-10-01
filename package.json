@@ -41,8 +41,7 @@
     "e2e:headed": "tsc -b && vite build && playwright test --headed",
     "e2e:ui": "tsc -b && vite build && playwright test --ui",
     "format": "prettier --check .",
-    "format:write": "prettier --write .",
-    "preview": "vite preview"
+    "format:write": "prettier --write ."
   },
   "prettier": {
     "semi": false,
