@@ -54,23 +54,29 @@ type ExtensionFixtures = {
 export const test = base.extend<ExtensionFixtures>({
   blockers: [[], { option: true }],
 
-  extensionContext: async ({ headless, blockers }, use, testInfo) => {
-    const context = await launchExtensionContext({
-      userDataDir: testInfo.outputPath('chromium-profile'),
-      headless,
-      extraExtensions: blockers,
-    })
+  // A budget of its own, outside the test's: a fresh profile launching under
+  // load can take longer than the whole test is allowed, and a timeout there
+  // would be charged to a test that never got to run.
+  extensionContext: [
+    async ({ headless, blockers }, use, testInfo) => {
+      const context = await launchExtensionContext({
+        userDataDir: testInfo.outputPath('chromium-profile'),
+        headless,
+        extraExtensions: blockers,
+      })
 
-    await installFixtureRoutes(context)
-    await waitForExtensionWorker(context)
+      await installFixtureRoutes(context)
+      await waitForExtensionWorker(context)
 
-    if (blockers.length > 0) {
-      await waitForBlockerWorker(context)
-    }
+      if (blockers.length > 0) {
+        await waitForBlockerWorker(context)
+      }
 
-    await use(context)
-    await closeExtensionContext(context)
-  },
+      await use(context)
+      await closeExtensionContext(context)
+    },
+    { timeout: 60_000 },
+  ],
 
   extensionId: async ({ extensionContext }, use) => {
     await use(await getExtensionId(extensionContext))
