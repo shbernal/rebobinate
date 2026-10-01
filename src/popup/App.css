@@ -283,6 +283,13 @@ textarea {
   outline-offset: -2px;
 }
 
+/* Focusable so the keyboard can scroll it. Outside the box, in the popup's
+   padding, so the ring is not lost under the scroll cues. */
+.pane:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+
 /* The pane scrolls rather than the window, so the header and the tab strip stay
    put. The height is under what either browser gives a popup, and a pane
    shorter than it does not scroll at all.

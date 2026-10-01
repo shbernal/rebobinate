@@ -413,6 +413,9 @@ const App = () => {
         role="tabpanel"
         id={tabPanelId(tab)}
         aria-labelledby={tabId(tab)}
+        // A scroll container with its scrollbar hidden: without focus of its
+        // own, the text between controls is out of a keyboard user's reach.
+        tabIndex={0}
       >
         {tab === 'speed' ? (
           <SpeedPane

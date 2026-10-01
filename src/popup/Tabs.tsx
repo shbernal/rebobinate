@@ -56,7 +56,9 @@ const Tabs = <TId extends string>({
           type="button"
           role="tab"
           id={tabId(tab.id)}
-          aria-controls={tabPanelId(tab.id)}
+          // Only one panel is ever mounted, so only the selected tab has a
+          // panel to name; the others would point at an id that is not there.
+          aria-controls={tab.id === active ? tabPanelId(tab.id) : undefined}
           aria-selected={tab.id === active}
           tabIndex={tab.id === active ? 0 : -1}
           className={tab.id === active ? 'tab active' : 'tab'}

@@ -126,6 +126,37 @@ describe('popup tabs', () => {
     )
   })
 
+  it('names an existing panel from every tab that names one', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    for (const name of ['Speed', 'Sites', 'Settings']) {
+      await openTab(user, name)
+
+      const dangling = screen
+        .getAllByRole('tab')
+        .map(tab => tab.getAttribute('aria-controls'))
+        .filter(id => id !== null && document.getElementById(id) === null)
+
+      expect(dangling).toEqual([])
+      expect(screen.getByRole('tab', { name, selected: true })).toHaveAttribute(
+        'aria-controls',
+      )
+    }
+  })
+
+  // The pane scrolls with its scrollbar hidden, so it has to take focus for
+  // the keyboard to scroll it.
+  it('puts the scrolling pane in the focus order after the tabs', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('tab', { name: 'Settings' }))
+    await user.tab()
+
+    expect(screen.getByRole('tabpanel')).toHaveFocus()
+  })
+
   it('moves between tabs with the arrow keys', async () => {
     const user = userEvent.setup()
     render(<App />)
