@@ -102,6 +102,15 @@ test.describe('keyboard speed controls', () => {
     expect(await embeddedRate()).toBeCloseTo(1.1, 3)
   })
 
+  // A media file opened on its own is a document of type `video/*`, holding
+  // the browser's own `<video>`.
+  test('controls a video opened directly', async ({ openFixture }) => {
+    const page = await openFixture('/media/clip.mp4')
+
+    await pressSpeedKey(page, '+', () => rateOf(page, 'video'))
+    expect(await rateOf(page, 'video')).toBeCloseTo(1.1, 3)
+  })
+
   test('leaves a page without video alone', async ({ openFixture }) => {
     const page = await openFixture('/no-video')
     const pressed: string[] = []

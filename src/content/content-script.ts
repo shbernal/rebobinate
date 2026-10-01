@@ -9,19 +9,12 @@ import {
 } from '@/shared/settings'
 import { speedsEqual } from '@/shared/speed'
 import { createBadge } from './badge'
+import { isControllableDocument } from './document'
 import { createEnforcer } from './enforcer'
 import { createKeyHandler } from './keys'
 import { createMediaRegistry } from './media'
 
-// The content script matches `<all_urls>`, which includes documents that are
-// not HTML at all (XML, plain text, images). Nothing to control there.
-const isControllableDocument = () => {
-  return (
-    Boolean(document.documentElement) && document.contentType !== 'text/xml'
-  )
-}
-
-if (isControllableDocument()) {
+if (isControllableDocument(document)) {
   let settings: Settings = DEFAULT_SETTINGS
 
   const enforcer = createEnforcer({ videos: () => registry.videos() })
