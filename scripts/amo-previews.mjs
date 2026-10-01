@@ -4,17 +4,33 @@
 // and returns the work to do.
 import path from 'node:path'
 
+/** @typedef {Record<string, string>} Caption locale to text */
+/** @typedef {{ file: string, caption: Caption }} PreviewEntry */
+/** @typedef {{ file: string, sha256: string, id: number }} LockRow */
+/** @typedef {{ icon: { file: string, sha256: string } | null, previews: LockRow[] }} AssetLock */
+/** @typedef {{ id: number, caption?: Caption, position?: number }} RemotePreview */
+/** @typedef {{ id: number, file: string, caption?: Caption, position?: number }} PreviewPatch */
+/**
+ * @typedef {object} PreviewPlan
+ * @property {(PreviewEntry & { position: number })[]} uploads
+ * @property {PreviewPatch[]} patches
+ * @property {number[]} deletes
+ * @property {number[]} kept
+ */
+
 // `ImageField` in addons-server rejects anything that is not a non-animated
 // PNG or JPEG under `MAX_IMAGE_UPLOAD_SIZE`, which is 4MB. Checking locally
 // turns a mid-release API rejection into a failure before anything is uploaded.
 export const MAX_IMAGE_BYTES = 4 * 1024 * 1024
 
+/** @type {Record<string, string>} */
 const CONTENT_TYPES = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
 }
 
+/** @param {string} file */
 export const imageContentType = file => {
   const type = CONTENT_TYPES[path.extname(file).toLowerCase()]
 
@@ -25,6 +41,10 @@ export const imageContentType = file => {
   return type
 }
 
+/**
+ * @param {string} file
+ * @param {number} bytes
+ */
 export const checkImageBytes = (file, bytes) => {
   if (bytes > MAX_IMAGE_BYTES) {
     const megabytes = (bytes / 1024 / 1024).toFixed(1)
@@ -35,7 +55,12 @@ export const checkImageBytes = (file, bytes) => {
 // Display order is the order of the file. `position` is derived from the index
 // rather than written out, so there is only one place to change an ordering and
 // no way for the two to disagree.
+/**
+ * @param {unknown} raw parsed JSON
+ * @returns {PreviewEntry[]}
+ */
 export const parsePreviewManifest = (raw, source = 'amo/previews.json') => {
+  /** @type {(message: string) => never} */
   const fail = message => {
     throw new Error(`${source}: ${message}`)
   }
@@ -88,6 +113,7 @@ export const parsePreviewManifest = (raw, source = 'amo/previews.json') => {
 // nothing here can see.
 export const EMPTY_LOCK = { icon: null, previews: [] }
 
+/** @param {any} row parsed JSON */
 const isRow = row =>
   typeof row?.file === 'string' &&
   typeof row?.sha256 === 'string' &&
@@ -96,6 +122,10 @@ const isRow = row =>
 // A lock that cannot be read is not an error: it means nothing is reusable, and
 // a full replace is always a correct answer. Failing the run instead would turn
 // a bookkeeping file into something that can block a release.
+/**
+ * @param {any} raw parsed JSON
+ * @returns {AssetLock}
+ */
 export const parseAssetLock = raw => {
   const icon =
     typeof raw?.icon?.file === 'string' && typeof raw?.icon?.sha256 === 'string'
@@ -103,11 +133,13 @@ export const parseAssetLock = raw => {
       : null
 
   const previews = Array.isArray(raw?.previews)
-    ? raw.previews.filter(isRow).map(({ file, sha256, id }) => ({
-        file,
-        sha256,
-        id,
-      }))
+    ? raw.previews
+        .filter(isRow)
+        .map((/** @type {LockRow} */ { file, sha256, id }) => ({
+          file,
+          sha256,
+          id,
+        }))
     : []
 
   return { icon, previews }
@@ -115,6 +147,10 @@ export const parseAssetLock = raw => {
 
 // Only the locales the manifest sets are compared: nothing here ever writes the
 // others, so a translation AMO holds that we do not is not drift.
+/**
+ * @param {Caption | undefined} published
+ * @param {Caption} wanted
+ */
 const captionMatches = (published, wanted) =>
   Object.entries(wanted).every(([locale, text]) => published?.[locale] === text)
 
@@ -122,25 +158,40 @@ const captionMatches = (published, wanted) =>
 // marks it create-only — so a changed screenshot is always an upload plus a
 // delete. Caption and position are ordinary writable fields, which is what
 // makes a re-worded caption or a reorder cost one call instead of a replace.
+/**
+ * @param {RemotePreview[]} remote
+ * @param {PreviewEntry[]} manifest
+ * @param {AssetLock} lock
+ * @param {Map<string, string>} digests file to sha256
+ * @returns {PreviewPlan}
+ */
 export const planPreviewSync = (remote, manifest, lock, digests) => {
   const byId = new Map(remote.map(preview => [preview.id, preview]))
   const rows = new Map(lock.previews.map(row => [row.file, row]))
 
+  /** @type {PreviewPlan['uploads']} */
   const uploads = []
+  /** @type {PreviewPatch[]} */
   const patches = []
+  /** @type {Set<number>} */
   const kept = new Set()
 
   manifest.forEach((entry, position) => {
     const row = rows.get(entry.file)
     const published = row === undefined ? undefined : byId.get(row.id)
 
-    if (published === undefined || row.sha256 !== digests.get(entry.file)) {
+    // `published` is only defined when `row` is.
+    if (
+      published === undefined ||
+      /** @type {LockRow} */ (row).sha256 !== digests.get(entry.file)
+    ) {
       uploads.push({ ...entry, position })
       return
     }
 
     kept.add(published.id)
 
+    /** @type {PreviewPatch} */
     const patch = { id: published.id, file: entry.file }
 
     if (!captionMatches(published.caption, entry.caption)) {
@@ -171,15 +222,22 @@ export const planPreviewSync = (remote, manifest, lock, digests) => {
 // Uploading is two calls because a localized caption cannot ride the multipart
 // create: `TranslationSerializerField` takes a dictionary only outside the
 // `l10n_flat_input_output` gate, which API v5 does not carry.
+/** @param {PreviewPlan} plan */
 export const planCalls = plan =>
   plan.uploads.length * 2 + plan.patches.length + plan.deletes.length
 
+/** @param {PreviewPlan} plan */
 export const isPlanEmpty = plan => planCalls(plan) === 0
 
+/**
+ * @param {number} n
+ * @param {string} noun
+ */
 const countOf = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`
 
 export const PREVIEWS_IN_SYNC = 'previews: in sync with amo/previews.json'
 
+/** @param {PreviewPlan} plan */
 export const describePlanWork = plan =>
   [
     plan.uploads.length > 0 && countOf(plan.uploads.length, 'upload'),
@@ -189,6 +247,7 @@ export const describePlanWork = plan =>
     .filter(Boolean)
     .join(', ')
 
+/** @param {PreviewPlan} plan */
 export const describeSyncStart = plan =>
   `syncing previews: ${describePlanWork(plan)} in ` +
   countOf(planCalls(plan), 'call')
@@ -198,6 +257,10 @@ export const describeSyncStart = plan =>
 // published, so every image has to go up again. That is a deliberate act, not
 // something a release should stall an hour on, so it is handed back as a
 // command to run on its own.
+/**
+ * @param {PreviewPlan} plan
+ * @param {number} budget
+ */
 export const describeDeferredPlan = (plan, budget) =>
   `previews: ${describePlanWork(plan)} needs ` +
   `${countOf(planCalls(plan), 'call')} and only ${budget} are left this hour ` +
@@ -206,6 +269,12 @@ export const describeDeferredPlan = (plan, budget) =>
 // The listing icon has no id to reconcile against, so the digest is the whole
 // check — with one exception. If AMO is still serving its placeholder then no
 // icon was ever accepted, whatever the lock claims, and it has to be sent.
+/**
+ * @param {AssetLock} lock
+ * @param {string} file
+ * @param {string | undefined} digest
+ * @param {string | undefined} iconUrl
+ */
 export const iconNeedsUpload = (lock, file, digest, iconUrl) =>
   iconUrl === undefined ||
   iconUrl.includes('/addon-icons/default-') ||
@@ -214,11 +283,18 @@ export const iconNeedsUpload = (lock, file, digest, iconUrl) =>
 
 // Rewritten from the manifest each time rather than patched, so a row for a
 // screenshot the manifest no longer lists cannot survive in the file.
+/**
+ * @param {PreviewEntry[]} manifest
+ * @param {Map<string, string>} digests
+ * @param {Map<string, number>} ids
+ * @returns {LockRow[]}
+ */
 export const lockPreviews = (manifest, digests, ids) =>
   manifest
     .filter(entry => ids.has(entry.file))
+    // `digests` covers the manifest, and the filter keeps only files in `ids`.
     .map(entry => ({
       file: entry.file,
-      sha256: digests.get(entry.file),
-      id: ids.get(entry.file),
+      sha256: /** @type {string} */ (digests.get(entry.file)),
+      id: /** @type {number} */ (ids.get(entry.file)),
     }))

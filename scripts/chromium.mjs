@@ -8,6 +8,10 @@ import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
 
+/** @typedef {import('@playwright/test').BrowserContext} BrowserContext */
+/** @typedef {import('@playwright/test').Page} Page */
+/** @typedef {import('@playwright/test').Worker} Worker */
+
 export const extensionPath = path.resolve(process.cwd(), 'dist')
 
 export const resolveChromiumExecutable = () => {
@@ -64,8 +68,13 @@ export const launchWithExtension = async ({
   })
 }
 
-/** The extension's own service worker, told apart from any blocker's. */
+/**
+ * The extension's own service worker, told apart from any blocker's.
+ *
+ * @param {BrowserContext} context
+ */
 export const extensionWorker = async context => {
+  /** @param {Worker} worker */
   const isOurs = worker => worker.url().includes('service-worker-loader')
 
   return (
@@ -82,6 +91,9 @@ export const extensionWorker = async context => {
  * A message sent straight after a navigation can land before the service
  * worker has heard from the page's frames. Same answer as
  * `e2e/fixtures/controls.ts` gives a keystroke: say it again.
+ *
+ * @param {BrowserContext} context
+ * @param {Page} page
  */
 export const showBadge = async (context, page, speed = 1.5, attempts = 20) => {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -102,12 +114,16 @@ export const showBadge = async (context, page, speed = 1.5, attempts = 20) => {
   return false
 }
 
+/**
+ * @param {BrowserContext} context
+ * @param {number} speed
+ */
 export const setTabSpeed = async (context, speed) => {
   const worker = await extensionWorker(context)
 
   await worker.evaluate(
     wanted =>
-      new Promise(resolve => {
+      new Promise((/** @type {(sent: boolean) => void} */ resolve) => {
         chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
           const tab = tabs[0]
 

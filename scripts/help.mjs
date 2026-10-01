@@ -12,6 +12,7 @@ export const helpRequested = process.argv
 
 // Called before the script does any work, so help never launches a browser,
 // writes a profile, or touches the network.
+/** @param {string} text */
 export const printHelpAndExit = text => {
   if (!helpRequested) {
     return
@@ -21,6 +22,7 @@ export const printHelpAndExit = text => {
   process.exit(0)
 }
 
+/** @param {string} argument */
 const isFlag = argument => argument.startsWith('-') && argument !== '--'
 
 /**
@@ -31,6 +33,8 @@ const isFlag = argument => argument.startsWith('-') && argument !== '--'
  *
  * Called right after `printHelpAndExit`, before any credential is read or any
  * network call made.
+ *
+ * @param {{ flags?: string[], positionals?: boolean }} options
  */
 export const rejectUnknownArguments = ({ flags = [], positionals = true }) => {
   const known = new Set([...flags, '--help', '-h'])

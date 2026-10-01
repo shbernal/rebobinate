@@ -33,6 +33,10 @@ import {
   throttleWaitMs,
 } from './amo-throttle.mjs'
 
+/** @typedef {import('./amo-previews.mjs').AssetLock} AssetLock */
+/** @typedef {import('./amo-previews.mjs').RemotePreview} RemotePreview */
+/** @typedef {import('./amo-throttle.mjs').ThrottleScope} ThrottleScope */
+
 const API = 'https://addons.mozilla.org/api/v5'
 const GUID = 'rebobinate@shbernal.github.io'
 const CHANNEL = 'listed'
@@ -65,7 +69,9 @@ const validateOnly = process.argv.includes('--validate-only')
 const assetsOnly = process.argv.includes('--assets-only')
 const forcePreviews = process.argv.includes('--sync-previews')
 
+/** @param {string} file */
 const read = file => fs.readFileSync(path.resolve(root, file), 'utf8')
+/** @param {string} file */
 const readJson = file => JSON.parse(read(file))
 
 const { version } = readJson('package.json')
@@ -182,6 +188,7 @@ const listing = () => ({
 const previewManifest = () =>
   parsePreviewManifest(readJson(PREVIEW_MANIFEST), PREVIEW_MANIFEST)
 
+/** @param {string} file */
 const digestOf = file =>
   crypto
     .createHash('sha256')
@@ -198,12 +205,14 @@ const readLock = () => {
   }
 }
 
+/** @param {AssetLock} lock */
 const writeLock = lock =>
   fs.writeFileSync(
     path.resolve(root, ASSET_LOCK),
     `${JSON.stringify(lock, null, 2)}\n`,
   )
 
+/** @param {string} value */
 const base64url = value => Buffer.from(value).toString('base64url')
 
 // AMO caps a token's life at five minutes past `iat`, so every request mints its
@@ -220,13 +229,15 @@ const mintToken = () => {
     }),
   )
   const signature = crypto
-    .createHmac('sha256', secret)
+    // `requireEnv` has run before any request mints one.
+    .createHmac('sha256', /** @type {string} */ (secret))
     .update(`${header}.${payload}`)
     .digest('base64url')
 
   return `${header}.${payload}.${signature}`
 }
 
+/** @param {string} text */
 const parse = text => {
   try {
     return JSON.parse(text)
@@ -239,11 +250,13 @@ const parse = text => {
 // AMO rejected — those spent budget too. Only what this run did is known, so a
 // collision with an earlier run still surfaces as a 429, which is what the
 // retry below is for.
+/** @type {Record<ThrottleScope, number[]>} */
 const sent = { submission: [], upload: [] }
 
 // Waiting before a call rather than after a rejection is the whole point: a
 // 429 costs a slot on every limit that was not the one rejecting it, so the
 // cheapest request is the one that is never sent.
+/** @param {ThrottleScope | null} scope */
 const pace = async scope => {
   if (scope === null) {
     return
@@ -279,12 +292,19 @@ const pace = async scope => {
 // matter against its five-minute life.
 const THROTTLE_ATTEMPTS = 5
 
+/**
+ * @param {string} method
+ * @param {string} endpoint
+ * @param {{ json?: unknown, form?: FormData }} [body]
+ * @returns {Promise<any>} AMO's parsed reply
+ */
 const request = async (method, endpoint, { json, form } = {}) => {
   const scope = throttleScope(method, endpoint)
 
   for (let attempt = 1; ; attempt += 1) {
     await pace(scope)
 
+    /** @type {Record<string, string>} */
     const headers = { Authorization: `JWT ${mintToken()}` }
 
     if (json !== undefined) {
@@ -331,6 +351,10 @@ const request = async (method, endpoint, { json, form } = {}) => {
 // published — so the whole release fails on a metadata typo. Both lists are
 // public and unauthenticated, so checking up front costs nothing and turns that
 // into a failed dry run.
+/**
+ * @param {string} endpoint
+ * @returns {Promise<any>}
+ */
 const publicList = async endpoint => {
   const response = await fetch(`${API}${endpoint}`)
 
@@ -343,6 +367,7 @@ const publicList = async endpoint => {
 
 const verifyListing = async () => {
   const { tags = [], categories = [] } = listing()
+  /** @type {[string[], { type: string, slug: string }[]]} */
   const [validTags, allCategories] = await Promise.all([
     publicList('/addons/tags/'),
     publicList('/addons/categories/'),
@@ -358,7 +383,7 @@ const verifyListing = async () => {
   ]
     .map(([field, values, valid]) => [
       field,
-      values.filter(value => !valid.includes(value)),
+      values.filter((/** @type {string} */ value) => !valid.includes(value)),
       valid,
     ])
     .filter(([, unknown]) => unknown.length > 0)
@@ -377,14 +402,20 @@ const verifyListing = async () => {
   )
 }
 
+/**
+ * @param {string} file
+ * @param {string} type
+ */
 const filePart = (file, type) =>
   new File([fs.readFileSync(file)], path.basename(file), { type })
 
+/** @param {string} file */
 const zipPart = file => filePart(file, 'application/zip')
 
 // AMO also requires the icon to be square, which it enforces server-side. That
 // is left to it: reading dimensions here would mean parsing PNG and JPEG
 // headers to re-derive an answer the API already gives clearly.
+/** @param {string} file */
 const imagePart = file => {
   const absolute = path.resolve(root, file)
   checkImageBytes(file, fs.statSync(absolute).size)
@@ -392,8 +423,12 @@ const imagePart = file => {
   return filePart(absolute, imageContentType(file))
 }
 
+/** @param {number} ms */
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+/**
+ * @param {{ messages?: { type: string, message: string, file?: string }[] }} [validation]
+ */
 const messagesOf = validation =>
   (validation?.messages ?? [])
     .filter(message => message.type === 'error')
@@ -418,6 +453,7 @@ const uploadPackage = async () => {
   return upload
 }
 
+/** @param {string} uuid */
 const awaitValidation = async uuid => {
   for (let attempt = 1; attempt <= POLL_ATTEMPTS; attempt += 1) {
     const upload = await request('GET', `/addons/upload/${uuid}/`)
@@ -444,6 +480,7 @@ const awaitValidation = async uuid => {
 // new version when it has, so first submission and every later release take the
 // same path. It also re-applies the listing metadata each release, which keeps
 // the public page in step with `amo/listing.json`.
+/** @param {string} uuid */
 const submitVersion = async uuid => {
   const addon = await request('PUT', `/addons/addon/${GUID}/`, {
     json: {
@@ -463,6 +500,7 @@ const submitVersion = async uuid => {
 
 // Source cannot travel as JSON, and it cannot be nested inside the version
 // object of a form-data request either, so it is always a second call.
+/** @param {number} versionId */
 const attachSource = async versionId => {
   const form = new FormData()
   form.set('source', zipPart(sourcePath))
@@ -505,6 +543,7 @@ const uploadIcon = async () => {
 // exist and what captions and positions they carry, and only the difference is
 // written. A listing that already matches costs nothing, which is what makes
 // this safe to do on every release rather than as a remembered extra step.
+/** @param {{ icon_url?: string, previews?: RemotePreview[] }} addon */
 const applyListingAssets = async addon => {
   const lock = readLock()
   const iconDigest = digestOf(ICON)
@@ -608,6 +647,7 @@ const requireEnv = () => {
   }
 }
 
+/** @param {string[]} files */
 const requireFiles = (...files) => {
   for (const file of files) {
     if (!fs.existsSync(file)) {

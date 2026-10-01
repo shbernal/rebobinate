@@ -83,6 +83,8 @@ const LISTS = {
  * new name. There is no shape the badge could take that would survive one, and
  * the only way around it is to ask the list maintainers for an exception. Keyed
  * by filter scope, so a rule being rewritten does not silently un-accept it.
+ *
+ * @type {Record<string, string>}
  */
 const ACCEPTED_SCOPES = {
   'hotcleaner.com':
@@ -108,6 +110,10 @@ const refresh = argv.includes('--refresh')
 const writeFixture = argv.includes('--write-fixture')
 const asJson = argv.includes('--json')
 
+/**
+ * @param {string} name
+ * @param {string} url
+ */
 const readList = async (name, url) => {
   const cached = path.join(cacheDir, `${name}.txt`)
 
@@ -128,6 +134,8 @@ const readList = async (name, url) => {
   return text
 }
 
+/** @typedef {{ scopes: Set<string>, lists: Set<string> }} Filter */
+
 /**
  * Cosmetic filters are `scope##selector`. An empty scope makes the filter
  * generic — it applies to every site, which is the class that would take the
@@ -136,6 +144,10 @@ const readList = async (name, url) => {
  * `#@#` exceptions are skipped (they only ever un-hide), and so are `+js(...)`
  * scriptlets, which are code injected into the page's main world and cannot
  * touch a content script's DOM from there.
+ *
+ * @param {string} text
+ * @param {string} listName
+ * @param {Map<string, Filter>} into
  */
 const parseCosmeticFilters = (text, listName, into) => {
   for (const raw of text.split('\n')) {
@@ -164,6 +176,7 @@ const parseCosmeticFilters = (text, listName, into) => {
   }
 }
 
+/** @type {Map<string, Filter>} */
 const filters = new Map()
 
 for (const [name, url] of Object.entries(LISTS)) {
@@ -177,102 +190,113 @@ fs.rmSync(profilePath, { recursive: true, force: true })
 
 const context = await launchWithExtension({ profilePath })
 
-// A page with a video, so the content script has something to anchor to, on an
-// origin no filter list has ever heard of — the scoped filters are applied here
-// by hand afterwards, rather than left to whatever the hostname happens to hit.
-await context.route('https://player.test/**', route =>
-  route.fulfill({
-    status: 200,
-    contentType: 'text/html; charset=utf-8',
-    body: `<!doctype html><html><head><title>filter check</title></head>
+// Closed on every way out but the early exit, which closes it itself before
+// `process.exit` skips the `finally`.
+let report
+try {
+  // A page with a video, so the content script has something to anchor to, on
+  // an origin no filter list has ever heard of — the scoped filters are applied
+  // here by hand afterwards, rather than left to whatever the hostname happens
+  // to hit.
+  await context.route('https://player.test/**', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html; charset=utf-8',
+      body: `<!doctype html><html><head><title>filter check</title></head>
       <body><video id="player" style="width:640px;height:360px"></video></body>
       </html>`,
-  }),
-)
+    }),
+  )
 
-const page = context.pages()[0] ?? (await context.newPage())
-await page.goto('https://player.test/simple')
+  const page = context.pages()[0] ?? (await context.newPage())
+  await page.goto('https://player.test/simple')
 
-if (!(await showBadge(context, page))) {
-  console.error('the badge never appeared — is dist/ current?')
+  if (!(await showBadge(context, page))) {
+    console.error('the badge never appeared — is dist/ current?')
+    await context.close()
+    process.exit(2)
+  }
+
+  report = await page.evaluate(list => {
+    // `showBadge` has just seen it.
+    const host = /** @type {HTMLElement} */ (
+      document.getElementById('rebobinate-speed-host')
+    )
+
+    // The shapes the badge must never drift back into: an overlay that
+    // announces itself through an inline style attribute. Filter lists hunt
+    // these to kill popunders, and they are indifferent to what the overlay is
+    // for. Four of them, because the parent and the presence of an id or class
+    // each change what matches — `body > div[style*="z-index:"]` is a real
+    // filter, and so is `div[style]:not([class])`.
+    const overlayStyle =
+      'position:fixed;z-index:2147483647;display:flex;top:0;left:0'
+    const bait = [
+      { parent: 'html', id: 'overlay-badge', className: 'overlay-badge' },
+      { parent: 'body', id: 'overlay-badge', className: 'overlay-badge' },
+      { parent: 'html', id: 'rebobinate-speed-host', className: '' },
+      { parent: 'body', id: '', className: '' },
+    ].map(shape => {
+      const element = document.createElement('div')
+
+      if (shape.id) {
+        element.id = shape.id
+      }
+
+      if (shape.className) {
+        element.className = shape.className
+      }
+
+      element.setAttribute('style', overlayStyle)
+      ;(shape.parent === 'html'
+        ? document.documentElement
+        : document.body
+      ).append(element)
+
+      return element
+    })
+
+    const hits = []
+    const baited = []
+    const unsupported = []
+
+    for (const selector of list) {
+      try {
+        if (host.matches(selector)) {
+          hits.push(selector)
+        }
+
+        if (bait.some(element => element.matches(selector))) {
+          baited.push(selector)
+        }
+      } catch {
+        // Procedural filters (`:has-text`, `:matches-css`, `:style`) are uBO
+        // extensions to CSS, not selectors a browser can evaluate.
+        unsupported.push(selector)
+      }
+    }
+
+    bait.forEach(element => element.remove())
+
+    return {
+      hits,
+      baited,
+      unsupported: unsupported.length,
+      hostHtml: /** @type {Element} */ (host.cloneNode(false)).outerHTML,
+    }
+  }, selectors)
+} finally {
   await context.close()
-  process.exit(2)
 }
 
-const report = await page.evaluate(list => {
-  const host = document.getElementById('rebobinate-speed-host')
+/** @param {string} selector one the run collected, so always in `filters` */
+const describe = selector => {
+  const filter = /** @type {Filter} */ (filters.get(selector))
 
-  // The shapes the badge must never drift back into: an overlay that announces
-  // itself through an inline style attribute. Filter lists hunt these to kill
-  // popunders, and they are indifferent to what the overlay is for. Four of
-  // them, because the parent and the presence of an id or class each change
-  // what matches — `body > div[style*="z-index:"]` is a real filter, and so is
-  // `div[style]:not([class])`.
-  const overlayStyle =
-    'position:fixed;z-index:2147483647;display:flex;top:0;left:0'
-  const bait = [
-    { parent: 'html', id: 'overlay-badge', className: 'overlay-badge' },
-    { parent: 'body', id: 'overlay-badge', className: 'overlay-badge' },
-    { parent: 'html', id: 'rebobinate-speed-host', className: '' },
-    { parent: 'body', id: '', className: '' },
-  ].map(shape => {
-    const element = document.createElement('div')
+  return { selector, scopes: [...filter.scopes], lists: [...filter.lists] }
+}
 
-    if (shape.id) {
-      element.id = shape.id
-    }
-
-    if (shape.className) {
-      element.className = shape.className
-    }
-
-    element.setAttribute('style', overlayStyle)
-    ;(shape.parent === 'html'
-      ? document.documentElement
-      : document.body
-    ).append(element)
-
-    return element
-  })
-
-  const hits = []
-  const baited = []
-  const unsupported = []
-
-  for (const selector of list) {
-    try {
-      if (host.matches(selector)) {
-        hits.push(selector)
-      }
-
-      if (bait.some(element => element.matches(selector))) {
-        baited.push(selector)
-      }
-    } catch {
-      // Procedural filters (`:has-text`, `:matches-css`, `:style`) are uBO
-      // extensions to CSS, not selectors a browser can evaluate.
-      unsupported.push(selector)
-    }
-  }
-
-  bait.forEach(element => element.remove())
-
-  return {
-    hits,
-    baited,
-    unsupported: unsupported.length,
-    hostHtml: host.cloneNode(false).outerHTML,
-  }
-}, selectors)
-
-await context.close()
-
-const describe = selector => ({
-  selector,
-  scopes: [...filters.get(selector).scopes],
-  lists: [...filters.get(selector).lists],
-})
-
+/** @param {{ scopes: string[] }} hit */
 const isAccepted = hit =>
   hit.scopes.every(scope => ACCEPTED_SCOPES[scope] !== undefined)
 

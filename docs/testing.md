@@ -68,8 +68,10 @@ asserts every file it names is present and within AMO's 4MB limit, so a moved or
 oversized screenshot fails here rather than partway through a release, and that
 `amo/previews.lock.json` still parses — a lock that has stopped being readable
 would silently turn every sync back into a full replace. Both files are `.mjs`
-because the modules under test are: the publish scripts are plain ESM run by
-node, not part of a TypeScript project reference. See
+because the modules under test are: the scripts are plain ESM run by node.
+They are still typechecked: `tsconfig.scripts.json` runs `checkJs` over
+`scripts/` as part of `pnpm typecheck`, typed through JSDoc, which is the only
+static guard on the code that submits to the stores. See
 [Store Listings](./store-listings.md#writes-are-throttled-hard).
 
 ## Playwright

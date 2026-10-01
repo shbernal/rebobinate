@@ -15,6 +15,9 @@
 // The limits key on the authenticated user, and the JWT is account-scoped, so
 // what is spent here is spent for every extension published from this account.
 
+/** @typedef {{ calls: number, windowMs: number, label: string }} ThrottleRule */
+/** @typedef {keyof typeof SCOPE_LIMITS} ThrottleScope */
+
 // Package uploads are a separate scope with its own, larger allowance
 // (`file_upload_throttles`), so they do not draw on the submission budget.
 export const SCOPE_LIMITS = {
@@ -34,6 +37,11 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 // Reads are free: every AMO throttle on these endpoints carries
 // `ThrottleOnlyUnsafeMethodsMixin`.
+/**
+ * @param {string} method
+ * @param {string} endpoint
+ * @returns {ThrottleScope | null}
+ */
 export const throttleScope = (method, endpoint) => {
   if (SAFE_METHODS.has(method)) {
     return null
@@ -57,6 +65,11 @@ export const MAX_PACE_WAIT_MS = 3_700_000
 // without the run going to sleep for the rest of the hour.
 const SLOW_WINDOW_MS = 3_600_000
 
+/**
+ * @param {number[]} history
+ * @param {number} now
+ * @param {ThrottleRule[]} limits
+ */
 export const budgetLeft = (history, now, limits) =>
   Math.max(
     0,
@@ -72,6 +85,12 @@ export const budgetLeft = (history, now, limits) =>
 
 // `history` is the ascending list of times this process sent an unsafe call in
 // the given scope, including ones AMO rejected — those counted too.
+/**
+ * @param {number[]} history
+ * @param {number} now
+ * @param {ThrottleRule[]} limits
+ * @returns {{ waitMs: number, limit: string | null }}
+ */
 export const paceDelay = (history, now, limits) => {
   let waitMs = 0
   let limit = null
@@ -101,6 +120,7 @@ export const paceDelay = (history, now, limits) => {
 // burning an attempt.
 export const FALLBACK_THROTTLE_WAIT_MS = 60_000
 
+/** @param {string | null | undefined} retryAfter */
 export const throttleWaitMs = retryAfter => {
   const seconds = Number(retryAfter)
 
