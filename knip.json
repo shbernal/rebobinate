@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/content/content-script.ts",
+    "src/background/service-worker.ts",
+    "src/popup/main.tsx",
+    "scripts/*.mjs",
+    "e2e/**/*.ts",
+    "mimic/scenarios/*.ts",
+    "tests/**/*.{ts,mjs}"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "scripts/**/*.mjs",
+    "e2e/**/*.ts",
+    "mimic/**/*.ts",
+    "tests/**/*.{ts,mjs}"
+  ]
+}

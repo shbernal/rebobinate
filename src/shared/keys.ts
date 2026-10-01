@@ -21,10 +21,7 @@ export type KeyEventLike = {
   isComposing?: boolean
 }
 
-export const matchesBinding = (
-  event: KeyEventLike,
-  bindings: string[],
-): boolean => {
+const matchesBinding = (event: KeyEventLike, bindings: string[]): boolean => {
   return bindings.some(
     binding => binding === event.key || binding === event.code,
   )
@@ -110,7 +107,7 @@ export type BindingCapture =
  * storing `Semicolon` would bind whatever that physical key types on another
  * layout, which is not what somebody who pressed `;` asked for.
  */
-export const bindingToken = (event: KeyEventLike): string => {
+const bindingToken = (event: KeyEventLike): string => {
   if (event.code.startsWith('Numpad')) {
     return event.code
   }

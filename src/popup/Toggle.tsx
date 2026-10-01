@@ -3,7 +3,6 @@ type ToggleProps = {
   checked: boolean
   onChange: (checked: boolean) => void
   size?: 'large' | 'small'
-  disabled?: boolean
 }
 
 /**
@@ -11,19 +10,12 @@ type ToggleProps = {
  * checkbox itself stays in the DOM, transparent and zero-sized, so the control
  * keeps a real checkbox's keyboard and screen-reader behaviour.
  */
-const Toggle = ({
-  label,
-  checked,
-  onChange,
-  size = 'small',
-  disabled = false,
-}: ToggleProps) => (
+const Toggle = ({ label, checked, onChange, size = 'small' }: ToggleProps) => (
   <label className={size === 'small' ? 'switch switch-small' : 'switch'}>
     <input
       type="checkbox"
       aria-label={label}
       checked={checked}
-      disabled={disabled}
       onChange={event => onChange(event.target.checked)}
     />
     <span className="slider" />

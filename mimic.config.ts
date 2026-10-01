@@ -1,6 +1,10 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
+import {
+  extensionPath,
+  resolveChromiumExecutable,
+} from './scripts/chromium-path.mjs'
 // Type-only, so nothing is resolved at run time: Node strips it before it
 // ever looks at the path.
 import type { SeedSite } from './mimic/page.ts'
@@ -18,8 +22,6 @@ import type { SeedSite } from './mimic/page.ts'
  * moves, the scenario that clicks it and the narration describing it have to
  * change in the same commit.
  */
-
-const extensionPath = path.resolve(process.cwd(), 'dist')
 
 /** The browser window every scenario is captured in, and recorded at. */
 const VIEWPORT = { width: 1280, height: 800 }
@@ -71,19 +73,6 @@ const windowFor = (scenario: string) => {
  * so a renamed key fails the capture instead of quietly seeding nothing.
  */
 const DOMAINS_STORAGE_KEY = 'rebobinate:domains'
-
-/**
- * The same knowledge as `scripts/chromium.mjs`, which cannot be imported here:
- * that module imports `@playwright/test` directly, and mimic injects its own
- * `chromium` precisely so one browser build is in play instead of two.
- */
-const resolveChromiumExecutable = () =>
-  [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-  ].find(candidate => existsSync(candidate))
 
 /**
  * Chrome writes the port it actually bound to here when asked for port 0.

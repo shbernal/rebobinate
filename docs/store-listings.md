@@ -21,7 +21,7 @@ amo/
   source-submission.md         reviewer build instructions + archive procedure
 ```
 
-Regenerate the screenshots with `node scripts/capture-screenshots.mjs` after
+Regenerate the screenshots with `pnpm screenshots` after
 `pnpm build`. It writes all three at 1280×800 with no post-processing, and
 scales the popup capture to fit the canvas rather than assuming a fixed zoom, so
 adding a control to the popup cannot silently crop it. Replacing a screenshot

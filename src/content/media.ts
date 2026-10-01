@@ -41,7 +41,7 @@ const DEEP_SCAN_DEBOUNCE_MS = 250
  */
 const FULL_SCAN_INTERVAL_MS = 5000
 
-export type MediaEventName = (typeof MEDIA_EVENTS)[number]
+type MediaEventName = (typeof MEDIA_EVENTS)[number]
 
 export type MediaRegistryOptions = {
   document: Document
@@ -54,7 +54,6 @@ export type MediaRegistry = {
   stop: () => void
   videos: () => HTMLVideoElement[]
   primary: () => HTMLVideoElement | null
-  rescan: () => void
 }
 
 const isVideo = (node: unknown): node is HTMLVideoElement => {
@@ -331,5 +330,5 @@ export const createMediaRegistry = ({
     return best
   }
 
-  return { start, stop, videos, primary, rescan }
+  return { start, stop, videos, primary }
 }

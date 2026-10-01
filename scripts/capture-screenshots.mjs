@@ -5,10 +5,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
+import { extensionPath, resolveChromiumExecutable } from './chromium-path.mjs'
 import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
 printHelpAndExit(`
-Usage: node scripts/capture-screenshots.mjs [--help]
+Usage: pnpm screenshots [--help]
 
 Captures the three listing screenshots from the built extension in dist/, so
 they can be regenerated instead of retouched. Run pnpm build first.
@@ -23,7 +24,6 @@ See docs/store-listings.md.
 rejectUnknownArguments({ positionals: false })
 
 const root = process.cwd()
-const extensionPath = path.join(root, 'dist')
 const outputDir = path.join(root, 'store', 'screenshots')
 const profileDir = path.join(root, 'node_modules', '.tmp', 'screenshot-profile')
 
@@ -180,8 +180,11 @@ const CARD_PAGE = `<!doctype html>
 </html>
 `
 
+const executablePath = resolveChromiumExecutable()
+
 const context = await chromium.launchPersistentContext(profileDir, {
-  channel: 'chromium',
+  // The same browser every other script launches, not only Playwright's own.
+  ...(executablePath ? { executablePath } : { channel: 'chromium' }),
   headless: true,
   viewport: { width: 1280, height: 800 },
   deviceScaleFactor: 1,

@@ -16,6 +16,11 @@ export const SETTINGS_STORAGE_KEY = 'rebobinate:settings'
  * `3` added `toolbarBadge`, on the same terms: a stored `2` object has no such
  * key and normalizes to the default, so an installed copy keeps everything it
  * had and gains the speed on its toolbar icon.
+ *
+ * Exported with no importer yet, and tagged so knip leaves it: it is the
+ * stored-state marker a migration test will reach for.
+ *
+ * @public
  */
 export const SCHEMA_VERSION = 3
 

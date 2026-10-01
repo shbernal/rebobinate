@@ -1,33 +1,17 @@
 // Shared Chromium launching for the scripts that drive the built extension.
-//
-// The e2e fixtures do the same thing in TypeScript; plain Node cannot import
-// those, so the knowledge lives twice on purpose. It does not need to live four
-// times, which is what this module is for.
+// Which binary, and where the build is, come from `chromium-path.mjs`, which
+// the e2e fixtures and the mimic config import too.
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
+import { extensionPath, resolveChromiumExecutable } from './chromium-path.mjs'
+
+export { extensionPath, resolveChromiumExecutable }
 
 /** @typedef {import('@playwright/test').BrowserContext} BrowserContext */
 /** @typedef {import('@playwright/test').Page} Page */
 /** @typedef {import('@playwright/test').Worker} Worker */
-
-export const extensionPath = path.resolve(process.cwd(), 'dist')
-
-export const resolveChromiumExecutable = () => {
-  const explicitExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
-
-  if (explicitExecutable) {
-    return explicitExecutable
-  }
-
-  return [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-  ].find(candidate => fs.existsSync(candidate))
-}
 
 export const requireBuild = () => {
   if (fs.existsSync(path.join(extensionPath, 'manifest.json'))) {
@@ -73,7 +57,7 @@ export const launchWithExtension = async ({
  *
  * @param {BrowserContext} context
  */
-export const extensionWorker = async context => {
+const extensionWorker = async context => {
   /** @param {Worker} worker */
   const isOurs = worker => worker.url().includes('service-worker-loader')
 
@@ -118,7 +102,7 @@ export const showBadge = async (context, page, speed = 1.5, attempts = 20) => {
  * @param {BrowserContext} context
  * @param {number} speed
  */
-export const setTabSpeed = async (context, speed) => {
+const setTabSpeed = async (context, speed) => {
   const worker = await extensionWorker(context)
 
   await worker.evaluate(

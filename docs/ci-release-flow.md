@@ -3,7 +3,7 @@
 ## Validation
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`:
-format check, oxlint, typecheck, Vitest with coverage thresholds, Chrome build,
+format check, oxlint, typecheck, knip, Vitest with coverage thresholds, Chrome build,
 then the Firefox build with `web-ext lint`. The Firefox lint step is there because Gecko rejects
 manifest keys Chrome accepts.
 

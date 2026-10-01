@@ -67,7 +67,7 @@ const pickStorageValues = (values: StorageValues, keys: StorageKeys) => {
   )
 }
 
-export const createChromeMock = () => {
+const createChromeMock = () => {
   const values: StorageValues = {}
   let openTabs: chrome.tabs.Tab[] = [{ id: 1, active: true } as chrome.tabs.Tab]
   const storageChanged = createChromeEvent<StorageChangedArgs>()
@@ -260,7 +260,7 @@ export const createChromeMock = () => {
   }
 }
 
-export type ChromeMock = ReturnType<typeof createChromeMock>
+type ChromeMock = ReturnType<typeof createChromeMock>
 
 let currentChromeMock: ChromeMock | null = null
 

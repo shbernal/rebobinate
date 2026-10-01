@@ -1,7 +1,7 @@
 // Speed arithmetic lives here, apart from the DOM, so the rules that make the
 // controls feel right are testable on their own.
 
-export const SPEED_EPSILON = 0.0005
+const SPEED_EPSILON = 0.0005
 
 /** Rounds to three decimals so repeated steps never drift into 1.10000000002. */
 export const roundSpeed = (speed: number): number => {

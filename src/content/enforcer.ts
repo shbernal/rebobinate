@@ -23,7 +23,6 @@ export type Enforcer = {
   setSpeed: (speed: number) => void
   getSpeed: () => number
   apply: (video: HTMLVideoElement) => void
-  applyAll: () => void
   reconcile: (video: HTMLVideoElement) => void
   isSuppressed: (video: HTMLVideoElement) => boolean
 }
@@ -111,7 +110,6 @@ export const createEnforcer = ({
     setSpeed,
     getSpeed: () => desired,
     apply,
-    applyAll,
     reconcile,
     isSuppressed,
   }

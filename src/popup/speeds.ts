@@ -9,7 +9,7 @@
  * its halfway values are not valid settings, and a starting speed has only a
  * handful of useful answers. A `<select>` also keeps the popup compact.
  */
-export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 
 /**
  * A speed set from the keyboard lands anywhere on the step grid, so the stored
