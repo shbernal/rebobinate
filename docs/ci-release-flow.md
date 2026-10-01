@@ -96,7 +96,15 @@ with the command that does it, rather than parking the job on a throttle wait.
 See [Store Listings](./store-listings.md#writes-are-throttled-hard).
 
 The lock is only useful committed: a release writes it too, but that write is
-discarded with the runner.
+discarded with the runner. A release that uploads a screenshot itself therefore
+leaves the committed lock naming preview ids AMO no longer has, and the next
+release reads that as a lock that does not account for what is published: a
+full replace, two calls per screenshot plus a delete each, nine for three,
+against the seven a release leaves of the hour. It overflows into the deferral,
+and that release ships without its listing images applied. So a screenshot
+change goes out ahead of the tag: run `pnpm publish:amo --assets-only` locally,
+commit the lock it writes, then tag, and the release finds nothing left to
+send.
 
 Required secrets: `MOZILLA_ADDON_JWT_ISSUER`, `MOZILLA_ADDON_JWT_SECRET`. They
 are account-scoped, so they are the same values used by the other extensions
