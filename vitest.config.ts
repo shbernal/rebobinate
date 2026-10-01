@@ -1,3 +1,4 @@
+import path from 'node:path'
 import react from '@vitejs/plugin-react'
 import { configDefaults, defineConfig } from 'vitest/config'
 
@@ -5,7 +6,9 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': new URL('./src', import.meta.url).pathname,
+      // `path.resolve`, as in vite.config.ts: a URL's pathname is
+      // percent-encoded, so a checkout path with a space would not resolve.
+      '@': path.resolve(import.meta.dirname, 'src'),
     },
   },
   test: {

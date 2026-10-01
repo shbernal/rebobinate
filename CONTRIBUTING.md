@@ -56,6 +56,11 @@ are on you.
 browser with the extension already loaded, each in its own throwaway profile.
 They take a start URL and default to YouTube.
 
+`pnpm dev` is the crxjs dev server instead, with hot reload into an extension
+loaded from `dist/` by hand. It goes through crxjs's content-script loader,
+so unlike a build it exposes that script's chunks as web-accessible resources;
+see [Build Targets](./docs/build-targets.md#the-content-script-is-bundled-outside-crxjs).
+
 When something misbehaves at runtime, `pnpm inspect:chrome [url]` prints a JSON
 snapshot of the running extension: the permissions Chromium granted, every tab
 the service worker sees, the popup state, and what is in storage. Read that
