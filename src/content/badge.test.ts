@@ -206,6 +206,37 @@ describe('createBadge', () => {
     expect(hostDeclaration('display')).toBe('none')
   })
 
+  // The same tolerance as every other "is this normal speed" in the
+  // extension: a rate that lands a hair off 1.0 still counts.
+  it('treats a speed within rounding of 1.0 as normal', () => {
+    badge.flash(1.05, badgeSettings({ hideAtNormalSpeed: true }))
+    expect(hostDeclaration('display')).toBe('flex')
+
+    badge.flash(1.0004, badgeSettings({ hideAtNormalSpeed: true }))
+    expect(hostDeclaration('display')).toBe('none')
+  })
+
+  it('follows the video again after being torn down and reused', () => {
+    const observed: Element[] = []
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe(target: Element) {
+          observed.push(target)
+        }
+        disconnect() {}
+      },
+    )
+
+    badge.flash(2, badgeSettings())
+    badge.destroy()
+    badge.flash(2, badgeSettings())
+
+    expect(observed).toHaveLength(2)
+    expect(observed[1]).toBe(observed[0])
+    vi.unstubAllGlobals()
+  })
+
   it('never touches the page while the speed is normal', () => {
     badge.render(1, badgeSettings({ hideAtNormalSpeed: true }))
 
