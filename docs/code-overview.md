@@ -24,6 +24,20 @@ inherit a speed that was set before they existed; one that asks before the top
 frame has (which happens) resolves from the tab's domain too, rather than
 sitting at 1.0 until the broadcast corrects it.
 
+## An orphaned content script
+
+An extension update, reload or disable does not reload open tabs. The content
+script keeps running with its `chrome.runtime` invalidated: its listeners still
+fire and every `sendMessage` throws. Since the key handler takes a bound key from
+the page before sending the intent, an orphan would swallow `0`, `+` and `-`,
+YouTube's own `0` included, until the tab is reloaded.
+
+`alive()` in `src/content/content-script.ts` checks `chrome.runtime.id`, which
+goes `undefined` once the context is gone. `canHandle` asks it first, so the key
+goes back to the page. The first caller to see it dead also tears down every
+listener, observer and the badge. A send that throws anyway tears down the same
+way instead of escaping an event handler.
+
 ## The master switch
 
 `settings.enabled` is the one control in the panel that is not about a
