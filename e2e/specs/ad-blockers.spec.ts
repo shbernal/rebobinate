@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import type { Page } from '@playwright/test'
+import { badgeText } from '../fixtures/badge'
 import { pressSpeedKey } from '../fixtures/controls'
 import { expect, test } from '../fixtures/extension'
 import { blockerPath } from '../fixtures/extensionRuntime'
@@ -82,13 +83,7 @@ test.describe('with a content blocker running', () => {
 
     await expect(badge(page)).toBeAttached()
     await expect.poll(() => badgeDisplay(page)).toBe('flex')
-    await expect
-      .poll(() =>
-        badge(page).evaluate(
-          node => node.shadowRoot?.querySelector('div')?.textContent ?? '',
-        ),
-      )
-      .toBe('1.1×')
+    await expect.poll(() => badgeText(page)).toBe('1.1×')
   })
 
   test('the blocker is really hiding things on the same page', async ({

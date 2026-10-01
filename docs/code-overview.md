@@ -287,6 +287,13 @@ over the primary video's bounding box and aligned to the configured corner. It
 is never inserted into the site's own tree: re-parenting player DOM is what
 breaks layouts, and players wipe children they do not own.
 
+The root is closed. With an open one, any page could read the user's speed off
+the badge (a behavioural signal, and proof the extension is installed) or write
+a speed the user is not at into the extension's only feedback channel. The
+module keeps its own references to what it renders. Tests take the root from an
+`attachShadow` spy, and e2e reads the label through the DevTools protocol
+(`e2e/fixtures/badge.ts`), which pierces closed roots.
+
 Two consequences worth remembering:
 
 - a `position: fixed` element is not painted while another element is

@@ -1,3 +1,4 @@
+import { badgeText } from '../fixtures/badge'
 import { pressSpeedKey, rateOf } from '../fixtures/controls'
 import { expect, test } from '../fixtures/extension'
 
@@ -13,10 +14,6 @@ const badge = (page: import('@playwright/test').Page) =>
 const badgeDisplay = (page: import('@playwright/test').Page) =>
   badge(page).evaluate(node => getComputedStyle(node).display)
 
-const badgeText = (page: import('@playwright/test').Page) =>
-  badge(page).evaluate(
-    node => node.shadowRoot?.querySelector('div')?.textContent ?? '',
-  )
 
 test.describe('speed badge', () => {
   test('appears with the current speed and fades out', async ({
@@ -30,6 +27,12 @@ test.describe('speed badge', () => {
 
     await expect(badge(page)).toBeAttached()
     await expect.poll(() => badgeText(page)).toBe('1.1×')
+
+    // The page itself cannot get at it: the root is closed.
+    const reachable = await badge(page).evaluate(
+      node => node.shadowRoot !== null,
+    )
+    expect(reachable).toBe(false)
 
     await expect.poll(() => badgeDisplay(page), { timeout: 5000 }).toBe('none')
   })

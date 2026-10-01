@@ -150,7 +150,10 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     host = doc.createElement('div')
     host.id = HOST_ID
 
-    const shadow = host.attachShadow({ mode: 'open' })
+    // Closed, so the page can neither read the user's speed off the badge nor
+    // write a different one into it. Filter lists match the host, not the
+    // root, so this costs nothing against a blocker.
+    const shadow = host.attachShadow({ mode: 'closed' })
     hostStyle = doc.createElement('style')
     hostStyle.textContent = hostRule(null)
     label = doc.createElement('div')
