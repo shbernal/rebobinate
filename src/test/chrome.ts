@@ -89,6 +89,10 @@ export const createChromeMock = () => {
     store.set(details.tabId ?? GLOBAL, value)
   }
 
+  // Set by `failWrites`; a write then lands nowhere and reports why, which
+  // is what a full quota looks like from the caller's side.
+  let writeFailure: string | null = null
+
   const local = {
     get: vi.fn(
       (keys: StorageKeys, callback: (items: StorageValues) => void) => {
@@ -96,6 +100,13 @@ export const createChromeMock = () => {
       },
     ),
     set: vi.fn((items: StorageValues, callback?: () => void) => {
+      if (writeFailure !== null) {
+        runtime.lastError = { message: writeFailure }
+        callback?.()
+        runtime.lastError = undefined
+        return
+      }
+
       const changes = Object.fromEntries(
         Object.entries(items).map(([key, newValue]) => [
           key,
@@ -118,19 +129,24 @@ export const createChromeMock = () => {
       Object.assign(values, items)
     },
     snapshot: () => ({ ...values }),
+    failWrites: (message: string | null) => {
+      writeFailure = message
+    },
+  }
+
+  const runtime = {
+    lastError: undefined as chrome.runtime.LastError | undefined,
+    id: 'rebobinate-test' as string | undefined,
+    onMessage: runtimeMessage,
+    sendMessage: vi.fn(
+      (_message: unknown, callback?: (response?: unknown) => void) => {
+        callback?.()
+      },
+    ),
   }
 
   return {
-    runtime: {
-      lastError: undefined,
-      id: 'rebobinate-test',
-      onMessage: runtimeMessage,
-      sendMessage: vi.fn(
-        (_message: unknown, callback?: (response?: unknown) => void) => {
-          callback?.()
-        },
-      ),
-    },
+    runtime,
     storage: {
       local,
       onChanged: storageChanged,

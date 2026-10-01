@@ -62,7 +62,7 @@ type SettingsPaneProps = {
   speed: number
   /** Only for the backup panel, which exports the site list with the rest. */
   domains: DomainStore
-  onImport: (contents: BackupContents) => void
+  onImport: (contents: BackupContents, done: (error?: string) => void) => void
   /**
    * Hands the shell the block that is about to stop taking up room, or `null`
    * when one is about to come back. The pane is the shell's element and the

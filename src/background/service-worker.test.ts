@@ -726,6 +726,22 @@ describe('restoring a site list from a backup', () => {
     expect(storedDomains()).toEqual(RESTORED.entries)
   })
 
+  // The popup prints "Restored…" on this answer, so a write that did not land
+  // has to say so.
+  it('answers with whether the map was written', async () => {
+    const { send, chromeMock } = await loadBackground()
+
+    expect(
+      send({ type: 'rebobinate:import-domains', store: RESTORED }, POPUP),
+    ).toHaveBeenCalledWith({ error: undefined })
+
+    chromeMock.storage.local.failWrites('QUOTA_BYTES quota exceeded')
+
+    expect(
+      send({ type: 'rebobinate:import-domains', store: RESTORED }, POPUP),
+    ).toHaveBeenCalledWith({ error: 'QUOTA_BYTES quota exceeded' })
+  })
+
   // Every pending write, not just one domain's: a restore that let a debounced
   // entry land a second later would silently gain a site the backup never had.
   it('cancels the writes still in their debounce', async () => {

@@ -223,10 +223,24 @@ const App = () => {
     }
   }, [settings.enabled, readPopupState])
 
-  const save = useCallback((next: Settings) => {
-    setSettings(next)
-    writeSettings(next)
-  }, [])
+  /**
+   * Optimistic, so a control answers at once. A write that fails fires no
+   * `onChanged` to correct it, so the stored settings are read back instead:
+   * the panel never shows a setting that is not saved.
+   */
+  const save = useCallback(
+    (next: Settings, onWritten?: (error?: string) => void) => {
+      setSettings(next)
+      writeSettings(next, error => {
+        if (error) {
+          readSettings(setSettings)
+        }
+
+        onWritten?.(error)
+      })
+    },
+    [],
+  )
 
   const act = (action: SpeedAction) => {
     sendMessage(
@@ -269,16 +283,39 @@ const App = () => {
    * they came from, so the write is what puts the restored values on screen.
    */
   const importBackup = useCallback(
-    (contents: BackupContents) => {
+    (contents: BackupContents, done: (error?: string) => void) => {
+      let waiting =
+        Number(Boolean(contents.settings)) + Number(Boolean(contents.domains))
+      let failure: string | undefined
+
+      const settle = (error?: string) => {
+        failure ??= error
+        waiting -= 1
+
+        if (waiting === 0) {
+          done(failure)
+        }
+      }
+
+      if (waiting === 0) {
+        done()
+        return
+      }
+
       if (contents.settings) {
-        save(contents.settings)
+        save(contents.settings, settle)
       }
 
       if (contents.domains) {
-        sendMessage({
-          type: 'rebobinate:import-domains',
-          store: contents.domains,
-        })
+        chrome.runtime.sendMessage(
+          {
+            type: 'rebobinate:import-domains',
+            store: contents.domains,
+          } satisfies RuntimeMessage,
+          (response?: { error?: string }) => {
+            settle(chrome.runtime.lastError?.message ?? response?.error)
+          },
+        )
       }
     },
     [save],

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { UserEvent } from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getChromeMock } from '@/test/chrome'
 import { hexToHsl } from '@/shared/color'
 import { DOMAINS_SCHEMA_VERSION, DOMAINS_STORAGE_KEY } from '@/shared/domains'
@@ -152,6 +152,20 @@ describe('popup tabs', () => {
     await openTab(user, 'Sites')
 
     expect(screen.getByLabelText('Enabled')).toBeInTheDocument()
+  })
+
+  // A failed write fires no change event, so without the read-back the switch
+  // would stay showing a state nothing saved.
+  it('puts a control back when its setting could not be saved', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const enabled = screen.getByLabelText('Enabled')
+    await act(async () => {})
+    getChromeMock().storage.local.failWrites('QUOTA_BYTES quota exceeded')
+
+    await user.click(enabled)
+
+    expect(enabled).toBeChecked()
   })
 
   /**
@@ -1685,6 +1699,59 @@ describe('popup backup', () => {
       screen.getByText(
         'Restored your settings. Your remembered sites are kept.',
       ),
+    ).toBeInTheDocument()
+  })
+
+  // A full quota is the one failure a restore can plausibly hit, and the
+  // status line is the only place the user would hear about it.
+  it('says a restore failed instead of announcing it', async () => {
+    const user = await openBackup('Import')
+    getChromeMock().storage.local.failWrites('QUOTA_BYTES quota exceeded')
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    expect(
+      screen.getByText('Could not restore: QUOTA_BYTES quota exceeded'),
+    ).toBeInTheDocument()
+    expect(storedSettings().step).not.toBe(0.5)
+  })
+
+  it('says a restore failed when the site list did not land', async () => {
+    const user = await openBackup('Import')
+    vi.mocked(getChromeMock().runtime.sendMessage).mockImplementation(
+      (message: unknown, callback?: (response?: unknown) => void) => {
+        callback?.(
+          (message as { type: string }).type === 'rebobinate:import-domains'
+            ? { error: 'QUOTA_BYTES quota exceeded' }
+            : undefined,
+        )
+      },
+    )
+
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      JSON.stringify({
+        format: 'rebobinate-backup',
+        version: 1,
+        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+        domains: {
+          schemaVersion: DOMAINS_SCHEMA_VERSION,
+          entries: { 'restored.example': { speed: 2, updatedAt: 3 } },
+        },
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Replace settings' }))
+
+    expect(
+      screen.getByText('Could not restore: QUOTA_BYTES quota exceeded'),
     ).toBeInTheDocument()
   })
 
