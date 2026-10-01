@@ -74,7 +74,15 @@ node, not part of a TypeScript project reference. See
 
 ## Playwright
 
-`e2e/` loads the built `dist/` into a persistent Chromium context.
+`e2e/` loads the built `dist/` into a persistent Chromium context, a fresh
+profile per test under its output directory.
+
+- Launching that profile has its own 60 s fixture budget, outside the test's
+  30 s, and a test gets one retry locally and two in CI. A slow launch under
+  load is the flake these absorb. A test that passes only on retry is reported
+  `flaky`, and a real failure still fails the run.
+- `preserveOutput: 'failures-only'`: each profile holds real cookies, history
+  and login data, so a passing test keeps none of it. `forbidOnly` is set in CI.
 
 - `e2e/fixtures/extensionRuntime.ts` launches the browser with
   `--load-extension`, finds the extension's service worker, and reads and writes
