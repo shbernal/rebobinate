@@ -40,7 +40,32 @@ const withRect = (video: HTMLVideoElement) =>
 
 const host = () => document.getElementById('rebobinate-speed-host')
 
-const labelElement = () => host()?.shadowRoot?.querySelector('div') ?? null
+/**
+ * The badge's root is closed, so `host.shadowRoot` is null by design. The test
+ * keeps its own reference by watching `attachShadow`, the way only the
+ * extension holds one in a real page.
+ */
+const roots = new WeakMap<Element, ShadowRoot>()
+
+beforeEach(() => {
+  const attachShadow = Element.prototype.attachShadow
+
+  vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (
+    this: Element,
+    init: ShadowRootInit,
+  ) {
+    const root = attachShadow.call(this, init)
+    roots.set(this, root)
+    return root
+  })
+})
+
+const shadow = () => {
+  const node = host()
+  return node ? (roots.get(node) ?? null) : null
+}
+
+const labelElement = () => shadow()?.querySelector('div') ?? null
 
 const labelText = () => labelElement()?.textContent ?? null
 
@@ -50,8 +75,7 @@ const labelStyle = () => labelElement()?.getAttribute('style') ?? ''
  * The host is styled from a `:host` rule inside its own shadow root rather than
  * from a `style` attribute, so this is where its geometry has to be read from.
  */
-const hostCss = () =>
-  host()?.shadowRoot?.querySelector('style')?.textContent ?? ''
+const hostCss = () => shadow()?.querySelector('style')?.textContent ?? ''
 
 const hostDeclaration = (property: string) =>
   new RegExp(`[{;]${property}:([^;!}]+)`).exec(hostCss())?.[1] ?? null
@@ -132,8 +156,10 @@ describe('createBadge', () => {
 
     expect(hostDeclaration('pointer-events')).toBe('none')
     expect(hostDeclaration('position')).toBe('fixed')
-    // A shadow root keeps site CSS from reaching the badge.
-    expect(host()?.shadowRoot).not.toBeNull()
+    // A shadow root keeps site CSS from reaching the badge, and a closed one
+    // keeps site scripts from reading or rewriting it.
+    expect(shadow()).not.toBeNull()
+    expect(host()?.shadowRoot).toBeNull()
   })
 
   it('leaves no inline style attribute for a filter list to match', () => {
