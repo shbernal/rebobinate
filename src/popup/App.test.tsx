@@ -1110,6 +1110,78 @@ describe('popup sites tab', () => {
   })
 })
 
+/**
+ * Real Chrome answers every read and message a tick or more after the popup
+ * paints, which the synchronous mock hides. These hold the answers back.
+ */
+describe('popup before storage and the worker have answered', () => {
+  it('says nothing about the page when the worker never answers', async () => {
+    getChromeMock().runtime.sendMessage.mockImplementation(
+      (_message: unknown, callback?: (response?: unknown) => void) => {
+        getChromeMock().runtime.lastError = {
+          message: 'Could not establish connection.',
+        }
+        callback?.()
+        getChromeMock().runtime.lastError = undefined
+      },
+    )
+    const user = userEvent.setup()
+    render(<App />)
+    // Long enough for the one retry to have failed too.
+    await act(() => new Promise(resolve => setTimeout(resolve, 300)))
+
+    await openTab(user, 'Sites')
+
+    expect(
+      screen.queryByText(/not one a speed can be remembered for/),
+    ).toBeNull()
+  })
+
+  it('asks the worker again when the first ask is lost', async () => {
+    let asked = 0
+    getChromeMock().runtime.sendMessage.mockImplementation(
+      (_message: unknown, callback?: (response?: unknown) => void) => {
+        asked += 1
+        callback?.(
+          asked === 1
+            ? undefined
+            : { speed: 1, hasVideo: true, domain: 'youtube.com' },
+        )
+      },
+    )
+    render(<App />)
+
+    expect(
+      await screen.findByText('Speeds set here are kept for youtube.com'),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps a control the user moved before the first read landed', async () => {
+    getChromeMock().deferReads()
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByLabelText('Enabled'))
+    act(() => getChromeMock().flushReads())
+
+    expect(screen.getByLabelText('Enabled')).not.toBeChecked()
+    expect(storedSettings().enabled).toBe(false)
+  })
+
+  it('promises nothing for a site until the map says it is not switched off', () => {
+    answerPopupState('vimeo.com')
+    seedDomains({ 'vimeo.com': { speed: 1, updatedAt: 1, never: true } })
+    getChromeMock().deferReads()
+    render(<App />)
+
+    expect(screen.queryByText(/are kept for/)).toBeNull()
+
+    act(() => getChromeMock().flushReads())
+
+    expect(screen.queryByText(/are kept for/)).toBeNull()
+  })
+})
+
 describe('popup key bindings', () => {
   beforeEach(() => {
     seedSettings()

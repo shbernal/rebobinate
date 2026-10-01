@@ -175,8 +175,11 @@ const DroppedRow = ({
 type SitesPaneProps = {
   settings: Settings
   save: (next: Settings) => void
-  /** The domain the active tab counts as, resolved by the service worker. */
-  domain: string | null
+  /**
+   * The domain the active tab counts as, resolved by the service worker:
+   * `null` when the page has none, `undefined` while the worker has not said.
+   */
+  domain: string | null | undefined
   domains: DomainStore
   onSetSpeed: (domain: string, speed: number) => void
   onSetNever: (domain: string, never: boolean) => void
@@ -300,7 +303,7 @@ const SitesPane = ({
    * claiming the site was remembered at the moment the user asked for the
    * opposite.
    */
-  const current = domain !== null ? domains.entries[domain] : undefined
+  const current = domain ? domains.entries[domain] : undefined
   const emptyNote =
     others.length > 0
       ? 'No site matches that filter.'
@@ -358,11 +361,11 @@ const SitesPane = ({
                 {...rowProps}
               />
             </ul>
-          ) : (
+          ) : domain === null ? (
             <p className="note">
               This page is not one a speed can be remembered for.
             </p>
-          )}
+          ) : null}
 
           <hr />
 
