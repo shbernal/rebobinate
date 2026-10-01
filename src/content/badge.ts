@@ -325,6 +325,9 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
   /**
    * A `position: fixed` element is not painted while another element is
    * fullscreen, so the host has to move into the fullscreen subtree and back.
+   * Unprefixed only: both targets fire `fullscreenchange` (Chromium since 71,
+   * Gecko since 64), and listening for the WebKit event without reading its
+   * `webkitFullscreenElement` would pull the host out on entry instead.
    */
   const syncFullscreenParent = () => {
     if (!host) {
@@ -378,7 +381,6 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
   })
   window.addEventListener('resize', handleViewportChange, { passive: true })
   doc.addEventListener('fullscreenchange', handleFullscreenChange)
-  doc.addEventListener('webkitfullscreenchange', handleFullscreenChange)
 
   /**
    * Pinch-zoom and the browser's own retracting UI move the layout viewport
@@ -475,7 +477,6 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     viewport?.removeEventListener('resize', handleViewportChange)
     viewport?.removeEventListener('scroll', handleViewportChange)
     doc.removeEventListener('fullscreenchange', handleFullscreenChange)
-    doc.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
     host?.remove()
     host = null
     hostStyle = null
