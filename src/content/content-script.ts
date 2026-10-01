@@ -92,10 +92,63 @@ if (isControllableDocument()) {
   const keyHandler = createKeyHandler({
     target: window,
     bindings: () => settings.keys,
+    // Checked before the handler takes the key from the page, so an orphaned
+    // script hands it back rather than swallowing it.
     canHandle: () =>
-      settings.enabled && (registry.videos().length > 0 || tabHasVideo),
+      alive() &&
+      settings.enabled &&
+      (registry.videos().length > 0 || tabHasVideo),
     onAction: action => sendIntent(action),
   })
+
+  let stopSettingsWatch = () => {}
+  let tornDown = false
+
+  /**
+   * An extension update, reload or disable leaves this script running in the
+   * open tab with its `chrome.runtime` gone: every listener it installed still
+   * fires, and every message it sends throws. `runtime.id` is what goes
+   * `undefined` when that happens. The first caller to see it removes
+   * everything the script put on the page.
+   */
+  function alive() {
+    if (tornDown) {
+      return false
+    }
+
+    if (chrome.runtime?.id !== undefined) {
+      return true
+    }
+
+    teardown()
+    return false
+  }
+
+  function teardown() {
+    tornDown = true
+    keyHandler.stop()
+    registry.stop()
+    badge.destroy()
+
+    try {
+      stopSettingsWatch()
+    } catch {
+      // The storage API is as gone as the runtime; nothing left to detach.
+    }
+  }
+
+  /** Sends to the service worker, or tears down if the context died mid-way. */
+  function send(message: RuntimeMessage, onResponse: () => void) {
+    if (!alive()) {
+      return
+    }
+
+    try {
+      chrome.runtime.sendMessage(message, onResponse)
+    } catch {
+      teardown()
+    }
+  }
 
   function reportMedia() {
     const hasVideo = registry.videos().length > 0
@@ -107,21 +160,18 @@ if (isControllableDocument()) {
     reportedHasVideo = hasVideo
     tabHasVideo = tabHasVideo || hasVideo
 
-    chrome.runtime.sendMessage(
-      { type: 'rebobinate:media', hasVideo } satisfies RuntimeMessage,
-      () => {
-        void chrome.runtime.lastError
-      },
-    )
+    send({ type: 'rebobinate:media', hasVideo }, () => {
+      void chrome.runtime.lastError
+    })
   }
 
   function sendIntent(action: SpeedAction) {
-    chrome.runtime.sendMessage(
+    send(
       {
         type: 'rebobinate:intent',
         action,
         currentSpeed: enforcer.getSpeed(),
-      } satisfies RuntimeMessage,
+      },
       () => {
         // The resolved speed arrives as a broadcast to every frame of the tab,
         // so there is nothing to do with the direct response. Reading
@@ -172,7 +222,7 @@ if (isControllableDocument()) {
     badge.render(enforcer.getSpeed(), badgeSettings())
   })
 
-  onSettingsChange(next => {
+  stopSettingsWatch = onSettingsChange(next => {
     const wasEnabled = settings.enabled
     settings = next
 
