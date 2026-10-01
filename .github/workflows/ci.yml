@@ -41,8 +41,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # With coverage, so the thresholds in vitest.config.ts are enforced.
       - name: Test
-        run: pnpm test
+        run: pnpm test:coverage
 
       - name: Build
         run: pnpm build
