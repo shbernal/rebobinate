@@ -154,4 +154,84 @@ describe('createMediaRegistry', () => {
   it('has no primary video when the page has none', () => {
     expect(start().primary()).toBeNull()
   })
+
+  it('finds a video in a shadow root that arrives with its host', async () => {
+    const media = start()
+    const host = document.createElement('div')
+    const video = document.createElement('video')
+    host.attachShadow({ mode: 'open' }).append(video)
+    document.body.append(host)
+
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(media.videos()).toEqual([video])
+  })
+
+  // No mutation of the light DOM reports a root attached to an element that is
+  // already in the page; only the full walk can find it.
+  it('finds a shadow root attached later, on the next full walk', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const media = start()
+    const video = document.createElement('video')
+    host.attachShadow({ mode: 'open' }).append(video)
+
+    // Something on the page keeps changing, which is what wakes the walk.
+    for (let elapsed = 0; elapsed <= 5000; elapsed += 250) {
+      document.body.append(document.createElement('span'))
+      await vi.advanceTimersByTimeAsync(250)
+    }
+
+    expect(media.videos()).toEqual([video])
+  })
+
+  it('walks the whole frame at most every few seconds on a busy page', async () => {
+    document.body.innerHTML = '<div><p></p></div>'.repeat(200)
+    start()
+    const walk = vi.spyOn(document, 'querySelectorAll')
+
+    for (let elapsed = 0; elapsed < 10_000; elapsed += 50) {
+      document.body.append(document.createElement('span'))
+      await vi.advanceTimersByTimeAsync(50)
+    }
+
+    const fullWalks = walk.mock.calls.filter(([selector]) => selector === '*')
+    expect(fullWalks.length).toBeLessThanOrEqual(2)
+  })
+
+  it('lets go of a shadow root once its host has left the page', async () => {
+    const host = document.createElement('div')
+    host.attachShadow({ mode: 'open' })
+    document.body.append(host)
+    const observe = vi.spyOn(MutationObserver.prototype, 'observe')
+    start()
+    expect(observe.mock.calls.map(([target]) => target)).toContain(
+      host.shadowRoot,
+    )
+
+    host.remove()
+    observe.mockClear()
+    for (let elapsed = 0; elapsed <= 5000; elapsed += 250) {
+      document.body.append(document.createElement('span'))
+      await vi.advanceTimersByTimeAsync(250)
+    }
+
+    const observed = observe.mock.calls.map(([target]) => target)
+    expect(observed).toContain(document)
+    expect(observed).not.toContain(host.shadowRoot)
+  })
+
+  // jsdom reports `complete`, so the `document_start` branch only runs when
+  // stubbed. An extension reload can land before parsing finishes.
+  it('does not rescan on DOMContentLoaded after it was stopped', () => {
+    vi.spyOn(document, 'readyState', 'get').mockReturnValue('loading')
+    const media = start()
+    media.stop()
+    document.body.append(document.createElement('video'))
+
+    document.dispatchEvent(new Event('DOMContentLoaded'))
+
+    expect(added).toEqual([])
+    expect(media.videos()).toEqual([])
+  })
 })

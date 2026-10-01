@@ -26,11 +26,20 @@ const MEDIA_EVENTS = [
 ] as const
 
 /**
- * Walking every element looking for shadow hosts is the expensive part of
- * discovery, so it is debounced instead of running on each mutation. Pages like
- * YouTube produce hundreds of mutations a second.
+ * Walking elements looking for shadow hosts is the expensive part of discovery,
+ * so it is batched instead of running on each mutation. Pages like YouTube
+ * produce hundreds of mutations a second. A batch walks only the subtrees its
+ * mutations added.
  */
 const DEEP_SCAN_DEBOUNCE_MS = 250
+
+/**
+ * The backstop: how often, at most, a mutating page gets a walk of the whole
+ * frame. It catches a shadow root attached to an element that was already in
+ * the page, which no mutation of the light DOM reports. An idle page gets
+ * none.
+ */
+const FULL_SCAN_INTERVAL_MS = 5000
 
 export type MediaEventName = (typeof MEDIA_EVENTS)[number]
 
@@ -81,9 +90,13 @@ export const createMediaRegistry = ({
   onMediaEvent,
 }: MediaRegistryOptions): MediaRegistry => {
   const known = new Set<HTMLVideoElement>()
-  const observedRoots = new WeakSet<Node>()
+  // A `MutationObserver` holds what it observes strongly, so a weak set here
+  // would not let a detached root go. `pruneRoots` is what does.
+  const observedRoots = new Set<Node>()
+  const pendingScans = new Set<Node>()
   let observer: MutationObserver | null = null
   let deepScanTimer: ReturnType<typeof setTimeout> | null = null
+  let lastFullScan = 0
   let running = false
 
   const register = (video: HTMLVideoElement) => {
@@ -120,7 +133,18 @@ export const createMediaRegistry = ({
     scope.querySelectorAll('video').forEach(register)
   }
 
-  /** Expensive pass: descend into every open shadow root. */
+  const enterShadow = (element: Element) => {
+    const shadowRoot = element.shadowRoot
+
+    if (!shadowRoot) {
+      return
+    }
+
+    observeRoot(shadowRoot)
+    deepScan(shadowRoot)
+  }
+
+  /** Expensive pass: descend into every open shadow root under `root`. */
   const deepScan = (root: Node = doc) => {
     collectVideos(root)
 
@@ -130,38 +154,81 @@ export const createMediaRegistry = ({
       return
     }
 
-    scope.querySelectorAll('*').forEach(element => {
-      const shadowRoot = element.shadowRoot
+    if ('shadowRoot' in scope) {
+      enterShadow(scope)
+    }
 
-      if (!shadowRoot) {
-        return
-      }
-
-      observeRoot(shadowRoot)
-      deepScan(shadowRoot)
-    })
+    scope.querySelectorAll('*').forEach(enterShadow)
   }
 
-  const scheduleDeepScan = () => {
-    if (deepScanTimer !== null) {
+  /**
+   * Re-observes only the roots still on the page. `MutationObserver` has no
+   * per-node unobserve, so this is a disconnect and a fresh start. A host that
+   * comes back is an added node, and its root is picked up again from there.
+   */
+  const pruneRoots = () => {
+    const detached = Array.from(observedRoots).filter(
+      root => root !== doc && !(root as ShadowRoot).host?.isConnected,
+    )
+
+    if (!observer || detached.length === 0) {
       return
     }
 
-    deepScanTimer = setTimeout(() => {
-      deepScanTimer = null
+    handleMutations(observer.takeRecords())
+    observer.disconnect()
 
-      if (running) {
-        deepScan()
-      }
-    }, DEEP_SCAN_DEBOUNCE_MS)
+    const kept = Array.from(observedRoots).filter(
+      root => !detached.includes(root),
+    )
+    observedRoots.clear()
+    kept.forEach(observeRoot)
   }
 
-  const handleMutations = (mutations: MutationRecord[]) => {
+  const fullScan = () => {
+    lastFullScan = Date.now()
+    pendingScans.clear()
+    pruneRoots()
+    deepScan()
+  }
+
+  const flushScans = () => {
+    deepScanTimer = null
+
+    if (!running) {
+      return
+    }
+
+    if (Date.now() - lastFullScan >= FULL_SCAN_INTERVAL_MS) {
+      fullScan()
+      return
+    }
+
+    const roots = Array.from(pendingScans)
+    pendingScans.clear()
+    roots.filter(root => root.isConnected).forEach(root => deepScan(root))
+  }
+
+  const scheduleDeepScan = () => {
+    if (deepScanTimer === null) {
+      deepScanTimer = setTimeout(flushScans, DEEP_SCAN_DEBOUNCE_MS)
+    }
+  }
+
+  function handleMutations(mutations: MutationRecord[]) {
     mutations.forEach(mutation => {
-      mutation.addedNodes.forEach(collectVideos)
+      mutation.addedNodes.forEach(node => {
+        collectVideos(node)
+
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          pendingScans.add(node)
+        }
+      })
     })
 
-    scheduleDeepScan()
+    if (mutations.length > 0) {
+      scheduleDeepScan()
+    }
   }
 
   const handleMediaEvent = (event: Event) => {
@@ -176,7 +243,7 @@ export const createMediaRegistry = ({
   }
 
   const rescan = () => {
-    deepScan()
+    fullScan()
   }
 
   const start = () => {
@@ -210,6 +277,11 @@ export const createMediaRegistry = ({
     running = false
     observer?.disconnect()
     observer = null
+    observedRoots.clear()
+    pendingScans.clear()
+    // Still armed if this runs before the document finished parsing, which is
+    // exactly when an extension reload can land.
+    doc.removeEventListener('DOMContentLoaded', rescan)
 
     if (deepScanTimer !== null) {
       clearTimeout(deepScanTimer)
