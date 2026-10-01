@@ -174,18 +174,15 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
     )
   }
 
-  const restore = () => {
-    if (!parsed.ok) {
-      say(parsed.error)
-      return
-    }
-
+  // Takes the parsed backup rather than checking `parsed` again: the button is
+  // disabled unless it parsed, and that pair is the only refusal path.
+  const restore = (contents: BackupContents & BackupSummary) => {
     // Read before the write, while it still describes what is about to be
     // replaced. `setMode` below does not spend it: `choose` is what carries
     // that rule, and this is not a choice the user made.
     setUndoText(text)
-    onImport(parsed, error =>
-      say(error ? `Could not restore: ${error}` : restoredNote(parsed), true),
+    onImport(contents, error =>
+      say(error ? `Could not restore: ${error}` : restoredNote(contents), true),
     )
     setDraft('')
     // Back to Export rather than to nothing, which also leaves the freshly
@@ -307,7 +304,7 @@ const Backup = ({ settings, domains, onImport }: BackupProps) => {
             key="restore"
             type="button"
             disabled={!parsed.ok}
-            onClick={restore}
+            onClick={parsed.ok ? () => restore(parsed) : undefined}
           >
             Replace settings
           </button>

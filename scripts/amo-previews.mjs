@@ -238,7 +238,7 @@ const countOf = (n, noun) => `${n} ${noun}${n === 1 ? '' : 's'}`
 export const PREVIEWS_IN_SYNC = 'previews: in sync with amo/previews.json'
 
 /** @param {PreviewPlan} plan */
-export const describePlanWork = plan =>
+const describePlanWork = plan =>
   [
     plan.uploads.length > 0 && countOf(plan.uploads.length, 'upload'),
     plan.patches.length > 0 && countOf(plan.patches.length, 'metadata fix'),

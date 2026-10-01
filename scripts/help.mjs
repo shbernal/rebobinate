@@ -5,7 +5,7 @@
 // bare `--` in argv; both spellings have to mean the same thing.
 import process from 'node:process'
 
-export const helpRequested = process.argv
+const helpRequested = process.argv
   .slice(2)
   .filter(argument => argument !== '--')
   .some(argument => argument === '--help' || argument === '-h')

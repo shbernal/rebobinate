@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
+import { extensionPath, resolveChromiumExecutable } from './chromium-path.mjs'
 import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
 printHelpAndExit(`
@@ -27,25 +28,6 @@ rejectUnknownArguments({})
 
 const defaultProfilePath = 'node_modules/.tmp/dev-profile'
 const defaultOpenUrl = 'https://www.youtube.com/'
-const extensionPath = path.resolve(process.cwd(), 'dist')
-
-// Duplicated from `e2e/fixtures/extensionRuntime.ts` on purpose: this script is
-// plain Node and cannot import the TypeScript fixtures.
-const resolveChromiumExecutable = () => {
-  const explicitExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
-
-  if (explicitExecutable) {
-    return explicitExecutable
-  }
-
-  return [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-  ].find(candidate => fs.existsSync(candidate))
-}
-
 if (!fs.existsSync(path.join(extensionPath, 'manifest.json'))) {
   console.error('dist/ is missing — run `pnpm build` first')
   process.exit(1)

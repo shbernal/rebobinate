@@ -24,7 +24,7 @@ export const BACKUP_FORMAT = 'rebobinate-backup'
  */
 export const BACKUP_VERSION = 1
 
-export type Backup = {
+type Backup = {
   format: typeof BACKUP_FORMAT
   version: number
   settings: Settings

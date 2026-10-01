@@ -12,7 +12,7 @@ import { type Hsl, hexToHsl, hslToHex, toHex } from '@/shared/color'
  */
 
 /** Neutrals, then hues: the two things a badge colour is usually chosen from. */
-export const PRESET_COLORS = [
+const PRESET_COLORS = [
   '#ffffff',
   '#d4d4d4',
   '#a3a3a3',

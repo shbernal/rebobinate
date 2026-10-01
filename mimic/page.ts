@@ -14,7 +14,7 @@ import type { BrowserContext, Locator, Page } from '@playwright/test'
  * is what makes the per-site memory meaningful. `file://` would need an extra
  * Chrome permission and has no domain to remember.
  */
-export const VIDEO_ORIGIN = 'https://player.test'
+const VIDEO_ORIGIN = 'https://player.test'
 
 const PAGE = `<!doctype html>
 <html lang="en">
@@ -440,7 +440,7 @@ export function toggle(popup: Page, label: string | RegExp) {
  * The marker styles itself from a rule inside its own shadow root rather than
  * from a style attribute, so the only honest reading is the computed one.
  */
-export function marker(page: Page): Promise<{ shown: boolean; text: string }> {
+function marker(page: Page): Promise<{ shown: boolean; text: string }> {
   return page.evaluate(() => {
     const host = document.getElementById('rebobinate-speed-host')
 

@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 import {
   chromium,
@@ -6,6 +5,12 @@ import {
   type Page,
   type Worker,
 } from '@playwright/test'
+import {
+  extensionPath,
+  resolveChromiumExecutable,
+} from '../../scripts/chromium-path.mjs'
+
+export { extensionPath }
 
 type LaunchExtensionContextOptions = {
   userDataDir: string
@@ -19,25 +24,8 @@ type LaunchExtensionContextOptions = {
   extraExtensions?: string[]
 }
 
-export const extensionPath = path.resolve(process.cwd(), 'dist')
-
 /** The stand-in content blocker. `e2e/fixtures/blocker/blocker.js` says why. */
 export const blockerPath = path.resolve(process.cwd(), 'e2e/fixtures/blocker')
-
-export const resolveChromiumExecutable = () => {
-  const explicitExecutable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
-
-  if (explicitExecutable) {
-    return explicitExecutable
-  }
-
-  return [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-  ].find(candidate => fs.existsSync(candidate))
-}
 
 export const launchExtensionContext = async ({
   userDataDir,

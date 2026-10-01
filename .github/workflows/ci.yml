@@ -49,6 +49,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # Unused files, exports and dependencies. The entry points are named in
+      # knip.json, since an extension's are its manifest's, not package.json's.
+      - name: Unused code
+        run: pnpm knip
+
       # With coverage, so the thresholds in vitest.config.ts are enforced.
       - name: Test
         run: pnpm test:coverage

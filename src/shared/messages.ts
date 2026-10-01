@@ -7,7 +7,7 @@ import type { SpeedAction } from './keys'
  * Every frame therefore forwards intents to the background, which owns the
  * tab-wide speed and broadcasts it back to all frames.
  */
-export type SpeedIntentMessage = {
+type SpeedIntentMessage = {
   type: 'rebobinate:intent'
   action: SpeedAction
   /**
@@ -18,13 +18,13 @@ export type SpeedIntentMessage = {
   currentSpeed: number
 }
 
-export type SetSpeedMessage = {
+type SetSpeedMessage = {
   type: 'rebobinate:set'
   speed: number
 }
 
 /** Sent by a frame on load to pick up a speed set before it existed. */
-export type SpeedQueryMessage = {
+type SpeedQueryMessage = {
   type: 'rebobinate:query'
 }
 
@@ -35,25 +35,25 @@ export type SpeedQueryMessage = {
  * extension: on a page whose only player is in an iframe, the focused frame has
  * no video of its own but the keystroke is still meant for us.
  */
-export type MediaPresenceMessage = {
+type MediaPresenceMessage = {
   type: 'rebobinate:media'
   hasVideo: boolean
 }
 
 /** Broadcast to every frame when the tab gains or loses its last video. */
-export type TabMediaMessage = {
+type TabMediaMessage = {
   type: 'rebobinate:tab-media'
   hasVideo: boolean
 }
 
 /** Broadcast to every frame of a tab after the speed changes. */
-export type SpeedStateMessage = {
+type SpeedStateMessage = {
   type: 'rebobinate:state'
   speed: number
 }
 
 /** Popup asks for the active tab's speed and which domain it counts as. */
-export type PopupStateMessage = {
+type PopupStateMessage = {
   type: 'rebobinate:popup-state'
 }
 
@@ -65,7 +65,7 @@ export type PopupStateMessage = {
  * and only the service worker can cancel it. Forgetting from the popup while a
  * write was pending would otherwise re-add the entry a second later.
  */
-export type ForgetDomainMessage = {
+type ForgetDomainMessage = {
   type: 'rebobinate:forget-domain'
   domain: string
 }
@@ -77,14 +77,14 @@ export type ForgetDomainMessage = {
  * domain may be the one in front of the user: editing the speed of the site
  * being watched applies to it now, not on the next visit.
  */
-export type SetDomainSpeedMessage = {
+type SetDomainSpeedMessage = {
   type: 'rebobinate:set-domain-speed'
   domain: string
   speed: number
 }
 
 /** Popup switches a site out of the per-site memory, or back into it. */
-export type SetDomainNeverMessage = {
+type SetDomainNeverMessage = {
   type: 'rebobinate:set-domain-never'
   domain: string
   never: boolean
@@ -98,7 +98,7 @@ export type SetDomainNeverMessage = {
  * reason a single edit does, several times over: any debounced write still
  * pending would land on top of the restored map a second later.
  */
-export type ImportDomainsMessage = {
+type ImportDomainsMessage = {
   type: 'rebobinate:import-domains'
   store: DomainStore
 }
