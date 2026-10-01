@@ -4,8 +4,16 @@ on:
   release:
     types: [published]
 
+# Write access is the attach job's alone, so dependency install scripts and the
+# step holding the AMO secret never hold a token that can write the repo.
 permissions:
-  contents: write
+  contents: read
+
+# AMO's rate limits are spent per account, and a run only knows what it spent
+# itself. Two runs at once would collide into 429s that still bill the counters.
+concurrency:
+  group: publish-amo
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -14,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.release.tag_name }}
 
@@ -22,10 +30,10 @@ jobs:
       # reads the pnpm version from the "packageManager" field in package.json,
       # so that field stays the single source of truth for every surface.
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: pnpm
@@ -33,8 +41,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check formatting
-        run: pnpm format
+      # No format check: CI ran it on the way in, and a formatting nit failing a
+      # release that is already published has no retry but the same failure.
+      - name: Lint
+        run: pnpm lint
 
       - name: Typecheck
         run: pnpm typecheck
@@ -82,9 +92,31 @@ jobs:
           MOZILLA_ADDON_JWT_SECRET: ${{ secrets.MOZILLA_ADDON_JWT_SECRET }}
         run: pnpm publish:amo
 
+      - name: Hand the packages to the attach job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: amo-packages
+          path: |
+            ${{ env.PACKAGE_ZIP }}
+            ${{ env.SOURCE_ZIP }}
+          if-no-files-found: error
+
+  attach:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Fetch the packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: amo-packages
+          path: packages
+
       - name: Attach packages to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" \
-            "$PACKAGE_ZIP" "$SOURCE_ZIP" --clobber
+          gh release upload "$GITHUB_REF_NAME" packages/*.zip \
+            --repo "$GITHUB_REPOSITORY" --clobber

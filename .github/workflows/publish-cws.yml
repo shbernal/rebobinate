@@ -9,18 +9,26 @@ on:
   release:
     types: [published]
 
+# Each job asks for what it uses: the publish job mints the GCP token, and only
+# the attach job can write the repo.
 permissions:
-  contents: write
-  id-token: write
+  contents: read
+
+concurrency:
+  group: publish-cws
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     environment: chrome-web-store
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.release.tag_name }}
 
@@ -28,10 +36,10 @@ jobs:
       # reads the pnpm version from the "packageManager" field in package.json,
       # so that field stays the single source of truth for every surface.
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: pnpm
@@ -39,8 +47,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check formatting
-        run: pnpm format
+      # No format check: CI ran it on the way in, and a formatting nit failing a
+      # release that is already published has no retry but the same failure.
+      - name: Lint
+        run: pnpm lint
 
       - name: Typecheck
         run: pnpm typecheck
@@ -94,7 +104,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: auth
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -139,7 +149,7 @@ jobs:
             exit 1
           fi
 
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl --fail-with-body -sS \
               -H "Authorization: Bearer ${TOKEN}" \
               -X GET \
@@ -184,7 +194,29 @@ jobs:
             -d '{"publishType":"DEFAULT_PUBLISH"}' \
             "https://chromewebstore.googleapis.com/v2/${item}:publish"
 
+      - name: Hand the package to the attach job
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cws-package
+          path: ${{ env.ZIP_FILE }}
+          if-no-files-found: error
+
+  attach:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Fetch the package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: cws-package
+          path: packages
+
       - name: Attach package to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "$ZIP_FILE" --clobber
+        run: |
+          gh release upload "$GITHUB_REF_NAME" packages/*.zip \
+            --repo "$GITHUB_REPOSITORY" --clobber
