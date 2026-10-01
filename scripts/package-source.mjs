@@ -32,6 +32,7 @@ const ref =
   'HEAD'
 const releaseDir = path.resolve(process.cwd(), 'release')
 
+/** @param {string[]} args */
 const git = args => execFileSync('git', args, { encoding: 'utf8' }).trim()
 
 const version = JSON.parse(

@@ -19,6 +19,13 @@ import process from 'node:process'
 import { execFileSync } from 'node:child_process'
 import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
+/**
+ * @typedef {{ version: string, url: string } & (
+ *   { kind: 'unpacked' } | { kind: 'xpi', fileName: string }
+ * )} Blocker
+ */
+
+/** @type {Record<string, Blocker>} */
 const BLOCKERS = {
   ubol: {
     version: '2026.812.1211',
@@ -40,18 +47,27 @@ export const blockersDir = path.resolve(
   'node_modules/.tmp/blockers',
 )
 
+/** @param {string} name */
 export const blockerPath = name =>
   BLOCKERS[name].kind === 'xpi'
     ? path.join(blockersDir, BLOCKERS[name].fileName)
     : path.join(blockersDir, name)
 
-/** Where the blocker is, or null when it has not been fetched. */
+/**
+ * Where the blocker is, or null when it has not been fetched.
+ *
+ * @param {string} name
+ */
 export const installedBlocker = name => {
   const target = blockerPath(name)
 
   return fs.existsSync(target) ? target : null
 }
 
+/**
+ * @param {string} url
+ * @param {string} destination
+ */
 const download = async (url, destination) => {
   const response = await fetch(url, { redirect: 'follow' })
 
@@ -63,6 +79,10 @@ const download = async (url, destination) => {
   fs.writeFileSync(destination, Buffer.from(await response.arrayBuffer()))
 }
 
+/**
+ * @param {string} name
+ * @param {boolean} force
+ */
 const fetchBlocker = async (name, force) => {
   const blocker = BLOCKERS[name]
   const target = blockerPath(name)
@@ -87,7 +107,7 @@ const fetchBlocker = async (name, force) => {
     execFileSync('unzip', ['-q', '-o', archive, '-d', target])
   } catch (error) {
     throw new Error(
-      `could not unpack ${archive} — is \`unzip\` installed? (${error.message})`,
+      `could not unpack ${archive} — is \`unzip\` installed? (${/** @type {Error} */ (error).message})`,
     )
   }
 

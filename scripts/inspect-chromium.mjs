@@ -22,6 +22,8 @@ import {
   showBadge,
 } from './chromium.mjs'
 
+/** @typedef {import('@playwright/test').Worker} Worker */
+
 printHelpAndExit(`
 Usage: pnpm inspect:chrome [url] [--profile-only] [--blocker] [--help]
        pnpm inspect:chrome --print-probe
@@ -82,6 +84,7 @@ const defaultOpenUrl = 'https://www.youtube.com/'
 
 // Chromium's own name for how an extension got loaded. Only the ones this
 // project can produce are named; anything else is left as the raw number.
+/** @type {Record<number, string>} */
 const LOAD_LOCATIONS = { 4: 'unpacked', 8: 'command line', 10: 'component' }
 
 /**
@@ -92,6 +95,8 @@ const LOAD_LOCATIONS = { 4: 'unpacked', 8: 'command line', 10: 'component' }
  * is what "Site access: on click" does. A withheld host is invisible from the
  * manifest and shows up only as tabs whose URL the extension cannot read, so
  * this is the file that answers whether that is what happened.
+ *
+ * @param {string} profilePath
  */
 const readGrantedPermissions = profilePath => {
   const candidates = ['Preferences', 'Secure Preferences'].map(name =>
@@ -149,6 +154,7 @@ const openUrl =
   process.env.REBOBINATE_OPEN_URL ??
   defaultOpenUrl
 
+/** @param {unknown} value */
 const print = value => {
   console.log(JSON.stringify(value, null, 2))
 }
@@ -197,9 +203,11 @@ const context = await launchWithExtension({
   extraExtensions: blockerDir ? [blockerDir] : [],
 })
 
+/** @param {Worker} candidate */
 const isBlockerWorker = candidate =>
   candidate.url().includes('/js/background.js')
 
+/** @param {(worker: Worker) => boolean} predicate */
 const findWorker = async predicate =>
   context.serviceWorkers().find(predicate) ??
   (await context.waitForEvent('serviceworker', { predicate }))
@@ -257,7 +265,11 @@ const readTabs = () =>
       }),
   )
 
-/** The reply the popup gets when it asks which site the active tab is on. */
+/**
+ * The reply the popup gets when it asks which site the active tab is on.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
 const askPopupState = page =>
   page.evaluate(
     () =>
@@ -325,6 +337,7 @@ const withPopupActive = {
 const actionBadge = await worker.evaluate(
   () =>
     new Promise(resolve => {
+      /** @param {chrome.action.TabDetails} details */
       const read = details =>
         new Promise(done => {
           chrome.action.getBadgeText(details, text => {

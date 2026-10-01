@@ -44,9 +44,20 @@ rejectUnknownArguments({ flags: ['--with-ublock'] })
 const defaultOpenUrl = 'https://www.youtube.com/'
 const sourceDir = path.resolve(process.cwd(), 'dist-firefox')
 
+/** @param {string[]} candidates */
 const findExecutable = candidates =>
   candidates.find(candidate => fs.existsSync(candidate))
 
+/**
+ * @typedef {object} Browser
+ * @property {string} label
+ * @property {string} profileEnv
+ * @property {string} defaultProfile
+ * @property {() => string | undefined} resolve
+ * @property {string[]} notFound
+ */
+
+/** @type {Record<string, Browser>} */
 const BROWSERS = {
   firefox: {
     label: 'Firefox',

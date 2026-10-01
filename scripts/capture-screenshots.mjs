@@ -32,6 +32,10 @@ if (!fs.existsSync(path.join(extensionPath, 'manifest.json'))) {
   process.exit(1)
 }
 
+/**
+ * @param {string} title
+ * @param {string} body
+ */
 const page = (title, body) => `<!doctype html>
 <html lang="en">
   <head>
@@ -188,69 +192,80 @@ const context = await chromium.launchPersistentContext(profileDir, {
   ],
 })
 
-const worker =
-  context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
-const extensionId = new URL(worker.url()).hostname
+try {
+  const worker =
+    context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'))
+  const extensionId = new URL(worker.url()).hostname
 
-await worker.evaluate(
-  settings =>
-    new Promise(resolve => {
-      chrome.storage.local.set({ 'rebobinate:settings': settings }, () =>
-        resolve(),
-      )
+  await worker.evaluate(
+    settings =>
+      new Promise((/** @type {(value: void) => void} */ resolve) => {
+        chrome.storage.local.set({ 'rebobinate:settings': settings }, () =>
+          resolve(),
+        )
+      }),
+    {
+      badge: {
+        autoHideMs: 0,
+        corner: 'top-right',
+        fontSize: 18,
+        opacity: 0.85,
+      },
+    },
+  )
+
+  await context.route('https://player.test/**', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html; charset=utf-8',
+      body: PLAYER_PAGE,
     }),
-  {
-    badge: { autoHideMs: 0, corner: 'top-right', fontSize: 18, opacity: 0.85 },
-  },
-)
+  )
 
-await context.route('https://player.test/**', route =>
-  route.fulfill({
-    status: 200,
-    contentType: 'text/html; charset=utf-8',
-    body: PLAYER_PAGE,
-  }),
-)
+  fs.mkdirSync(outputDir, { recursive: true })
 
-fs.mkdirSync(outputDir, { recursive: true })
+  const player = await context.newPage()
+  await player.goto('https://player.test/watch')
 
-const player = await context.newPage()
-await player.goto('https://player.test/watch')
+  // The content script loads asynchronously, so press until the speed moves.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await player.keyboard.press('+')
+    await player.waitForTimeout(200)
 
-// The content script loads asynchronously, so press until the speed moves.
-for (let attempt = 0; attempt < 20; attempt += 1) {
-  await player.keyboard.press('+')
-  await player.waitForTimeout(200)
+    const rate = await player
+      .locator('#player')
+      .evaluate((/** @type {HTMLVideoElement} */ node) => node.playbackRate)
 
-  const rate = await player
-    .locator('#player')
-    .evaluate(node => node.playbackRate)
-
-  if (rate >= 1.25) {
-    break
+    if (rate >= 1.25) {
+      break
+    }
   }
-}
 
-await player.waitForTimeout(400)
-await player.screenshot({ path: path.join(outputDir, 'rebobinate-1.png') })
+  await player.waitForTimeout(400)
+  await player.screenshot({ path: path.join(outputDir, 'rebobinate-1.png') })
 
-const popup = await context.newPage()
-await popup.goto(`chrome-extension://${extensionId}/src/popup/index.html`)
-await popup.waitForTimeout(600)
+  const popup = await context.newPage()
+  await popup.goto(`chrome-extension://${extensionId}/src/popup/index.html`)
+  await popup.waitForTimeout(600)
 
-// Screenshot the popup element itself, then centre it on the listing canvas.
-// The scale is computed rather than fixed: the popup grows and shrinks as
-// controls change, and a hardcoded zoom silently crops it when it does.
-const shot = await popup.locator('main.popup').screenshot()
-const box = await popup.locator('main.popup').boundingBox()
-const scale = Math.min(
-  (1280 - MARGIN * 2) / box.width,
-  (800 - MARGIN * 2) / box.height,
-)
+  // Screenshot the popup element itself, then centre it on the listing canvas.
+  // The scale is computed rather than fixed: the popup grows and shrinks as
+  // controls change, and a hardcoded zoom silently crops it when it does.
+  const shot = await popup.locator('main.popup').screenshot()
+  const box = await popup.locator('main.popup').boundingBox()
 
-const canvas = await context.newPage()
-await canvas.setContent(
-  `<!doctype html>
+  if (box === null) {
+    throw new Error('main.popup has no bounding box; is it rendered?')
+  }
+
+  const scale = Math.min(
+    (1280 - MARGIN * 2) / box.width,
+    (800 - MARGIN * 2) / box.height,
+  )
+
+  const canvas = await context.newPage()
+  await canvas.setContent(
+    `<!doctype html>
 <html lang="en">
   <head><meta charset="utf-8" /><title>Rebobinate popup</title></head>
   <body style="margin:0;width:1280px;height:800px;background:#12121a;display:flex;align-items:center;justify-content:center">
@@ -261,16 +276,17 @@ await canvas.setContent(
     />
   </body>
 </html>`,
-  { waitUntil: 'load' },
-)
-await canvas.screenshot({ path: path.join(outputDir, 'rebobinate-2.png') })
+    { waitUntil: 'load' },
+  )
+  await canvas.screenshot({ path: path.join(outputDir, 'rebobinate-2.png') })
 
-// The card is plain markup at the listing size, so it needs no compositing.
-const card = await context.newPage()
-await card.setContent(CARD_PAGE, { waitUntil: 'load' })
-await card.evaluate(() => document.fonts.ready)
-await card.screenshot({ path: path.join(outputDir, 'rebobinate-3.png') })
-
-await context.close()
+  // The card is plain markup at the listing size, so it needs no compositing.
+  const card = await context.newPage()
+  await card.setContent(CARD_PAGE, { waitUntil: 'load' })
+  await card.evaluate(() => document.fonts.ready)
+  await card.screenshot({ path: path.join(outputDir, 'rebobinate-3.png') })
+} finally {
+  await context.close()
+}
 
 console.log(`wrote screenshots to ${path.relative(root, outputDir)}`)
