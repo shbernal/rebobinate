@@ -454,7 +454,15 @@ Two things about it are load-bearing:
 - **The first paint does not wait on storage.** Both reads answer on a callback,
   and a popup that gates its first render on them flashes an empty box every
   time it is opened. The defaults render immediately and the stored values
-  arrive underneath.
+  arrive underneath. What is not yet known is not guessed at, though. A
+  settings read answering after a save or a change event is dropped, or it
+  would revert the control just moved. The tab's domain stays `undefined`
+  until the service worker answers. A lost reply is asked once more, then left
+  unknown, so neither pane calls the page one no speed can be remembered for
+  over a transport failure. The Speed pane promises nothing for a site until
+  the domain map is read, since before then a switched-off site looks
+  unmarked. `deferReads()`/`flushReads()` on the Chrome mock hold callbacks
+  back so tests can reach these orderings.
 - **The tab strip follows the ARIA tab pattern**, including the part that is
   easy to skip: only the selected tab is in the focus order and the arrow keys
   move between them. Without that a keyboard user tabs through every tab to

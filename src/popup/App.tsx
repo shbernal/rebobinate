@@ -36,6 +36,9 @@ const TABS: Tab<TabId>[] = [
   { id: 'settings', label: 'Settings' },
 ]
 
+/** How long to wait before asking a worker that did not answer a second time. */
+const POPUP_STATE_RETRY_MS = 150
+
 const sendMessage = (
   message: RuntimeMessage,
   onResponse?: (speed: number) => void,
@@ -66,9 +69,26 @@ const App = () => {
    * the popup: the popup is its own document with no handle on the tab it was
    * opened over, so working out which tab that even is takes a `tabs.query`
    * only the background can usefully make.
+   *
+   * `undefined` until the worker has answered, which is not the same as
+   * `null`: a message lost to a worker still waking up says nothing about the
+   * page, and the panes say nothing about it either rather than calling it a
+   * page no speed can be remembered for.
    */
-  const [domain, setDomain] = useState<string | null>(null)
+  const [domain, setDomain] = useState<string | null | undefined>(undefined)
   const [domains, setDomains] = useState<DomainStore>(EMPTY_DOMAIN_STORE)
+  /**
+   * Until the map is read, every site looks unmarked, and the Speed pane
+   * would promise to keep speeds for one the user switched off.
+   */
+  const [domainsLoaded, setDomainsLoaded] = useState(false)
+  /**
+   * Set once storage has newer news than the mount's reads can carry: a save
+   * from here, or a change event. The initial read answering after that would
+   * put back what was there before, visibly reverting a control just used.
+   */
+  const settingsSettled = useRef(false)
+  const domainsSettled = useRef(false)
 
   /**
    * A floor under the scrolling pane, in pixels, while a pane asks for one.
@@ -171,27 +191,56 @@ const App = () => {
    * domain takes a `tabs.query` the popup cannot make for itself.
    */
   const readPopupState = useCallback(() => {
-    chrome.runtime.sendMessage(
-      { type: 'rebobinate:popup-state' } satisfies RuntimeMessage,
-      (response?: SpeedResponse) => {
-        void chrome.runtime.lastError
+    const ask = (retries: number) => {
+      chrome.runtime.sendMessage(
+        { type: 'rebobinate:popup-state' } satisfies RuntimeMessage,
+        (response?: SpeedResponse) => {
+          // No answer is a transport failure, not an answer. Ask once more,
+          // then leave the domain unknown.
+          if (chrome.runtime.lastError || response === undefined) {
+            if (retries > 0) {
+              setTimeout(() => ask(retries - 1), POPUP_STATE_RETRY_MS)
+            }
 
-        if (typeof response?.speed === 'number') {
-          setSpeed(response.speed)
-        }
+            return
+          }
 
-        setDomain(response?.domain ?? null)
-      },
-    )
+          if (typeof response.speed === 'number') {
+            setSpeed(response.speed)
+          }
+
+          setDomain(response.domain ?? null)
+        },
+      )
+    }
+
+    ask(1)
   }, [])
 
   useEffect(() => {
-    readSettings(setSettings)
-    readDomains(setDomains)
+    readSettings(stored => {
+      if (!settingsSettled.current) {
+        setSettings(stored)
+      }
+    })
+    readDomains(stored => {
+      if (!domainsSettled.current) {
+        setDomains(stored)
+      }
+
+      setDomainsLoaded(true)
+    })
     readPopupState()
 
-    const stopSettings = onSettingsChange(setSettings)
-    const stopDomains = onDomainsChange(setDomains)
+    const stopSettings = onSettingsChange(next => {
+      settingsSettled.current = true
+      setSettings(next)
+    })
+    const stopDomains = onDomainsChange(next => {
+      domainsSettled.current = true
+      setDomains(next)
+      setDomainsLoaded(true)
+    })
 
     return () => {
       stopSettings()
@@ -230,6 +279,7 @@ const App = () => {
    */
   const save = useCallback(
     (next: Settings, onWritten?: (error?: string) => void) => {
+      settingsSettled.current = true
       setSettings(next)
       writeSettings(next, error => {
         if (error) {
@@ -372,15 +422,17 @@ const App = () => {
             keys={settings.keys}
             onAction={act}
             onSetSpeed={jumpTo}
-            domain={domain}
+            domain={domain ?? null}
             /* The three things that have to hold for a speed set here to
                survive the tab: the feature is on, there is a domain to hang
-               it on, and this one is not marked never. Whether anything is
+               it on, and this one is not marked never — which can only be
+               known once the map has been read. Whether anything is
                stored for it yet is a separate question — it is what the pane
                says in the present tense rather than the future. */
             remembered={
               settings.rememberPerDomain &&
-              domain !== null &&
+              domainsLoaded &&
+              typeof domain === 'string' &&
               domains.entries[domain]?.never !== true
             }
             /* Whether there is an entry to be a receipt about, read from the
@@ -389,7 +441,9 @@ const App = () => {
                names the readout's speed, so the two cannot disagree across the
                service worker's write debounce. */
             rememberedSpeed={
-              domain !== null ? (domains.entries[domain]?.speed ?? null) : null
+              typeof domain === 'string'
+                ? (domains.entries[domain]?.speed ?? null)
+                : null
             }
             /* The receipt's Forget is the Sites row's ✕ under another name:
                same message, same outcome, offered where the write was
@@ -397,7 +451,7 @@ const App = () => {
                a marker, so the plain forget is the right one of the two
                clears. */
             onForget={() => {
-              if (domain !== null) {
+              if (typeof domain === 'string') {
                 forgetSite(domain)
               }
             }}

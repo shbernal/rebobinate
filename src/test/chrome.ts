@@ -93,10 +93,27 @@ export const createChromeMock = () => {
   // is what a full quota looks like from the caller's side.
   let writeFailure: string | null = null
 
+  // Every callback answers synchronously unless `deferReads` is on, in which
+  // case reads and message replies wait for `flushReads`. Real Chrome answers
+  // a tick or more later, and only a deferred answer can lose a race with
+  // something the user did in between.
+  let deferring = false
+  const deferred: (() => void)[] = []
+  const answer = (callback: () => void) => {
+    if (deferring) {
+      deferred.push(callback)
+      return
+    }
+
+    callback()
+  }
+
   const local = {
     get: vi.fn(
       (keys: StorageKeys, callback: (items: StorageValues) => void) => {
-        callback(pickStorageValues(values, keys))
+        // Read now, answered later: the value is what storage held when asked.
+        const items = pickStorageValues(values, keys)
+        answer(() => callback(items))
       },
     ),
     set: vi.fn((items: StorageValues, callback?: () => void) => {
@@ -140,13 +157,24 @@ export const createChromeMock = () => {
     onMessage: runtimeMessage,
     sendMessage: vi.fn(
       (_message: unknown, callback?: (response?: unknown) => void) => {
-        callback?.()
+        answer(() => callback?.())
       },
     ),
   }
 
+  const deferReads = () => {
+    deferring = true
+  }
+
+  /** Answers every read and message held back since `deferReads`. */
+  const flushReads = () => {
+    deferred.splice(0).forEach(callback => callback())
+  }
+
   return {
     runtime,
+    deferReads,
+    flushReads,
     storage: {
       local,
       onChanged: storageChanged,
