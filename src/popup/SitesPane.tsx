@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { DomainMemory, DomainStore } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
 import { formatSpeedLabel } from '@/shared/speed'
@@ -172,6 +172,9 @@ const DroppedRow = ({
   </li>
 )
 
+const sameOrder = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((key, index) => key === b[index])
+
 type SitesPaneProps = {
   settings: Settings
   save: (next: Settings) => void
@@ -220,37 +223,41 @@ const SitesPane = ({
    * decides where it stays. Leaving the tab unmounts the pane, so the next
    * visit sorts afresh — which is the whole of the reset logic.
    */
-  const order = useRef<string[]>([])
+  const [order, setOrder] = useState<string[]>([])
 
   // The most recently touched first: on a profile with hundreds of sites, the
   // one the user is looking for is almost always one they used recently.
-  const others = Object.entries(domains.entries)
-    .filter(([key]) => key !== domain)
-    .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
+  const others = useMemo(
+    () =>
+      Object.entries(domains.entries)
+        .filter(([key]) => key !== domain)
+        .sort(([, a], [, b]) => b.updatedAt - a.updatedAt),
+    [domains.entries, domain],
+  )
+  const stored = useMemo(() => new Set(others.map(([key]) => key)), [others])
 
   /**
    * Today's sort merged into the order already on screen: a key that is already
    * placed keeps its place, a key that is new goes on the front, and a key that
    * is no longer stored falls out — unless it is the dropped one, which keeps
-   * its slot so the undo can put the row back where the row was.
+   * its slot so the undo can put the row back where the row was. Not redone
+   * per keystroke in the filter: it depends on the store, not the query.
    */
-  const stored = new Set(others.map(([key]) => key))
-  /*
-   * Read and written during render on purpose. The order has to be settled
-   * before the rows are painted, so an effect is a render too late, and the
-   * merge is idempotent: a second pass over the same store finds every key
-   * already placed and writes back the list it just read, which is what makes
-   * this safe under a double render.
-   */
-  // oxlint-disable react/refs
-  const kept = order.current.filter(
-    key => stored.has(key) || key === dropped?.domain,
-  )
-  const placed = new Set(kept)
-  const arrived = others.map(([key]) => key).filter(key => !placed.has(key))
-  const rows = [...arrived, ...kept]
-  order.current = rows
-  // oxlint-enable react/refs
+  const rows = useMemo(() => {
+    const kept = order.filter(key => stored.has(key) || key === dropped?.domain)
+    const placed = new Set(kept)
+    const arrived = others.map(([key]) => key).filter(key => !placed.has(key))
+
+    return [...arrived, ...kept]
+  }, [order, others, stored, dropped])
+
+  // The order has to be settled before the rows are painted, so it is stored
+  // during render rather than from an effect, which React allows for state
+  // derived from the previous render. The merge settles in one pass: the next
+  // render finds every key placed and stores nothing.
+  if (!sameOrder(rows, order)) {
+    setOrder(rows)
+  }
 
   const query = filter.trim().toLowerCase()
   const matching = query ? rows.filter(key => key.includes(query)) : rows

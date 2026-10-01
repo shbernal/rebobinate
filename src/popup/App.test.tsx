@@ -984,6 +984,30 @@ describe('popup sites tab', () => {
     expect(screen.getByLabelText('Speed for site-0.example')).toHaveValue('2')
   })
 
+  // The order is held only while the pane is on screen; the next visit sorts
+  // from the store again.
+  it('sorts afresh when the tab is left and come back to', async () => {
+    answerPopupState(null)
+    const seeded = twelveSites()
+    seedDomains(seeded)
+    const user = await openSites()
+
+    await user.selectOptions(
+      screen.getByLabelText('Speed for site-0.example'),
+      '2',
+    )
+    await workerWrote({
+      ...seeded,
+      'site-0.example': { speed: 2, updatedAt: 99 },
+    })
+    expect(listedNames()[0]).not.toBe('site-0.example')
+
+    await openTab(user, 'Speed')
+    await openTab(user, 'Sites')
+
+    expect(listedNames()[0]).toBe('site-0.example')
+  })
+
   // A site that has never been listed is new to the pane, so it belongs at the
   // front rather than wherever the frozen order has no opinion about it.
   it('puts a site the list has not seen on the front', async () => {

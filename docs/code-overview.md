@@ -193,9 +193,12 @@ the one thing it could not do.
 touched first, which is right for arriving and right for the 500-entry cap and
 wrong as a live re-sort: setting a speed writes the entry, so the row travelled
 to the top out from under the pointer that had just set it, off the top of a
-scrolled pane. `SitesPane` keeps a `useRef` of the keys in display order and
-merges each render's sort into it — a placed key keeps its place, a new key goes
-on the front, a key no longer stored falls out. Leaving the tab unmounts the
+scrolled pane. `SitesPane` keeps the keys in display order in state and merges
+each store's sort into it — a placed key keeps its place, a new key goes on the
+front, a key no longer stored falls out. The merge is stored during render
+(React's pattern for state derived from the previous render), because an effect
+would paint one frame in the store's order first, and it is memoized on the
+store rather than the filter. Leaving the tab unmounts the
 pane, so the next visit sorts afresh; that is the whole of the reset. The
 `MAX_ROWS` slice and the filter both run on the merged order, so the visible
 rows are still the recently-used ones.
