@@ -172,7 +172,11 @@ remembered speed can be edited or dropped for any site rather than only the one
 in front of the user. **A row is one control.** The select carries every state
 the row can be in — `Never remember`, `Use default (N×)` with the user's own
 default in it, or a speed — and the ✕ beside it is the one-click version of
-that select's `Use default`, because it calls the same `clear`. It is named for
+that select's `Use default`, because it calls the same `clear`. Picking a speed
+on a marker's row starts remembering the site at it: `rebobinate:set-domain-speed`
+is the one writer that lifts the marker, in the same read-modify-write as the
+speed, so it cannot be refused by the guard and leave the row showing a speed
+nothing stored. It is named for
 what it drops (_"Stop remembering X"_, or _"Start remembering X again"_ on a
 marker, which is the opposite write) rather than for the speed the site lands
 on: in the list what the user sees the click do is a row leave, and "back to the
