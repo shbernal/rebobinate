@@ -34,7 +34,14 @@ pnpm e2e:headed      # the same, with a visible browser
   through `chrome.runtime.onMessage.emit(message, sender, sendResponse)`. The
   sender is where a test says which site the tab is on: `sender.tab.url` is the
   top frame's URL, and `sender.url` the sending frame's, which is how the
-  embedded-player cases are set up.
+  embedded-player cases are set up. The content script is loaded the same
+  way (`src/content/content-script.test.ts`), with the badge's `flash`
+  recorded through a `vi.mock` that keeps the real badge underneath.
+- Coverage counts every file under `src/` except the mock, the tests and the
+  React mount, so a file nothing imports shows at 0% rather than dropping out
+  of the number. CI runs `pnpm test:coverage`, and the thresholds in
+  `vitest.config.ts` fail it. They sit about a point under the measured
+  figures; raise them as tests land.
 
 `tests/` holds what is not a unit test of `src/`.
 
