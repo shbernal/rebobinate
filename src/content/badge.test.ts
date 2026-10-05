@@ -329,6 +329,17 @@ describe('createBadge', () => {
     expect(host()?.parentNode).toBe(document.documentElement)
   })
 
+  it('strikes the speed through once the site has overridden it', () => {
+    badge.flash(2, badgeSettings(), true)
+
+    expect(labelText()).toBe('2.0×')
+    expect(labelStyle()).toContain('text-decoration:line-through')
+
+    badge.flash(2, badgeSettings())
+
+    expect(labelStyle()).not.toContain('line-through')
+  })
+
   it('fades between opacities by default', () => {
     badge.flash(2, badgeSettings())
 

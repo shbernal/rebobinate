@@ -59,10 +59,15 @@ export const cornerAlignment = (corner: BadgeCorner): BadgeGeometry => {
   }
 }
 
+/**
+ * `overridden` says the site won: the enforcer gave up holding `speed` on the
+ * video, so the badge shows the speed struck through rather than go on
+ * claiming it.
+ */
 export type Badge = {
-  render: (speed: number, settings: BadgeSettings) => void
+  render: (speed: number, settings: BadgeSettings, overridden?: boolean) => void
   /** Shows the badge and restarts the auto-hide countdown. */
-  flash: (speed: number, settings: BadgeSettings) => void
+  flash: (speed: number, settings: BadgeSettings, overridden?: boolean) => void
   destroy: () => void
 }
 
@@ -188,7 +193,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     return true
   }
 
-  const styleLabel = (settings: BadgeSettings) => {
+  const styleLabel = (settings: BadgeSettings, overridden: boolean) => {
     if (!label) {
       return
     }
@@ -203,6 +208,10 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       'font-variant-numeric:tabular-nums',
       'white-space:nowrap',
     ]
+
+    if (overridden) {
+      declarations.push('text-decoration:line-through')
+    }
 
     if (!prefersReducedMotion()) {
       declarations.push('transition:opacity 120ms ease-out')
@@ -392,9 +401,13 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
   viewport?.addEventListener('resize', handleViewportChange)
   viewport?.addEventListener('scroll', handleViewportChange)
 
-  const show = (speed: number, settings: BadgeSettings) => {
+  const show = (
+    speed: number,
+    settings: BadgeSettings,
+    overridden: boolean,
+  ) => {
     ensureHost()
-    styleLabel(settings)
+    styleLabel(settings, overridden)
 
     if (label) {
       label.textContent = formatSpeedLabel(speed)
@@ -422,7 +435,11 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     return !(settings.hideAtNormalSpeed && speedsEqual(speed, 1))
   }
 
-  const render = (speed: number, settings: BadgeSettings) => {
+  const render = (
+    speed: number,
+    settings: BadgeSettings,
+    overridden = false,
+  ) => {
     currentSettings = settings
 
     if (!shouldShow(speed, settings)) {
@@ -436,10 +453,14 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       return
     }
 
-    show(speed, settings)
+    show(speed, settings, overridden)
   }
 
-  const flash = (speed: number, settings: BadgeSettings) => {
+  const flash = (
+    speed: number,
+    settings: BadgeSettings,
+    overridden = false,
+  ) => {
     currentSettings = settings
     clearHideTimer()
 
@@ -448,7 +469,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       return
     }
 
-    show(speed, settings)
+    show(speed, settings, overridden)
 
     // Track the video for a moment: a speed change often coincides with the
     // player showing its controls, which moves the video box.
