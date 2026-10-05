@@ -207,10 +207,40 @@ const cancelAllPendingWrites = () => {
   pendingWrites.clear()
 }
 
-const updateDomains = (change: (store: DomainStore) => DomainStore) => {
-  readDomains(store => {
-    writeDomains(change(store))
+/**
+ * Domain updates waiting their turn, the head being the one in flight.
+ *
+ * Every update is a read of the whole map followed by a write of the whole map
+ * back, so two left to overlap both read the same map and the second write
+ * drops the first: a popup edit landing while a debounced browse write fires,
+ * or two quick edits in the Sites tab. Each one reads only once the write
+ * before it has landed.
+ */
+const domainUpdates: ((done: () => void) => void)[] = []
+
+const runNextDomainUpdate = () => {
+  domainUpdates[0]?.(() => {
+    domainUpdates.shift()
+    runNextDomainUpdate()
   })
+}
+
+const updateDomains = (
+  change: (store: DomainStore) => DomainStore,
+  callback?: (error?: string) => void,
+) => {
+  domainUpdates.push(done => {
+    readDomains(store => {
+      writeDomains(change(store), error => {
+        callback?.(error)
+        done()
+      })
+    })
+  })
+
+  if (domainUpdates.length === 1) {
+    runNextDomainUpdate()
+  }
 }
 
 const forget = (domain: string) => {
@@ -447,9 +477,12 @@ chrome.runtime.onMessage.addListener(
       // statement about the next visit to each site, and re-speeding whatever
       // happens to be playing is not what "restore my settings" asks for. The
       // answer is whether the write landed, which the popup reports.
-      writeDomains(message.store, error => {
-        sendResponse({ error })
-      })
+      updateDomains(
+        () => message.store,
+        error => {
+          sendResponse({ error })
+        },
+      )
 
       return true
     }

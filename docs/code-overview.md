@@ -110,6 +110,12 @@ twenty keypresses is one write, not twenty. A pending timer dies with the
 service worker, but eviction takes thirty seconds of idle, so a second is well
 inside the margin.
 
+**Writes to the map run one at a time.** Each is a read of the whole map and a
+write of it back, so two overlapping ones would read the same map and the
+second would drop the first: a popup edit landing while a debounced write
+fires, or two quick edits in the Sites tab. `updateDomains` in the service
+worker queues them, and a restore goes through the same queue.
+
 **`reset` forgets rather than records.** `0` returns to `defaultSpeed` and drops
 the entry: it is the "make this site normal again" gesture, and a map full of
 entries that only repeat the default would spend the eviction budget on nothing.
