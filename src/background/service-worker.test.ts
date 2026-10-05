@@ -653,6 +653,31 @@ describe('editing a site from the popup', () => {
 
     expect(storedDomains()['youtube.com']).toBeUndefined()
   })
+
+  // Each edit reads the whole map and writes it back; two reading the same map
+  // would have the second write drop the first.
+  it('keeps both of two edits made in quick succession', async () => {
+    const { send, chromeMock } = await loadBackground()
+    chromeMock.deferReads()
+
+    send(
+      { type: 'rebobinate:set-domain-speed', domain: 'vimeo.com', speed: 1.5 },
+      POPUP,
+    )
+    send(
+      {
+        type: 'rebobinate:set-domain-never',
+        domain: 'twitch.tv',
+        never: true,
+      },
+      POPUP,
+    )
+    chromeMock.flushReads()
+    chromeMock.flushReads()
+
+    expect(storedDomains()['vimeo.com'].speed).toBe(1.5)
+    expect(storedDomains()['twitch.tv'].never).toBe(true)
+  })
 })
 
 describe('a site switched out of the memory', () => {
