@@ -301,6 +301,11 @@ source or a play), does. While backed off, the content script skips the badge
 re-render a `ratechange` would cost, since each one reads every video's
 layout.
 
+The badge does not go on claiming a speed the video is not at. When the enforcer
+backs off the video the badge sits on, the content script flashes the badge with
+the speed struck through, and draws it plain again once a speed is set or a
+media event re-arms the video.
+
 ## The badge
 
 `src/content/badge.ts` renders a fixed-position host with a shadow root, laid

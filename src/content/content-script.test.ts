@@ -163,6 +163,7 @@ describe('content script', () => {
     expect(flashes).toHaveBeenLastCalledWith(
       1.5,
       expect.objectContaining({ enabled: false }),
+      false,
     )
   })
 
@@ -174,6 +175,7 @@ describe('content script', () => {
     expect(flashes).toHaveBeenLastCalledWith(
       1,
       expect.objectContaining({ enabled: true }),
+      false,
     )
   })
 
@@ -188,6 +190,24 @@ describe('content script', () => {
     })
 
     expect(video.playbackRate).toBe(1)
+  })
+
+  it('says so when the site wins the rate back, until a speed is set', async () => {
+    await loadContentScript()
+    fromWorker({ type: 'rebobinate:state', speed: 2 })
+    const video = document.querySelector('video') as HTMLVideoElement
+
+    // A site rewriting the rate in a loop, faster than the enforcer will chase.
+    for (let i = 0; i < 20; i += 1) {
+      video.playbackRate = 1
+      video.dispatchEvent(new Event('ratechange'))
+    }
+
+    expect(flashes).toHaveBeenLastCalledWith(2, expect.anything(), true)
+
+    fromWorker({ type: 'rebobinate:state', speed: 1.5 })
+
+    expect(flashes).toHaveBeenLastCalledWith(1.5, expect.anything(), false)
   })
 
   describe('once the extension context is invalidated', () => {

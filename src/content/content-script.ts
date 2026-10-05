@@ -34,16 +34,27 @@ if (isControllableDocument(document)) {
       if (eventName === 'ratechange') {
         enforcer.reconcile(video)
 
+        // The moment the site wins is news, so it is flashed even when the
+        // badge has faded out.
+        if (syncOverridden()) {
+          badge.flash(enforcer.getSpeed(), badgeSettings(), overridden)
+          return
+        }
+
         // A site that won the fight keeps firing `ratechange`, and each render
         // reads every video's layout. Nothing changed that the badge shows.
         if (!enforcer.isSuppressed(video)) {
-          badge.render(enforcer.getSpeed(), badgeSettings())
+          badge.render(enforcer.getSpeed(), badgeSettings(), overridden)
         }
 
         return
       }
 
       enforcer.apply(video)
+
+      if (syncOverridden()) {
+        badge.render(enforcer.getSpeed(), badgeSettings(), overridden)
+      }
     },
   })
 
@@ -63,6 +74,26 @@ if (isControllableDocument(document)) {
    */
   const badgeSettings = (): BadgeSettings =>
     settings.enabled ? settings.badge : { ...settings.badge, enabled: false }
+
+  /**
+   * Whether the site is holding the video the badge sits on at a rate of its
+   * own, the enforcer having backed off it. The badge says so rather than go on
+   * claiming the speed the user chose.
+   */
+  let overridden = false
+
+  /** Re-reads `overridden`, and returns whether it changed. */
+  function syncOverridden() {
+    const primary = registry.primary()
+    const next = primary !== null && enforcer.isSuppressed(primary)
+
+    if (next === overridden) {
+      return false
+    }
+
+    overridden = next
+    return true
+  }
 
   // Whether any frame of the tab holds a video. On a page whose player sits in
   // an iframe, the focused frame has none of its own, but the keystroke is
@@ -85,7 +116,7 @@ if (isControllableDocument(document)) {
     }
 
     announced = true
-    badge.flash(enforcer.getSpeed(), badgeSettings())
+    badge.flash(enforcer.getSpeed(), badgeSettings(), overridden)
   }
 
   const keyHandler = createKeyHandler({
@@ -185,12 +216,14 @@ if (isControllableDocument(document)) {
     if (speedsEqual(speed, enforcer.getSpeed())) {
       // Still flash: the user pressed a key and deserves feedback even when the
       // speed is already at the limit.
-      badge.flash(speed, badgeSettings())
+      badge.flash(speed, badgeSettings(), overridden)
       return
     }
 
+    // Setting a speed re-arms every video, so the site has not won this one.
     enforcer.setSpeed(speed)
-    badge.flash(speed, badgeSettings())
+    syncOverridden()
+    badge.flash(speed, badgeSettings(), overridden)
   }
 
   chrome.runtime.onMessage.addListener(message => {
@@ -218,7 +251,7 @@ if (isControllableDocument(document)) {
 
   readSettings(initial => {
     settings = initial
-    badge.render(enforcer.getSpeed(), badgeSettings())
+    badge.render(enforcer.getSpeed(), badgeSettings(), overridden)
   })
 
   stopSettingsWatch = onSettingsChange(next => {
@@ -227,9 +260,10 @@ if (isControllableDocument(document)) {
 
     if (wasEnabled && !next.enabled) {
       enforcer.setSpeed(1)
+      syncOverridden()
     }
 
-    badge.render(enforcer.getSpeed(), badgeSettings())
+    badge.render(enforcer.getSpeed(), badgeSettings(), overridden)
   })
 
   registry.start()
@@ -249,7 +283,8 @@ if (isControllableDocument(document)) {
 
       if (typeof response?.speed === 'number') {
         enforcer.setSpeed(response.speed)
-        badge.render(response.speed, badgeSettings())
+        syncOverridden()
+        badge.render(response.speed, badgeSettings(), overridden)
         announceSpeed()
       }
     },
