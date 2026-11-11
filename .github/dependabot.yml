@@ -1,0 +1,27 @@
+version: 2
+
+updates:
+  # Extension reviewers at both stores flag stale bundled dependencies, so the
+  # shipped tree needs to keep moving even when nothing else changes.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # react and react-dom refuse to run unless their versions match exactly,
+      # so they have to move in the same pull request.
+      react:
+        dependency-type: production
+        patterns:
+          - react
+          - react-dom
+      dev-dependencies:
+        dependency-type: development
+
+  # The workflows pin actions by commit SHA; Dependabot bumps the SHA and the
+  # version comment together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -13,6 +13,15 @@ the job — tens of milliseconds over the whole tree — and it is configured to
 cover only what typecheck cannot see; [Linting](../AGENTS.md#linting) explains
 the scoping.
 
+A separate `commit-check` job rejects commit messages that carry AI
+attribution, per `.github/cchk.toml`; the AI disclosure goes in the pull
+request description, which `.github/pull_request_template.md` asks for.
+
+`.github/dependabot.yml` opens weekly update pull requests for npm dependencies
+and the SHA-pinned actions. Development dependencies share one pull request,
+and `react` with `react-dom` another, since React refuses to run when the two
+versions differ.
+
 The Playwright suite is not in CI yet. It needs a Chromium that can load
 extensions; run it locally with `pnpm e2e` before packaging.
 
