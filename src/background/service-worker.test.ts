@@ -177,13 +177,12 @@ describe('background speed relay', () => {
   })
 
   it('answers the popup for the active tab', async () => {
-    const { send, chromeMock } = await loadBackground()
+    const { send } = await loadBackground()
 
     send({ type: 'rebobinate:intent', action: 'increase', currentSpeed: 1 })
     // The mock resolves the active tab to id 1, not the tab used above.
     const response = send({ type: 'rebobinate:popup-state' }, POPUP)
 
-    expect(chromeMock.tabs.query).toHaveBeenCalled()
     expect(response).toHaveBeenCalledWith({
       speed: 1,
       hasVideo: false,

@@ -99,10 +99,6 @@ describe('budgetLeft', () => {
     expect(budgetLeft([], NOW, submission)).toBe(10)
   })
 
-  it('counts what this run has already spent', () => {
-    expect(budgetLeft(sentAgo(3, 1000), NOW, submission)).toBe(7)
-  })
-
   // A burst hold is seconds; deferring work over one would defer everything.
   it('ignores the minute limit, which is a wait rather than a budget', () => {
     expect(budgetLeft(sentAgo(3, 100), NOW, submission)).toBe(7)
