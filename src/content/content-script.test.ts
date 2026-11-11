@@ -70,6 +70,7 @@ const fromWorker = (message: unknown) =>
 describe('content script', () => {
   beforeEach(() => {
     document.body.append(document.createElement('video'))
+    flashes.mockClear()
   })
 
   // Every import leaves a script on `window`; orphan it so the next test
@@ -89,10 +90,6 @@ describe('content script', () => {
       expect.objectContaining({ type: 'rebobinate:intent', action: 'reset' }),
       expect.any(Function),
     )
-  })
-
-  beforeEach(() => {
-    flashes.mockClear()
   })
 
   // `<all_urls>` includes documents that are not pages at all.

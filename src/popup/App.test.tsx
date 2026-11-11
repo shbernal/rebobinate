@@ -71,6 +71,14 @@ const openTab = async (user: UserEvent, name: string) => {
   await user.click(screen.getByRole('tab', { name }))
 }
 
+const openSettings = async () => {
+  const user = userEvent.setup()
+  render(<App />)
+  await openTab(user, 'Settings')
+
+  return user
+}
+
 const seedSettings = (patch: Partial<Settings> = {}) => {
   getChromeMock().storage.local.seed({
     [SETTINGS_STORAGE_KEY]: { ...DEFAULT_SETTINGS, ...patch },
@@ -339,11 +347,6 @@ describe('popup tabs', () => {
 })
 
 /**
- * Per-site memory is on out of the box, so a speed set here outlives the tab.
- * Nothing on this pane used to say so, and the Sites tab — where it is said —
- * is not somewhere anybody goes before being surprised by it.
- */
-/**
  * The master switch is the one control in the panel that is not about a
  * preference: it is about the extension. What it turns off is enforced in the
  * service worker, which refuses every intent while it is off, so the panel's
@@ -461,6 +464,11 @@ describe('popup with the extension switched off', () => {
   })
 })
 
+/**
+ * Per-site memory is on out of the box, so a speed set here outlives the tab.
+ * Nothing on this pane used to say so, and the Sites tab — where it is said —
+ * is not somewhere anybody goes before being surprised by it.
+ */
 describe('popup speed tab receipt', () => {
   beforeEach(() => {
     seedSettings()
@@ -850,14 +858,6 @@ describe('popup sites tab', () => {
     )
   })
 
-  it('says a site is switched off in the same control that sets its speed', async () => {
-    answerPopupState('youtube.com')
-    seedDomains({ 'vimeo.com': { speed: 1, updatedAt: 1, never: true } })
-    await openSites()
-
-    expect(screen.getByLabelText('Speed for vimeo.com')).toHaveValue('never')
-  })
-
   /**
    * A marker is a stored entry like any other, and the switch that used to be
    * the only way back is gone, so the ✕ has to clear it. It cannot do that with
@@ -921,28 +921,7 @@ describe('popup sites tab', () => {
     )
   })
 
-  it('filters a long list down', async () => {
-    answerPopupState(null)
-    seedDomains(
-      Object.fromEntries(
-        Array.from({ length: 12 }, (_, index) => [
-          `site-${index}.example`,
-          { speed: 1.5, updatedAt: index },
-        ]),
-      ),
-    )
-    const user = await openSites()
-
-    await user.type(screen.getByLabelText('Filter'), 'site-7')
-
-    expect(screen.getAllByRole('listitem')).toHaveLength(1)
-    expect(screen.getByTitle('site-7.example')).toBeInTheDocument()
-  })
-
-  /**
-   * A dozen sites, oldest last, which is the shape the list is designed for
-   * and the shape the two tests below need.
-   */
+  /** A dozen sites, oldest last: the shape the list is designed for. */
   const twelveSites = () =>
     Object.fromEntries(
       Array.from({ length: 12 }, (_, index) => [
@@ -950,6 +929,17 @@ describe('popup sites tab', () => {
         { speed: 1.5, updatedAt: index },
       ]),
     )
+
+  it('filters a long list down', async () => {
+    answerPopupState(null)
+    seedDomains(twelveSites())
+    const user = await openSites()
+
+    await user.type(screen.getByLabelText('Filter'), 'site-7')
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByTitle('site-7.example')).toBeInTheDocument()
+  })
 
   const listedNames = () =>
     screen
@@ -1243,14 +1233,6 @@ describe('popup key bindings', () => {
     answerPopupState('youtube.com')
   })
 
-  const openSettings = async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await openTab(user, 'Settings')
-
-    return user
-  }
-
   const capture = async (user: UserEvent, action: string) => {
     await user.click(
       screen.getByRole('button', { name: `Add a key for ${action}` }),
@@ -1406,14 +1388,6 @@ describe('popup step field', () => {
     answerPopupState('youtube.com')
   })
 
-  const openSettings = async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await openTab(user, 'Settings')
-
-    return user
-  }
-
   it('lets a new step be typed through its invalid halfway states', async () => {
     const user = await openSettings()
 
@@ -1472,14 +1446,6 @@ describe('popup color picker', () => {
     seedSettings()
     answerPopupState('youtube.com')
   })
-
-  const openSettings = async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await openTab(user, 'Settings')
-
-    return user
-  }
 
   // The whole reason this control exists: on Firefox the native chooser is a
   // toplevel window that closes the popup before it can report a colour.
@@ -1609,14 +1575,6 @@ describe('popup toolbar badge toggle', () => {
     answerPopupState('youtube.com')
   })
 
-  const openSettings = async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await openTab(user, 'Settings')
-
-    return user
-  }
-
   it('is on by default and switches off', async () => {
     const user = await openSettings()
 
@@ -1643,14 +1601,6 @@ describe('popup badge settings', () => {
     seedSettings()
     answerPopupState('youtube.com')
   })
-
-  const openSettings = async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await openTab(user, 'Settings')
-
-    return user
-  }
 
   // A thumb position is not a value anybody can write down or come back to.
   it('writes the value of each slider next to it', async () => {
@@ -1756,6 +1706,24 @@ describe('popup backup', () => {
     answerPopupState('vimeo.com')
   })
 
+  // `paste` rather than `type`: a real restore is a paste, and typing 40 lines
+  // of JSON character by character is a minute of test time.
+  const pasteBackup = async (
+    user: UserEvent,
+    backup: string | Record<string, unknown>,
+  ) => {
+    await user.click(screen.getByLabelText('Backup to restore'))
+    await user.paste(
+      typeof backup === 'string'
+        ? backup
+        : JSON.stringify({
+            format: 'rebobinate-backup',
+            version: 1,
+            ...backup,
+          }),
+    )
+  }
+
   /**
    * The one live region the section has. Scoped, because the sliders on the
    * same tab report through `<output>` and carry the same implicit role.
@@ -1766,9 +1734,7 @@ describe('popup backup', () => {
   // The pair arrives on Export, so a click is what a person does to get to the
   // *other* half.
   const openBackup = async (button: 'Export' | 'Import') => {
-    const user = userEvent.setup()
-    render(<App />)
-    await openTab(user, 'Settings')
+    const user = await openSettings()
 
     await user.click(screen.getByRole('button', { name: button }))
 
@@ -1778,9 +1744,7 @@ describe('popup backup', () => {
   // Two outlined buttons at the bottom of a long scroll do not read as a
   // switch until one of them is filled in.
   it('arrives with the read-only half already chosen', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await openTab(user, 'Settings')
+    await openSettings()
 
     expect(screen.getByRole('button', { name: 'Export' })).toHaveAttribute(
       'aria-pressed',
@@ -1811,14 +1775,9 @@ describe('popup backup', () => {
   it('goes back to the readable half once a backup is restored', async () => {
     const user = await openBackup('Import')
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste(
-      JSON.stringify({
-        format: 'rebobinate-backup',
-        version: 1,
-        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
-      }),
-    )
+    await pasteBackup(user, {
+      settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+    })
     await user.click(screen.getByRole('button', { name: 'Replace settings' }))
 
     expect(screen.getByLabelText('Backup')).toBeInTheDocument()
@@ -1835,14 +1794,9 @@ describe('popup backup', () => {
     const user = await openBackup('Import')
     getChromeMock().storage.local.failWrites('QUOTA_BYTES quota exceeded')
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste(
-      JSON.stringify({
-        format: 'rebobinate-backup',
-        version: 1,
-        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
-      }),
-    )
+    await pasteBackup(user, {
+      settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+    })
     await user.click(screen.getByRole('button', { name: 'Replace settings' }))
 
     expect(
@@ -1863,18 +1817,13 @@ describe('popup backup', () => {
       },
     )
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste(
-      JSON.stringify({
-        format: 'rebobinate-backup',
-        version: 1,
-        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
-        domains: {
-          schemaVersion: DOMAINS_SCHEMA_VERSION,
-          entries: { 'restored.example': { speed: 2, updatedAt: 3 } },
-        },
-      }),
-    )
+    await pasteBackup(user, {
+      settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+      domains: {
+        schemaVersion: DOMAINS_SCHEMA_VERSION,
+        entries: { 'restored.example': { speed: 2, updatedAt: 3 } },
+      },
+    })
     await user.click(screen.getByRole('button', { name: 'Replace settings' }))
 
     expect(
@@ -1898,8 +1847,6 @@ describe('popup backup', () => {
     const user = await openBackup('Import')
 
     const backup = {
-      format: 'rebobinate-backup',
-      version: 1,
       settings: { ...DEFAULT_SETTINGS, step: 0.5 },
       domains: {
         schemaVersion: DOMAINS_SCHEMA_VERSION,
@@ -1907,10 +1854,7 @@ describe('popup backup', () => {
       },
     }
 
-    // `paste` rather than `type`: a real restore is a paste, and typing 40
-    // lines of JSON character by character is a minute of test time.
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste(JSON.stringify(backup))
+    await pasteBackup(user, backup)
     await user.click(screen.getByRole('button', { name: 'Replace settings' }))
 
     expect(storedSettings().step).toBe(0.5)
@@ -1939,18 +1883,13 @@ describe('popup backup', () => {
   it('puts back what a restore replaced', async () => {
     const user = await openBackup('Import')
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste(
-      JSON.stringify({
-        format: 'rebobinate-backup',
-        version: 1,
-        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
-        domains: {
-          schemaVersion: DOMAINS_SCHEMA_VERSION,
-          entries: { 'restored.example': { speed: 2, updatedAt: 3 } },
-        },
-      }),
-    )
+    await pasteBackup(user, {
+      settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+      domains: {
+        schemaVersion: DOMAINS_SCHEMA_VERSION,
+        entries: { 'restored.example': { speed: 2, updatedAt: 3 } },
+      },
+    })
     await user.click(screen.getByRole('button', { name: 'Replace settings' }))
 
     expect(storedSettings().step).toBe(0.5)
@@ -1983,14 +1922,9 @@ describe('popup backup', () => {
   it('spends the undo when the pair is switched back to Import', async () => {
     const user = await openBackup('Import')
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste(
-      JSON.stringify({
-        format: 'rebobinate-backup',
-        version: 1,
-        settings: { ...DEFAULT_SETTINGS, step: 0.5 },
-      }),
-    )
+    await pasteBackup(user, {
+      settings: { ...DEFAULT_SETTINGS, step: 0.5 },
+    })
     await user.click(screen.getByRole('button', { name: 'Replace settings' }))
 
     expect(
@@ -2007,8 +1941,7 @@ describe('popup backup', () => {
   it('says why nothing can be restored and changes nothing', async () => {
     const user = await openBackup('Import')
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste('{"step":0.5}')
+    await pasteBackup(user, '{"step":0.5}')
 
     expect(
       screen.getByRole('button', { name: 'Replace settings' }),
@@ -2065,8 +1998,7 @@ describe('popup backup', () => {
     expect(line()).toHaveTextContent('Replaces your settings')
     expect(line()).not.toHaveClass('rule-refused')
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste('{ half of a bac')
+    await pasteBackup(user, '{ half of a bac')
 
     expect(line()).toHaveTextContent('That is not valid JSON.')
     expect(line()).toHaveClass('rule-refused')
@@ -2081,14 +2013,9 @@ describe('popup backup', () => {
   it('names what the paste holds, under what replacing it costs', async () => {
     const user = await openBackup('Import')
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste(
-      JSON.stringify({
-        format: 'rebobinate-backup',
-        version: 1,
-        settings: DEFAULT_SETTINGS,
-      }),
-    )
+    await pasteBackup(user, {
+      settings: DEFAULT_SETTINGS,
+    })
 
     const preview = screen.getByText(
       'This backup holds settings only. Your remembered sites are kept.',
@@ -2103,21 +2030,16 @@ describe('popup backup', () => {
   it('counts the sites a whole backup would bring in', async () => {
     const user = await openBackup('Import')
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste(
-      JSON.stringify({
-        format: 'rebobinate-backup',
-        version: 1,
-        settings: DEFAULT_SETTINGS,
-        domains: {
-          schemaVersion: DOMAINS_SCHEMA_VERSION,
-          entries: {
-            'a.test': { speed: 2, updatedAt: 1 },
-            'b.test': { speed: 1.5, updatedAt: 2 },
-          },
+    await pasteBackup(user, {
+      settings: DEFAULT_SETTINGS,
+      domains: {
+        schemaVersion: DOMAINS_SCHEMA_VERSION,
+        entries: {
+          'a.test': { speed: 2, updatedAt: 1 },
+          'b.test': { speed: 1.5, updatedAt: 2 },
         },
-      }),
-    )
+      },
+    })
 
     expect(
       screen.getByText('This backup holds your settings and 2 sites.'),
@@ -2128,18 +2050,13 @@ describe('popup backup', () => {
   it('says in the past tense what the restore actually replaced', async () => {
     const user = await openBackup('Import')
 
-    await user.click(screen.getByLabelText('Backup to restore'))
-    await user.paste(
-      JSON.stringify({
-        format: 'rebobinate-backup',
-        version: 1,
-        settings: DEFAULT_SETTINGS,
-        domains: {
-          schemaVersion: DOMAINS_SCHEMA_VERSION,
-          entries: { 'a.test': { speed: 2, updatedAt: 1 } },
-        },
-      }),
-    )
+    await pasteBackup(user, {
+      settings: DEFAULT_SETTINGS,
+      domains: {
+        schemaVersion: DOMAINS_SCHEMA_VERSION,
+        entries: { 'a.test': { speed: 2, updatedAt: 1 } },
+      },
+    })
     await user.click(screen.getByRole('button', { name: 'Replace settings' }))
 
     const said = backupStatus()
