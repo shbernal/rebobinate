@@ -85,15 +85,6 @@ describe('normalizeSettings', () => {
     expect(keys.reset).toEqual(['0'])
   })
 
-  it('leaves a key the user already bound out of a new default', () => {
-    const keys = normalizeSettings({
-      keys: { increase: ['+', ']'], decrease: ['-'], reset: ['0'] },
-    }).keys
-
-    expect(keys.increase).toEqual(['+', ']'])
-    expect(keys.seekForward).toEqual(['BracketRight'])
-  })
-
   it('clamps the seek distance to whole seconds in range', () => {
     expect(normalizeSettings({}).seekSeconds).toBe(10)
     expect(normalizeSettings({ seekSeconds: 0 }).seekSeconds).toBe(1)

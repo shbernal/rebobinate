@@ -118,8 +118,11 @@ export const DEFAULT_SETTINGS: Settings = {
     increase: ['+', '=', 'Equal', 'NumpadAdd'],
     decrease: ['-', 'Minus', 'NumpadSubtract'],
     reset: ['0', 'Digit0', 'Numpad0'],
-    seekBack: ['[', 'BracketLeft'],
-    seekForward: [']', 'BracketRight'],
+    // Plain letters, matched as typed and never by position: on most non-US
+    // layouts the bracket keys take AltGr, and their physical keys are `+` and
+    // a dead accent. Video Speed Controller uses the same pair.
+    seekBack: ['z'],
+    seekForward: ['x'],
   },
 }
 
@@ -192,36 +195,19 @@ const normalizeBindings = (value: unknown, fallback: string[]): string[] => {
 
 /**
  * An action missing from the stored object — one added after that object was
- * written — gets its default bindings, unless one of those keys is already
- * bound to another action: a key cannot mean two things, and the user's own
- * binding wins over a default they never saw.
+ * written — gets its default bindings like any other missing field. A user who
+ * had already bound one of those keys elsewhere keeps it working: the content
+ * script resolves the speed actions first.
  */
 const normalizeKeys = (value: unknown): KeyBindings => {
   const source = isRecord(value) ? value : {}
-  const stored = ACTIONS.filter(action => Array.isArray(source[action]))
-  const keys = {} as KeyBindings
 
-  for (const action of stored) {
-    keys[action] = normalizeBindings(
-      source[action],
-      DEFAULT_SETTINGS.keys[action],
-    )
-  }
-
-  for (const action of ACTIONS) {
-    if (keys[action]) {
-      continue
-    }
-
-    const taken = new Set(stored.flatMap(other => keys[other]))
-    const free = DEFAULT_SETTINGS.keys[action].filter(
-      binding => !taken.has(binding),
-    )
-
-    keys[action] = free.length > 0 ? free : [...DEFAULT_SETTINGS.keys[action]]
-  }
-
-  return keys
+  return Object.fromEntries(
+    ACTIONS.map(action => [
+      action,
+      normalizeBindings(source[action], DEFAULT_SETTINGS.keys[action]),
+    ]),
+  ) as KeyBindings
 }
 
 const normalizeBadge = (value: unknown): BadgeSettings => {

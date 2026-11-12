@@ -35,7 +35,12 @@ state, so there is no map and nothing to resume from after eviction.
 
 Each frame seeks its own primary video (`src/content/seek.ts`), clamped to
 `[0, duration]`, and leaves alone a live stream (`duration === Infinity`) or a
-video with no metadata yet. A frame that seeked flashes `−10s` / `+10s` through
+video with no metadata yet. The defaults are `z` / `x`, bound by character only. Brackets were the obvious
+pick and are wrong off a US layout: on Spanish or German they need AltGr, and
+their physical keys (`BracketLeft`, `BracketRight`) type a dead accent and `+`,
+so a position binding would seek on the accent and lose Forward to Faster.
+
+A frame that seeked flashes `−10s` / `+10s` through
 `badge.flashText`, which shows at 1.0× too and, on a badge set never to hide,
 goes back to the speed a second later.
 
@@ -435,10 +440,8 @@ Schema `2` added `defaultSpeed` and `rememberPerDomain`. It needed no migration
 code: both are new keys, so a stored `1` object has them filled from the
 defaults like any other missing field and nothing an installed copy holds is
 reset. Schema `3` added `toolbarBadge` on the same terms.
-Schema `4` added `seekSeconds` and the two seek bindings. An action missing from
-a stored `keys` object gets its default bindings, minus any key the user already
-bound to another action, so `[` bound to Faster before the upgrade stays Faster
-and Forward keeps only `BracketRight`.
+Schema `4` added `seekSeconds` and the two seek bindings, on the same terms: an
+action missing from a stored `keys` object gets its default bindings.
 
 `toolbarBadge` is a flat boolean and deliberately not a field of `badge`: that
 object configures the badge drawn over the video down to its corner and

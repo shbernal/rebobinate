@@ -119,11 +119,11 @@ test.describe('keyboard speed controls', () => {
       )
       .toBeGreaterThanOrEqual(1)
     await page.locator('h1').click()
-    await pressSpeedKey(page, ']', timeOf)
+    await pressSpeedKey(page, 'x', timeOf)
 
     expect(await timeOf()).toBeCloseTo(1, 1)
 
-    await pressSpeedKey(page, '[', timeOf)
+    await pressSpeedKey(page, 'z', timeOf)
 
     expect(await timeOf()).toBeCloseTo(0, 1)
   })

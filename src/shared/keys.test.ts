@@ -55,13 +55,24 @@ describe('resolveAction', () => {
     )
   })
 
-  it('seeks on the brackets', () => {
-    expect(resolveAction(event({ key: '[', code: 'BracketLeft' }), keys)).toBe(
+  it('seeks on z and x', () => {
+    expect(resolveAction(event({ key: 'z', code: 'KeyZ' }), keys)).toBe(
       'seekBack',
     )
-    expect(resolveAction(event({ key: ']', code: 'BracketRight' }), keys)).toBe(
+    expect(resolveAction(event({ key: 'x', code: 'KeyX' }), keys)).toBe(
       'seekForward',
     )
+  })
+
+  // Spanish layout: `+` sits on the US `]` key and the US `[` key is a dead
+  // accent. Neither may seek.
+  it('leaves the bracket positions to what they type', () => {
+    expect(resolveAction(event({ key: '+', code: 'BracketRight' }), keys)).toBe(
+      'increase',
+    )
+    expect(
+      resolveAction(event({ key: 'Dead', code: 'BracketLeft' }), keys),
+    ).toBeNull()
   })
 
   it('ignores unrelated keys', () => {

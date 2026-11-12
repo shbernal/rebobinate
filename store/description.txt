@@ -3,7 +3,7 @@ Rebobinate puts video speed on your keyboard. Press + to speed up, - to slow dow
 Features:
 
 - Speed any HTML5 video up or down from the keyboard
-- Jump back or forward 10 seconds with [ and ], or any distance from 1 to 120 seconds
+- Jump back or forward 10 seconds with Z and X, or any distance from 1 to 120 seconds
 - The step is 0.1 by default, and you can set it anywhere from 0.01 to 1
 - Rebind Faster, Slower, Reset, Back and Forward to whatever keys you press
 - Remembers the speed you chose on a site and applies it on your next visit
