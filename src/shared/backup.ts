@@ -57,7 +57,8 @@ export type BackupSummary = {
 }
 
 export type ParseResult =
-  ({ ok: true } & BackupContents & BackupSummary) | { ok: false; error: string }
+  | ({ ok: true } & BackupContents & BackupSummary)
+  | { ok: false; error: string }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
