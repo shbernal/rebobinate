@@ -89,10 +89,6 @@ const createChromeMock = () => {
     store.set(details.tabId ?? GLOBAL, value)
   }
 
-  // Set by `failWrites`; a write then lands nowhere and reports why, which
-  // is what a full quota looks like from the caller's side.
-  let writeFailure: string | null = null
-
   // Every callback answers synchronously unless `deferReads` is on, in which
   // case reads and message replies wait for `flushReads`. Real Chrome answers
   // a tick or more later, and only a deferred answer can lose a race with
@@ -108,48 +104,66 @@ const createChromeMock = () => {
     callback()
   }
 
-  const local = {
-    get: vi.fn(
-      (keys: StorageKeys, callback: (items: StorageValues) => void) => {
-        // Read now, answered later: the value is what storage held when asked.
-        const items = pickStorageValues(values, keys)
-        answer(() => callback(items))
-      },
-    ),
-    set: vi.fn((items: StorageValues, callback?: () => void) => {
-      if (writeFailure !== null) {
-        runtime.lastError = { message: writeFailure }
+  /**
+   * One storage area. `local` and `sync` behave alike here, as they do in the
+   * browser when no account is signed in; what differs is the `areaName` a
+   * change is reported under, which is what a listener filters on.
+   */
+  const createArea = (
+    areaName: chrome.storage.AreaName,
+    values: StorageValues,
+  ) => {
+    // Set by `failWrites`; a write then lands nowhere and reports why, which
+    // is what a full quota looks like from the caller's side.
+    let writeFailure: string | null = null
+
+    return {
+      get: vi.fn(
+        (keys: StorageKeys, callback: (items: StorageValues) => void) => {
+          // Read now, answered later: the value is what storage held when
+          // asked.
+          const items = pickStorageValues(values, keys)
+          answer(() => callback(items))
+        },
+      ),
+      set: vi.fn((items: StorageValues, callback?: () => void) => {
+        if (writeFailure !== null) {
+          runtime.lastError = { message: writeFailure }
+          callback?.()
+          runtime.lastError = undefined
+          return
+        }
+
+        const changes = Object.fromEntries(
+          Object.entries(items).map(([key, newValue]) => [
+            key,
+            {
+              oldValue: values[key],
+              newValue,
+            },
+          ]),
+        )
+
+        Object.assign(values, items)
+
+        if (Object.keys(changes).length > 0) {
+          storageChanged.emit(changes, areaName)
+        }
+
         callback?.()
-        runtime.lastError = undefined
-        return
-      }
-
-      const changes = Object.fromEntries(
-        Object.entries(items).map(([key, newValue]) => [
-          key,
-          {
-            oldValue: values[key],
-            newValue,
-          },
-        ]),
-      )
-
-      Object.assign(values, items)
-
-      if (Object.keys(changes).length > 0) {
-        storageChanged.emit(changes, 'local')
-      }
-
-      callback?.()
-    }),
-    seed: (items: StorageValues) => {
-      Object.assign(values, items)
-    },
-    snapshot: () => ({ ...values }),
-    failWrites: (message: string | null) => {
-      writeFailure = message
-    },
+      }),
+      seed: (items: StorageValues) => {
+        Object.assign(values, items)
+      },
+      snapshot: () => ({ ...values }),
+      failWrites: (message: string | null) => {
+        writeFailure = message
+      },
+    }
   }
+
+  const local = createArea('local', values)
+  const sync = createArea('sync', {})
 
   const runtime = {
     lastError: undefined as chrome.runtime.LastError | undefined,
@@ -178,6 +192,7 @@ const createChromeMock = () => {
     flushReads,
     storage: {
       local,
+      sync,
       onChanged: storageChanged,
     },
     action: {

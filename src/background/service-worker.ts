@@ -30,6 +30,7 @@ import {
   clearToolbarBadge,
   initToolbarBadge,
 } from './action-badge'
+import { startSettingsSync } from './settings-sync'
 
 /**
  * The background owns the speed of each tab.
@@ -763,6 +764,7 @@ const onSettingsSeen = (settings: Settings) => {
 }
 
 initToolbarBadge()
+startSettingsSync()
 readSettings(settings => {
   wasEnabled = settings.enabled
   refreshToolbarBadge(settings)

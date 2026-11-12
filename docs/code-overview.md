@@ -479,6 +479,26 @@ Schema `4` added `seekSeconds` and the two seek bindings, on the same terms: an
 action missing from a stored `keys` object gets its default bindings. Schema `5`
 added `rememberStats` and `statsRetentionDays`, on the same terms.
 
+**Settings follow the user between browsers through `storage.sync`.**
+`storage.local` stays the copy every surface reads, writes and listens to, and
+`src/background/settings-sync.ts` in the service worker keeps a replica under
+the same key in `storage.sync`. A local change is copied to sync a second after
+the last one, re-read at that moment, so a drag becomes one write: Chrome
+allows about 120 sync writes a minute, and the popup writes on every input
+event, so writing sync directly made a slider jump back under the cursor when
+the quota refused it. A sync change, which is another browser's edit arriving,
+is copied into local when it differs, and every surface hears it there as an
+ordinary settings change. At start-up a synced copy wins over local, which is
+how a second browser or a reinstall picks up settings made elsewhere; with
+nothing synced yet, local seeds sync, so an upgrade changes nothing. The cost of
+that rule is a change made in the second before the browser closed, which the
+next start reverts to the synced copy. A refused sync write leaves local as it
+is and the next change tries again; the callers' own write errors still come
+from local, as before. A backup restore writes settings through the same path.
+Firefox without an account keeps sync storage on the device. The domain map and
+the stats stay local: the map would need chunking under sync's per-item quota,
+and watch time belongs to the device it was watched on.
+
 `toolbarBadge` is a flat boolean and deliberately not a field of `badge`: that
 object configures the badge drawn over the video down to its corner and
 opacity, and none of it means anything on a toolbar icon. Two names that cannot

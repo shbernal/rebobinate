@@ -15,4 +15,4 @@ Features:
 - Export your settings and remembered sites as text, and paste them back on another computer
 - Popup controls for when you would rather click than type
 
-Your settings and usage statistics are stored locally in your browser, never transmitted. The extension collects nothing, sends nothing, and has no account.
+Your settings follow you between browsers through your browser's own sync, if you have it turned on. Remembered sites and usage statistics are stored locally, never transmitted. The extension collects nothing, sends nothing to its developer, and has no account.
