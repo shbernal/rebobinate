@@ -65,8 +65,10 @@ test.describe('speed badge', () => {
 
     // No style attribute is the point: filter lists hide `[style*="z-index:"]`.
     expect(boxes.inlineStyle).toBeNull()
-    expect(boxes.alignItems).toBe('flex-end')
-    expect(boxes.justifyContent).toBe('flex-end')
+    // Chrome for Testing 158 serializes a computed `flex-end` as `flow-end`;
+    // Chromium 156 still says `flex-end`. Both put the badge bottom-right.
+    expect(['flex-end', 'flow-end']).toContain(boxes.alignItems)
+    expect(['flex-end', 'flow-end']).toContain(boxes.justifyContent)
     expect(boxes.host?.left).toBeCloseTo(boxes.video?.left ?? -1, 0)
     expect(boxes.host?.top).toBeCloseTo(boxes.video?.top ?? -1, 0)
   })
