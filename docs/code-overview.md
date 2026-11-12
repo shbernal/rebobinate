@@ -384,7 +384,7 @@ Three things follow from how the browser stores that state:
 - A tab that **navigates away is showing the previous page's number**, and the
   next page may be one the content script never runs on, so nothing would ever
   correct it. `chrome.tabs.onUpdated` puts the default back on `status:
-'loading'`. `status` is delivered whatever the host access is, so this still
+  'loading'`. `status` is delivered whatever the host access is, so this still
   works under "Site access: on click". The tab's _speed_ is deliberately not
   touched there — that is the new top frame's `rebobinate:query` to do, and
   clearing it here would race that.

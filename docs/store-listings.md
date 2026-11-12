@@ -231,7 +231,7 @@ metadata rather than version metadata.
 4. Review `store/description.txt` against user-visible behavior changes since
    the last release, remembering the same text is the Chrome listing copy.
 5. Run `pnpm package:firefox && pnpm package:source && pnpm publish:amo
---dry-run`. It resolves the listing, prints the reviewer notes, resolves and
+   --dry-run`. It resolves the listing, prints the reviewer notes, resolves and
    size-checks every preview, and validates the tags and categories against AMO.
    Metadata AMO rejects is only rejected on the call that creates the version,
    which happens after the release is already published, so the dry run is the
