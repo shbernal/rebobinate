@@ -97,7 +97,10 @@ not worth it here: when the guess is wrong two sites share a speed, and one
 keypress fixes it. So the rule is "the last two labels", with a third kept when
 the last two are a known multi-part suffix. That table is the part that earns
 its keep — without it `bbc.co.uk` keys as `co.uk` and every UK site shares one
-speed, which is the one failure anybody would notice. IP literals and
+speed, which is the one failure anybody would notice. The table does not cover
+hosting suffixes, so `alice.github.io` and `bob.github.io` share a key. The key
+format is part of what installed copies store, so changing the rule later means
+re-keying the map, not resetting it. IP literals and
 single-label hosts are kept whole; `chrome://`, `about:`, `file://` and `data:`
 pages get no key at all and are never written down.
 
