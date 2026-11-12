@@ -184,6 +184,23 @@ describe('popup tabs', () => {
     expect(screen.getByRole('tab', { name: 'Settings' })).toHaveFocus()
   })
 
+  it('jumps to the first and last tab with Home and End', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    screen.getByRole('tab', { name: 'Speed' }).focus()
+    await user.keyboard('{End}')
+
+    expect(screen.getByRole('tab', { name: 'Settings' })).toHaveFocus()
+
+    await user.keyboard('{Home}')
+
+    expect(screen.getByRole('tab', { name: 'Speed' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
   it('keeps the enabled switch out of the tabs', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -1345,6 +1362,20 @@ describe('popup key bindings', () => {
     expect(
       screen.getByRole('button', { name: 'Add a key for Reset' }),
     ).toHaveAttribute('aria-pressed', 'false')
+    expect(storedSettings().keys.reset).toEqual(DEFAULT_SETTINGS.keys.reset)
+  })
+
+  // Tab is how a keyboard user leaves the row, so it closes the capture and
+  // still moves the focus instead of being refused or bound.
+  it('lets Tab move the focus out and closes the capture', async () => {
+    const user = await openSettings()
+    const add = screen.getByRole('button', { name: 'Add a key for Reset' })
+
+    await capture(user, 'Reset')
+    await user.tab()
+
+    expect(add).toHaveAttribute('aria-pressed', 'false')
+    expect(add).not.toHaveFocus()
     expect(storedSettings().keys.reset).toEqual(DEFAULT_SETTINGS.keys.reset)
   })
 

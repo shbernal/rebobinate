@@ -17,9 +17,13 @@ textarea {
    Size slider, the Filter box and the Backup textarea wore a different ring
    from the tabs beside them. `:where()` keeps the specificity at zero, so the
    two rules that need an inset offset because the group they sit in clips
-   them, `.tab` and `.backup-modes button`, still win. */
+   them, `.tab` and `.backup-modes button`, still win.
+
+   AccentColor rather than Highlight: Chromium resolves Highlight to the same
+   translucent dark blue in both themes, under 2:1 against the dark Canvas,
+   where AccentColor clears the 3:1 a focus indicator needs in both. */
 :where(button, input, select, textarea):focus-visible {
-  outline: 2px solid Highlight;
+  outline: 2px solid AccentColor;
   outline-offset: 2px;
 }
 
@@ -100,7 +104,7 @@ textarea {
    checkbox is transparent and zero-sized so that it keeps a real checkbox's
    keyboard behaviour, so the ring has to be drawn on the track beside it. */
 .switch input:focus-visible + .slider {
-  outline: 2px solid Highlight;
+  outline: 2px solid AccentColor;
   outline-offset: 2px;
 }
 
@@ -279,14 +283,14 @@ textarea {
 }
 
 .tab:focus-visible {
-  outline: 2px solid Highlight;
+  outline: 2px solid AccentColor;
   outline-offset: -2px;
 }
 
 /* Focusable so the keyboard can scroll it. Outside the box, in the popup's
    padding, so the ring is not lost under the scroll cues. */
 .pane:focus-visible {
-  outline: 2px solid Highlight;
+  outline: 2px solid AccentColor;
   outline-offset: 2px;
 }
 
@@ -1074,7 +1078,7 @@ hr {
 
    `LinkText` rather than a blue of our own. It is the system colour for
    exactly this, and it joins the vocabulary the rest of the panel already
-   speaks — Canvas, CanvasText, AccentColor, Highlight — so it follows the
+   speaks — Canvas, CanvasText, AccentColor — so it follows the
    platform and both themes without a value to keep in step. The inherited 0.9
    goes with it: a colour that means something should not be delivered muddied.
 
@@ -1166,7 +1170,7 @@ hr {
 /* Inset, because the group clips its children to the shared radius and an
    outline drawn outside the button would be cut off with them. */
 .backup-modes button:focus-visible {
-  outline: 2px solid Highlight;
+  outline: 2px solid AccentColor;
   outline-offset: -2px;
 }
 

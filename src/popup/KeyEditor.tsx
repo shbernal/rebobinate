@@ -18,7 +18,6 @@ const ACTION_LABELS: Record<Action, string> = {
 
 const REJECTIONS = {
   modified: 'Ctrl, Alt and ⌘ combinations are left to the browser.',
-  reserved: 'Esc closes the capture and Tab has to keep moving the focus.',
 } as const
 
 type Chip = {
@@ -74,6 +73,12 @@ const KeyEditor = ({ keys, onChange }: KeyEditorProps) => {
       // A modifier held on its own is the first half of a keystroke, so the
       // capture stays open and the event stays the browser's.
       if (result.status === 'pending') {
+        return
+      }
+
+      // Tab moves the focus on as usual; the capture just closes behind it.
+      if (result.status === 'released') {
+        stop()
         return
       }
 

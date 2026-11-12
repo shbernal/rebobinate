@@ -155,13 +155,12 @@ describe('captureBinding', () => {
     ).toEqual({ status: 'rejected', reason: 'modified' })
   })
 
-  it('cancels on Escape and refuses Tab', () => {
+  it('cancels on Escape and releases Tab', () => {
     expect(captureBinding(event({ key: 'Escape', code: 'Escape' }))).toEqual({
       status: 'cancelled',
     })
     expect(captureBinding(event({ key: 'Tab', code: 'Tab' }))).toEqual({
-      status: 'rejected',
-      reason: 'reserved',
+      status: 'released',
     })
   })
 })

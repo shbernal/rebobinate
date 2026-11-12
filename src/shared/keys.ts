@@ -90,16 +90,16 @@ const MODIFIER_KEYS = new Set([
 ])
 
 /**
- * `Escape` closes the capture, and `Tab` is how a keyboard user reaches the
- * rest of the popup — binding it would trap them in the row they are editing.
+ * `Escape` closes the capture and swallows the keystroke. `Tab` closes it and
+ * leaves the keystroke to the browser: it is how a keyboard user reaches the
+ * rest of the popup, so binding or refusing it would trap them in the row.
  */
-const RESERVED_KEYS = new Set(['Escape', 'Tab'])
-
 export type BindingCapture =
   | { status: 'bound'; binding: string }
   | { status: 'cancelled' }
+  | { status: 'released' }
   | { status: 'pending' }
-  | { status: 'rejected'; reason: 'modified' | 'reserved' }
+  | { status: 'rejected'; reason: 'modified' }
 
 /**
  * The one token a captured keystroke is stored as.
@@ -140,12 +140,12 @@ export const captureBinding = (event: KeyEventLike): BindingCapture => {
     return { status: 'cancelled' }
   }
 
-  if (event.ctrlKey || event.metaKey || event.altKey) {
-    return { status: 'rejected', reason: 'modified' }
+  if (event.key === 'Tab') {
+    return { status: 'released' }
   }
 
-  if (RESERVED_KEYS.has(event.key)) {
-    return { status: 'rejected', reason: 'reserved' }
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    return { status: 'rejected', reason: 'modified' }
   }
 
   return { status: 'bound', binding: bindingToken(event) }

@@ -502,8 +502,8 @@ Two things about it are load-bearing:
   unmarked. `deferReads()`/`flushReads()` on the Chrome mock hold callbacks
   back so tests can reach these orderings.
 - **The tab strip follows the ARIA tab pattern**, including the part that is
-  easy to skip: only the selected tab is in the focus order and the arrow keys
-  move between them. Without that a keyboard user tabs through every tab to
+  easy to skip: only the selected tab is in the focus order, the arrow keys
+  move between them and Home/End jump to the ends. Without that a keyboard user tabs through every tab to
   reach the pane. Only the selected pane is mounted, so only the selected tab
   carries `aria-controls`. The pane itself is in the focus order: it scrolls
   with its scrollbar hidden, and the notes between controls are otherwise out
@@ -598,12 +598,14 @@ Three things about the panes follow from that width:
   and not a footnote to it, and painted at the aside's weight they were quieter
   than the field labels beside them, which merely name a control already on
   screen. Keeping them apart is what leaves the quiet tier meaning something.
-- **Selected is a fill, focused is an outline.** `outline: 2px solid Highlight`
-  used to mark the open Export panel, the chosen corner, the matching preset
+- **Selected is a fill, focused is an outline.** One outline used to mark the open Export panel, the chosen corner, the matching preset
   chip, the open swatch _and_ `:focus-visible`, so three different meanings were
   one ring and a focused selected control could not show both. Selection is now
   an accent border over `color-mix(in srgb, AccentColor 18%, Canvas)` and the
-  outline belongs to the focus ring alone. The colour presets keep their own
+  outline belongs to the focus ring alone, drawn in `AccentColor`: Chromium
+  resolves `Highlight` to the same translucent dark blue in both themes, under
+  2:1 against the dark Canvas, where `AccentColor` clears the 3:1 a focus
+  indicator needs in both. The colour presets keep their own
   inline background, so on those it is the border that carries it — and the open
   swatch is the one place where a border could not: 44x24 of a user-chosen
   colour with a 1px accent edge was the entire signal that this row's panel was
@@ -666,7 +668,8 @@ is not what somebody who pressed `;` asked for.
 `captureBinding` decides what a press means, and its rules follow
 `resolveAction`: a keystroke the matcher would never accept must not be offered
 as a binding. A modifier held alone leaves the capture open, `Escape` cancels,
-`Tab` is refused because it is how a keyboard user leaves the row, and a
+`Tab` closes the capture and still moves the focus, because it is how a
+keyboard user leaves the row, and a
 modified keystroke is refused because the content script deliberately hands
 those to the browser — binding one would produce a key that silently never
 fires. A key already bound to another action is refused too, since the content
