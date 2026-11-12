@@ -102,6 +102,32 @@ test.describe('keyboard speed controls', () => {
     expect(await embeddedRate()).toBeCloseTo(1.1, 3)
   })
 
+  test('seeks a player inside an iframe from the top frame', async ({
+    openFixture,
+    seedSettings,
+  }) => {
+    await seedSettings({ seekSeconds: 1 })
+    const page = await openFixture('/embedder-media')
+    const frame = page.frameLocator(`iframe[src^="${EMBED_ORIGIN}"]`)
+    const player = frame.locator('#player')
+    const timeOf = () =>
+      player.evaluate(node => (node as HTMLVideoElement).currentTime)
+
+    await expect
+      .poll(() =>
+        player.evaluate(node => (node as HTMLVideoElement).readyState),
+      )
+      .toBeGreaterThanOrEqual(1)
+    await page.locator('h1').click()
+    await pressSpeedKey(page, ']', timeOf)
+
+    expect(await timeOf()).toBeCloseTo(1, 1)
+
+    await pressSpeedKey(page, '[', timeOf)
+
+    expect(await timeOf()).toBeCloseTo(0, 1)
+  })
+
   // A media file opened on its own is a document of type `video/*`, holding
   // the browser's own `<video>`.
   test('controls a video opened directly', async ({ openFixture }) => {

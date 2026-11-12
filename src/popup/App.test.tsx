@@ -337,7 +337,12 @@ describe('popup tabs', () => {
   // The hint stops being true the moment a key is rebound.
   it('names the bound keys in the hint', () => {
     seedSettings({
-      keys: { increase: ['ArrowUp'], decrease: ['ArrowDown'], reset: ['r'] },
+      keys: {
+        ...DEFAULT_SETTINGS.keys,
+        increase: ['ArrowUp'],
+        decrease: ['ArrowDown'],
+        reset: ['r'],
+      },
     })
     render(<App />)
 
@@ -1307,7 +1312,7 @@ describe('popup key bindings', () => {
     const user = await openSettings()
     const note = document.querySelector('section.keys p.note') as HTMLElement
 
-    expect(note.style.order).toBe('6')
+    expect(note.style.order).toBe('10')
 
     await capture(user, 'Faster')
     expect(note.style.order).toBe('1')
@@ -1316,7 +1321,7 @@ describe('popup key bindings', () => {
     expect(note.style.order).toBe('5')
 
     await user.keyboard('{Escape}')
-    expect(note.style.order).toBe('6')
+    expect(note.style.order).toBe('10')
   })
 
   // The content script hands modified keystrokes back to the browser, so a
@@ -1370,7 +1375,13 @@ describe('popup key bindings', () => {
 
   it('puts the defaults back', async () => {
     seedSettings({
-      keys: { increase: ['a'], decrease: ['b'], reset: ['c'] },
+      keys: {
+        increase: ['a'],
+        decrease: ['b'],
+        reset: ['c'],
+        seekBack: ['d'],
+        seekForward: ['e'],
+      },
     })
     const user = await openSettings()
 
@@ -1432,6 +1443,39 @@ describe('popup step field', () => {
 
     expect(stepField()).toHaveValue(0.2)
     expect(storedSettings().step).toBe(0.2)
+  })
+})
+
+describe('popup seek field', () => {
+  const seekField = () =>
+    screen.getByLabelText('Seek seconds') as HTMLInputElement
+
+  beforeEach(() => {
+    answerPopupState('youtube.com')
+  })
+
+  it('saves whole seconds and clamps on leaving', async () => {
+    const user = await openSettings()
+
+    await user.clear(seekField())
+    await user.type(seekField(), '30')
+    expect(storedSettings().seekSeconds).toBe(30)
+
+    await user.clear(seekField())
+    await user.type(seekField(), '500')
+    await user.tab()
+    expect(storedSettings().seekSeconds).toBe(120)
+  })
+
+  it('lists the seek actions among the keys', async () => {
+    await openSettings()
+
+    expect(
+      screen.getByRole('button', { name: 'Add a key for Back' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Add a key for Forward' }),
+    ).toBeInTheDocument()
   })
 })
 

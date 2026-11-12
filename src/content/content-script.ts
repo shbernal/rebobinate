@@ -1,6 +1,7 @@
 import type { RuntimeMessage } from '@/shared/messages'
 import { isRuntimeMessage } from '@/shared/messages'
-import type { SpeedAction } from '@/shared/keys'
+import type { Action } from '@/shared/keys'
+import { isSeekAction } from '@/shared/keys'
 import type { BadgeSettings, Settings } from '@/shared/settings'
 import {
   DEFAULT_SETTINGS,
@@ -13,6 +14,7 @@ import { isControllableDocument } from './document'
 import { createEnforcer } from './enforcer'
 import { createKeyHandler } from './keys'
 import { createMediaRegistry } from './media'
+import { formatSeekLabel, seekVideo } from './seek'
 
 if (isControllableDocument(document)) {
   let settings: Settings = DEFAULT_SETTINGS
@@ -195,15 +197,17 @@ if (isControllableDocument(document)) {
     })
   }
 
-  function sendIntent(action: SpeedAction) {
+  function sendIntent(action: Action) {
     send(
-      {
-        type: 'rebobinate:intent',
-        action,
-        currentSpeed: enforcer.getSpeed(),
-      },
+      isSeekAction(action)
+        ? { type: 'rebobinate:seek-intent', action }
+        : {
+            type: 'rebobinate:intent',
+            action,
+            currentSpeed: enforcer.getSpeed(),
+          },
       () => {
-        // The resolved speed arrives as a broadcast to every frame of the tab,
+        // The outcome arrives as a broadcast to every frame of the tab,
         // so there is nothing to do with the direct response. Reading
         // `lastError` keeps Chrome from logging an unchecked-error warning when
         // the service worker is still starting.
@@ -246,6 +250,15 @@ if (isControllableDocument(document)) {
 
     if (message.type === 'rebobinate:state') {
       applySpeed(message.speed)
+      return
+    }
+
+    if (message.type === 'rebobinate:seek') {
+      const video = registry.primary()
+
+      if (video && seekVideo(video, message.seconds)) {
+        badge.flashText(formatSeekLabel(message.seconds), badgeSettings())
+      }
     }
   })
 

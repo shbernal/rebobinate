@@ -1,4 +1,4 @@
-import type { KeyBindings, SpeedAction } from '@/shared/keys'
+import type { Action, KeyBindings } from '@/shared/keys'
 import { resolveAction } from '@/shared/keys'
 
 export type KeyHandlerOptions = {
@@ -9,7 +9,7 @@ export type KeyHandlerOptions = {
    * lose a keystroke to the extension.
    */
   canHandle: () => boolean
-  onAction: (action: SpeedAction) => void
+  onAction: (action: Action) => void
 }
 
 const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])

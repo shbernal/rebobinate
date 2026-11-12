@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { BrowserContext, Route } from '@playwright/test'
 
@@ -75,7 +76,17 @@ const PAGES: Record<string, string> = {
     'Third-party embed',
     `<h1>An article</h1><iframe src="${EMBED_ORIGIN}/simple"></iframe>`,
   ),
-  // The only fixture with real media behind it. `muted` is what lets it play
+  // Real media in a third-party frame, held paused so `currentTime` only moves
+  // when something seeks it.
+  '/embedder-media': shell(
+    'Third-party embed with media',
+    `<h1>An article</h1><iframe src="${EMBED_ORIGIN}/paused"></iframe>`,
+  ),
+  '/paused': shell(
+    'Paused player with real media',
+    `<video id="player" src="/media/clip.mp4" muted preload="auto"></video>`,
+  ),
+  // The fixture with real media that plays. `muted` is what lets it play
   // without a user gesture, and it deliberately does not loop — a test that
   // watches `currentTime` cannot tell a wrap-around from a stall.
   '/playing': shell(
@@ -87,17 +98,44 @@ const PAGES: Record<string, string> = {
 
 const STRICT_CSP = "default-src 'self'; style-src 'none'; script-src 'self'"
 
+/**
+ * Served with byte-range support: without it Chromium reports nothing as
+ * seekable, and setting `currentTime` snaps back to 0.
+ */
+const fulfillMedia = (route: Route, pathname: string, contentType: string) => {
+  const body = readFileSync(`${mediaDir}${pathname.slice('/media/'.length)}`)
+  const range = /bytes=(\d+)-(\d*)/.exec(
+    route.request().headers()['range'] ?? '',
+  )
+
+  if (!range) {
+    return route.fulfill({
+      status: 200,
+      contentType,
+      headers: { 'accept-ranges': 'bytes' },
+      body,
+    })
+  }
+
+  const start = Number(range[1])
+  const end = range[2] ? Number(range[2]) : body.length - 1
+
+  return route.fulfill({
+    status: 206,
+    contentType,
+    headers: {
+      'accept-ranges': 'bytes',
+      'content-range': `bytes ${start}-${end}/${body.length}`,
+    },
+    body: body.subarray(start, end + 1),
+  })
+}
+
 const fulfillPage = (route: Route, pathname: string) => {
   const contentType = MEDIA_TYPES[pathname]
 
   if (contentType) {
-    // Served whole, with no range support. Chromium only needs byte ranges to
-    // seek efficiently, and at 30 KB there is nothing to seek through.
-    return route.fulfill({
-      status: 200,
-      contentType,
-      path: `${mediaDir}${pathname.slice('/media/'.length)}`,
-    })
+    return fulfillMedia(route, pathname, contentType)
   }
 
   const body = PAGES[pathname]

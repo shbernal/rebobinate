@@ -55,6 +55,15 @@ describe('resolveAction', () => {
     )
   })
 
+  it('seeks on the brackets', () => {
+    expect(resolveAction(event({ key: '[', code: 'BracketLeft' }), keys)).toBe(
+      'seekBack',
+    )
+    expect(resolveAction(event({ key: ']', code: 'BracketRight' }), keys)).toBe(
+      'seekForward',
+    )
+  })
+
   it('ignores unrelated keys', () => {
     expect(resolveAction(event({ key: 'k', code: 'KeyK' }), keys)).toBeNull()
     expect(resolveAction(event({ key: '1', code: 'Digit1' }), keys)).toBeNull()
@@ -82,7 +91,13 @@ describe('resolveAction', () => {
   })
 
   it('follows custom bindings', () => {
-    const custom = { increase: ['>'], decrease: ['<'], reset: ['r'] }
+    const custom = {
+      increase: ['>'],
+      decrease: ['<'],
+      reset: ['r'],
+      seekBack: ['j'],
+      seekForward: ['l'],
+    }
 
     expect(resolveAction(event({ key: '>', code: 'Period' }), custom)).toBe(
       'increase',

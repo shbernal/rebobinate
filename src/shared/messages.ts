@@ -1,5 +1,5 @@
 import type { DomainStore } from './domains'
-import type { SpeedAction } from './keys'
+import type { SeekAction, SpeedAction } from './keys'
 
 /**
  * A keystroke only reaches the frame that has focus, but the video is often in
@@ -16,6 +16,26 @@ type SpeedIntentMessage = {
    * snapping back to 1.0.
    */
   currentSpeed: number
+}
+
+/**
+ * A seek key pressed in some frame. It goes through the service worker for the
+ * same reason a speed intent does — the video may be in another frame — but
+ * seeking is not tab-wide state: nothing is stored, and the service worker
+ * only turns it into a `rebobinate:seek` for every frame.
+ */
+type SeekIntentMessage = {
+  type: 'rebobinate:seek-intent'
+  action: SeekAction
+}
+
+/**
+ * Broadcast to every frame of a tab: move the frame's primary video by
+ * `seconds`, negative for back.
+ */
+type SeekMessage = {
+  type: 'rebobinate:seek'
+  seconds: number
 }
 
 type SetSpeedMessage = {
@@ -105,6 +125,8 @@ type ImportDomainsMessage = {
 
 export type RuntimeMessage =
   | SpeedIntentMessage
+  | SeekIntentMessage
+  | SeekMessage
   | SetSpeedMessage
   | SpeedQueryMessage
   | SpeedStateMessage

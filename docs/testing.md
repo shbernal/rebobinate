@@ -127,8 +127,10 @@ assert the property the extension just wrote — the plumbing, not the outcome.
 `/playing` points at `e2e/fixtures/media/clip.mp4`, four seconds of animation
 committed alongside a WebM transcode of the same footage (~50 KB together, see
 that directory's README for provenance and the ffmpeg flags). They are served by
-the same route interception as the pages, whole and without range support, which
-Chromium is happy with at this size.
+the same route interception as the pages, with byte-range support: without it
+Chromium reports nothing as seekable and a seek snaps back to 0. `/paused`
+holds the clip still so `currentTime` only moves when something seeks it, and
+`/embedder-media` puts it in a third-party iframe for the seek test.
 
 `e2e/specs/playback.spec.ts` is what they exist for:
 

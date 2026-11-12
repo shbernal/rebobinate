@@ -190,6 +190,34 @@ describe('background speed relay', () => {
     })
   })
 
+  it('turns a seek key into a seek for every frame, storing nothing', async () => {
+    getChromeMock().storage.local.seed({
+      [SETTINGS_STORAGE_KEY]: { seekSeconds: 15 },
+    })
+    const { send, broadcasts } = await loadBackground()
+
+    send({ type: 'rebobinate:seek-intent', action: 'seekBack' }, SUBFRAME)
+    send({ type: 'rebobinate:seek-intent', action: 'seekForward' })
+    await vi.waitFor(() => expect(broadcasts()).toHaveLength(2))
+
+    expect(broadcasts()).toEqual([
+      { type: 'rebobinate:seek', seconds: -15 },
+      { type: 'rebobinate:seek', seconds: 15 },
+    ])
+  })
+
+  it('does not seek while switched off', async () => {
+    getChromeMock().storage.local.seed({
+      [SETTINGS_STORAGE_KEY]: { enabled: false },
+    })
+    const { send, broadcasts } = await loadBackground()
+
+    send({ type: 'rebobinate:seek-intent', action: 'seekForward' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(broadcasts()).toEqual([])
+  })
+
   it('ignores messages that are not ours', async () => {
     const { send, broadcasts } = await loadBackground()
 

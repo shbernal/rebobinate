@@ -3,7 +3,12 @@ import type { BackupContents } from '@/shared/backup'
 import type { DomainStore } from '@/shared/domains'
 import type { KeyBindings } from '@/shared/keys'
 import type { BadgeCorner, BadgeSettings, Settings } from '@/shared/settings'
-import { BADGE_CORNERS, LIMITS, clampStep } from '@/shared/settings'
+import {
+  BADGE_CORNERS,
+  LIMITS,
+  clampSeekSeconds,
+  clampStep,
+} from '@/shared/settings'
 import { formatSpeedLabel } from '@/shared/speed'
 import Backup from './Backup'
 import ColorPicker from './ColorPicker'
@@ -55,6 +60,43 @@ const visibilityNote = (badge: BadgeSettings): string => {
     : `${shown}, including at ${formatSpeedLabel(1)}.`
 }
 
+/**
+ * A numeric setting typed digit by digit, whose halfway states are not valid
+ * values: going from 0.2 to 0.15 passes through '', '0' and '0.'. Clamping
+ * every keystroke straight back into the field rewrites it under the cursor and
+ * makes those targets unreachable, so the raw text is held while the field is
+ * being edited and only a value that is already valid is saved as it is typed.
+ * Leaving the field takes the last typed value as far as it can go.
+ */
+const useNumberDraft = (
+  clamp: (value: unknown) => number,
+  onSave: (value: number) => void,
+) => {
+  const [draft, setDraft] = useState<string | null>(null)
+
+  const edit = (raw: string) => {
+    setDraft(raw)
+
+    const parsed = Number(raw)
+
+    if (raw.trim() !== '' && parsed === clamp(parsed)) {
+      onSave(parsed)
+    }
+  }
+
+  const commit = () => {
+    const parsed = Number(draft)
+
+    if (draft !== null && draft.trim() !== '' && !Number.isNaN(parsed)) {
+      onSave(clamp(parsed))
+    }
+
+    setDraft(null)
+  }
+
+  return { draft, edit, commit }
+}
+
 type SettingsPaneProps = {
   settings: Settings
   save: (next: Settings) => void
@@ -80,15 +122,12 @@ const SettingsPane = ({
   onImport,
   onHoldSlack,
 }: SettingsPaneProps) => {
-  /**
-   * The step is typed digit by digit, and the halfway states are not valid
-   * steps: going from 0.2 to 0.15 passes through '', '0' and '0.'. Clamping
-   * every keystroke straight back into the field rewrites it under the cursor
-   * and makes those targets unreachable, so the raw text is held here while the
-   * field is being edited and only a value that is already a valid step is
-   * saved as it is typed.
-   */
-  const [stepDraft, setStepDraft] = useState<string | null>(null)
+  const step = useNumberDraft(clampStep, value =>
+    save({ ...settings, step: value }),
+  )
+  const seekSeconds = useNumberDraft(clampSeekSeconds, value =>
+    save({ ...settings, seekSeconds: value }),
+  )
   const [openColor, setOpenColor] = useState<ColorFieldKey | null>(null)
   const openField = COLOR_FIELDS.find(field => field.key === openColor)
 
@@ -119,31 +158,6 @@ const SettingsPane = ({
     save({ ...settings, keys })
   }
 
-  const editStep = (raw: string) => {
-    setStepDraft(raw)
-
-    const parsed = Number(raw)
-
-    if (raw.trim() !== '' && parsed === clampStep(parsed)) {
-      save({ ...settings, step: parsed })
-    }
-  }
-
-  /** Leaving the field takes the last typed value as far as it can go. */
-  const commitStep = () => {
-    const parsed = Number(stepDraft)
-
-    if (
-      stepDraft !== null &&
-      stepDraft.trim() !== '' &&
-      !Number.isNaN(parsed)
-    ) {
-      save({ ...settings, step: clampStep(parsed) })
-    }
-
-    setStepDraft(null)
-  }
-
   return (
     <>
       <section className="field">
@@ -154,9 +168,9 @@ const SettingsPane = ({
           min={LIMITS.step.min}
           max={LIMITS.step.max}
           step={0.01}
-          value={stepDraft ?? String(settings.step)}
-          onChange={event => editStep(event.target.value)}
-          onBlur={commitStep}
+          value={step.draft ?? String(settings.step)}
+          onChange={event => step.edit(event.target.value)}
+          onBlur={step.commit}
         />
       </section>
       {/* The buttons and the keys this governs are on another tab, so the
@@ -169,6 +183,21 @@ const SettingsPane = ({
           is a numeric field with a draft state, and a suffix would fight
           both. */}
       <p className="note">How far Faster and Slower move the speed.</p>
+
+      <section className="field">
+        <label htmlFor="seek-seconds">Seek seconds</label>
+        <input
+          id="seek-seconds"
+          type="number"
+          min={LIMITS.seekSeconds.min}
+          max={LIMITS.seekSeconds.max}
+          step={1}
+          value={seekSeconds.draft ?? String(settings.seekSeconds)}
+          onChange={event => seekSeconds.edit(event.target.value)}
+          onBlur={seekSeconds.commit}
+        />
+      </section>
+      <p className="note">How far Back and Forward move the video.</p>
 
       <hr />
 

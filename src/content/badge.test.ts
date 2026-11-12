@@ -197,6 +197,30 @@ describe('createBadge', () => {
     expect(hostDeclaration('display')).toBe('flex')
   })
 
+  it('flashes a seek even at normal speed, then fades as configured', () => {
+    badge.flash(1, badgeSettings({ hideAtNormalSpeed: true }))
+    badge.flashText('+10s', badgeSettings({ hideAtNormalSpeed: true }))
+
+    expect(labelText()).toBe('+10s')
+    expect(hostDeclaration('display')).toBe('flex')
+
+    vi.advanceTimersByTime(DEFAULT_SETTINGS.badge.autoHideMs)
+
+    expect(hostDeclaration('display')).toBe('none')
+  })
+
+  it('goes back to the speed after a seek when it never hides', () => {
+    badge.flash(1.5, badgeSettings({ autoHideMs: 0 }))
+    badge.flashText('−10s', badgeSettings({ autoHideMs: 0 }))
+
+    expect(labelText()).toBe('−10s')
+
+    vi.advanceTimersByTime(1000)
+
+    expect(labelText()).toBe('1.5×')
+    expect(hostDeclaration('display')).toBe('flex')
+  })
+
   it('hides at normal speed when asked to', () => {
     badge.flash(2, badgeSettings({ hideAtNormalSpeed: true }))
     expect(hostDeclaration('display')).toBe('flex')

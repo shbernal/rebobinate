@@ -410,8 +410,34 @@ chrome.runtime.onMessage.addListener(
 
     if (
       message.type === 'rebobinate:state' ||
-      message.type === 'rebobinate:tab-media'
+      message.type === 'rebobinate:tab-media' ||
+      message.type === 'rebobinate:seek'
     ) {
+      return false
+    }
+
+    if (message.type === 'rebobinate:seek-intent') {
+      const tabId = sender.tab?.id
+
+      if (typeof tabId !== 'number') {
+        return false
+      }
+
+      readSettings(settings => {
+        // The master switch, for the reason it is read at the speed funnel.
+        if (!settings.enabled) {
+          return
+        }
+
+        broadcast(tabId, {
+          type: 'rebobinate:seek',
+          seconds:
+            message.action === 'seekBack'
+              ? -settings.seekSeconds
+              : settings.seekSeconds,
+        })
+      })
+
       return false
     }
 

@@ -24,6 +24,21 @@ inherit a speed that was set before they existed; one that asks before the top
 frame has (which happens) resolves from the tab's domain too, rather than
 sitting at 1.0 until the broadcast corrects it.
 
+## Seeking
+
+`seekBack` and `seekForward` reach the video the same way a speed intent does,
+because the keystroke lands in the focused frame and the player may be in
+another. The frame sends `rebobinate:seek-intent`; the service worker reads
+`seekSeconds`, checks the master switch, and broadcasts `rebobinate:seek` with
+signed seconds to every frame. Nothing is stored: a position is not tab-wide
+state, so there is no map and nothing to resume from after eviction.
+
+Each frame seeks its own primary video (`src/content/seek.ts`), clamped to
+`[0, duration]`, and leaves alone a live stream (`duration === Infinity`) or a
+video with no metadata yet. A frame that seeked flashes `−10s` / `+10s` through
+`badge.flashText`, which shows at 1.0× too and, on a badge set never to hide,
+goes back to the speed a second later.
+
 ## An orphaned content script
 
 An extension update, reload or disable does not reload open tabs. The content
@@ -420,6 +435,10 @@ Schema `2` added `defaultSpeed` and `rememberPerDomain`. It needed no migration
 code: both are new keys, so a stored `1` object has them filled from the
 defaults like any other missing field and nothing an installed copy holds is
 reset. Schema `3` added `toolbarBadge` on the same terms.
+Schema `4` added `seekSeconds` and the two seek bindings. An action missing from
+a stored `keys` object gets its default bindings, minus any key the user already
+bound to another action, so `[` bound to Faster before the upgrade stays Faster
+and Forward keeps only `BracketRight`.
 
 `toolbarBadge` is a flat boolean and deliberately not a field of `badge`: that
 object configures the badge drawn over the video down to its corner and
@@ -449,15 +468,14 @@ the step size in the direction of travel, so a site that left the video at 1.07
 does not drag that stray 0.02 through every later press.
 
 The step field in the popup — labelled **Speed step**, since the buttons and
-keys it moves live on other tabs — is the one setting typed a character at a
-time, and
-its halfway states are not valid settings: going from `0.2` to `0.15` passes
+keys it moves live on other tabs — and the **Seek seconds** field under it are
+typed a character at a time, and their halfway states are not valid settings: going from `0.2` to `0.15` passes
 through `''`, `'0'` and `'0.'`. Normalizing each keystroke back into the field
 would rewrite it under the cursor and make those targets unreachable, so
-`src/popup/SettingsPane.tsx` holds the raw text in a draft while the field is
-being edited. A value that is already a valid step saves as it is typed;
-anything else waits for blur, which clamps it through `clampStep` or, for an
-empty field, restores the saved step.
+`useNumberDraft` in `src/popup/SettingsPane.tsx` holds the raw text while the
+field is being edited. A value that is already valid saves as it is typed;
+anything else waits for blur, which clamps it (`clampStep`, `clampSeekSeconds`)
+or, for an empty field, restores the saved value.
 
 ## The popup
 

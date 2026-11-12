@@ -1,8 +1,24 @@
+/** The actions that change the tab-wide speed, resolved by the service worker. */
 export type SpeedAction = 'increase' | 'decrease' | 'reset'
 
-export const SPEED_ACTIONS: SpeedAction[] = ['increase', 'decrease', 'reset']
+/** The actions that move the video by `seekSeconds`. */
+export type SeekAction = 'seekBack' | 'seekForward'
 
-export type KeyBindings = Record<SpeedAction, string[]>
+export type Action = SpeedAction | SeekAction
+
+/** Every bindable action, in the order the popup lists them. */
+export const ACTIONS: Action[] = [
+  'increase',
+  'decrease',
+  'reset',
+  'seekBack',
+  'seekForward',
+]
+
+export const isSeekAction = (action: Action): action is SeekAction =>
+  action === 'seekBack' || action === 'seekForward'
+
+export type KeyBindings = Record<Action, string[]>
 
 /**
  * A binding token matches either `KeyboardEvent.key` or `KeyboardEvent.code`.
@@ -34,7 +50,7 @@ const matchesBinding = (event: KeyEventLike, bindings: string[]): boolean => {
 export const resolveAction = (
   event: KeyEventLike,
   keys: KeyBindings,
-): SpeedAction | null => {
+): Action | null => {
   // A modified keystroke belongs to the browser or the page: Ctrl+`-` is zoom,
   // Cmd+`0` resets zoom, Alt combinations are menu accelerators.
   if (event.ctrlKey || event.metaKey || event.altKey) {
@@ -46,27 +62,15 @@ export const resolveAction = (
     return null
   }
 
-  if (matchesBinding(event, keys.increase)) {
-    return 'increase'
-  }
-
-  if (matchesBinding(event, keys.decrease)) {
-    return 'decrease'
-  }
-
-  if (matchesBinding(event, keys.reset)) {
-    return 'reset'
-  }
-
-  return null
+  return ACTIONS.find(action => matchesBinding(event, keys[action])) ?? null
 }
 
 /** Which action already holds a token, so the popup can refuse a duplicate. */
 export const bindingOwner = (
   keys: KeyBindings,
   binding: string,
-): SpeedAction | null => {
-  return SPEED_ACTIONS.find(action => keys[action].includes(binding)) ?? null
+): Action | null => {
+  return ACTIONS.find(action => keys[action].includes(binding)) ?? null
 }
 
 /**

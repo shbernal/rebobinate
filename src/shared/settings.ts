@@ -1,4 +1,5 @@
 import type { KeyBindings } from './keys'
+import { ACTIONS } from './keys'
 import { clampSpeed, roundSpeed } from './speed'
 
 export const SETTINGS_STORAGE_KEY = 'rebobinate:settings'
@@ -17,12 +18,16 @@ export const SETTINGS_STORAGE_KEY = 'rebobinate:settings'
  * key and normalizes to the default, so an installed copy keeps everything it
  * had and gains the speed on its toolbar icon.
  *
+ * `4` added `seekSeconds` and the `seekBack` / `seekForward` bindings, on the
+ * same terms: a stored `3` object has neither, and its `keys` normalize to the
+ * actions it had plus the default bindings for the two new ones.
+ *
  * Exported with no importer yet, and tagged so knip leaves it: it is the
  * stored-state marker a migration test will reach for.
  *
  * @public
  */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 export const BADGE_CORNERS = [
   'top-left',
@@ -73,6 +78,8 @@ export type Settings = {
    * worth more here than one grouping.
    */
   toolbarBadge: boolean
+  /** How far `seekBack` and `seekForward` move the video, in seconds. */
+  seekSeconds: number
   keys: KeyBindings
 }
 
@@ -84,6 +91,7 @@ export const LIMITS = {
   fontSize: { min: 8, max: 48 },
   opacity: { min: 0.1, max: 1 },
   autoHideMs: { min: 0, max: 30000 },
+  seekSeconds: { min: 1, max: 120 },
 } as const
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -105,10 +113,13 @@ export const DEFAULT_SETTINGS: Settings = {
     autoHideMs: 2000,
   },
   toolbarBadge: true,
+  seekSeconds: 10,
   keys: {
     increase: ['+', '=', 'Equal', 'NumpadAdd'],
     decrease: ['-', 'Minus', 'NumpadSubtract'],
     reset: ['0', 'Digit0', 'Numpad0'],
+    seekBack: ['[', 'BracketLeft'],
+    seekForward: [']', 'BracketRight'],
   },
 }
 
@@ -131,6 +142,16 @@ const normalizeNumber = (
 
 const normalizeBoolean = (value: unknown, fallback: boolean): boolean => {
   return typeof value === 'boolean' ? value : fallback
+}
+
+/** Same reason as `clampStep`: the popup clamps the field as it is typed. */
+export const clampSeekSeconds = (value: unknown): number => {
+  return normalizeNumber(
+    value,
+    DEFAULT_SETTINGS.seekSeconds,
+    LIMITS.seekSeconds,
+    Math.round,
+  )
 }
 
 /**
@@ -167,6 +188,40 @@ const normalizeBindings = (value: unknown, fallback: string[]): string[] => {
   )
 
   return tokens.length > 0 ? Array.from(new Set(tokens)) : [...fallback]
+}
+
+/**
+ * An action missing from the stored object — one added after that object was
+ * written — gets its default bindings, unless one of those keys is already
+ * bound to another action: a key cannot mean two things, and the user's own
+ * binding wins over a default they never saw.
+ */
+const normalizeKeys = (value: unknown): KeyBindings => {
+  const source = isRecord(value) ? value : {}
+  const stored = ACTIONS.filter(action => Array.isArray(source[action]))
+  const keys = {} as KeyBindings
+
+  for (const action of stored) {
+    keys[action] = normalizeBindings(
+      source[action],
+      DEFAULT_SETTINGS.keys[action],
+    )
+  }
+
+  for (const action of ACTIONS) {
+    if (keys[action]) {
+      continue
+    }
+
+    const taken = new Set(stored.flatMap(other => keys[other]))
+    const free = DEFAULT_SETTINGS.keys[action].filter(
+      binding => !taken.has(binding),
+    )
+
+    keys[action] = free.length > 0 ? free : [...DEFAULT_SETTINGS.keys[action]]
+  }
+
+  return keys
 }
 
 const normalizeBadge = (value: unknown): BadgeSettings => {
@@ -216,7 +271,6 @@ const normalizeBadge = (value: unknown): BadgeSettings => {
  */
 export const normalizeSettings = (value: unknown): Settings => {
   const source = isRecord(value) ? value : {}
-  const keys = isRecord(source.keys) ? source.keys : {}
   const minSpeed = normalizeNumber(
     source.minSpeed,
     DEFAULT_SETTINGS.minSpeed,
@@ -254,17 +308,8 @@ export const normalizeSettings = (value: unknown): Settings => {
       source.toolbarBadge,
       DEFAULT_SETTINGS.toolbarBadge,
     ),
-    keys: {
-      increase: normalizeBindings(
-        keys.increase,
-        DEFAULT_SETTINGS.keys.increase,
-      ),
-      decrease: normalizeBindings(
-        keys.decrease,
-        DEFAULT_SETTINGS.keys.decrease,
-      ),
-      reset: normalizeBindings(keys.reset, DEFAULT_SETTINGS.keys.reset),
-    },
+    seekSeconds: clampSeekSeconds(source.seekSeconds),
+    keys: normalizeKeys(source.keys),
   }
 }
 
