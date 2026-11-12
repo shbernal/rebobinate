@@ -1,7 +1,0 @@
-dist/
-dist-firefox/
-node_modules/
-pnpm-lock.yaml
-README.md
-POST-POC-FEATURES.md
-ADDITIONAL-TESTING.md

@@ -42,20 +42,8 @@
     "e2e": "tsc -b && vite build && playwright test",
     "e2e:headed": "tsc -b && vite build && playwright test --headed",
     "e2e:ui": "tsc -b && vite build && playwright test --ui",
-    "format": "prettier --check .",
-    "format:write": "prettier --write ."
-  },
-  "prettier": {
-    "semi": false,
-    "singleQuote": true,
-    "trailingComma": "all",
-    "printWidth": 80,
-    "tabWidth": 2,
-    "useTabs": false,
-    "bracketSpacing": true,
-    "bracketSameLine": false,
-    "arrowParens": "avoid",
-    "endOfLine": "lf"
+    "format": "oxfmt --check .",
+    "format:write": "oxfmt ."
   },
   "dependencies": {
     "react": "^19.3.1",
@@ -75,8 +63,8 @@
     "@vitest/coverage-v8": "^5.1.0",
     "jsdom": "^31.0.0",
     "knip": "^6.45.0",
+    "oxfmt": "^0.78.0",
     "oxlint": "^1.93.0",
-    "prettier": "^3.9.10",
     "typescript": "^7.0.2",
     "vite": "^8.3.7",
     "vitest": "^5.1.0",

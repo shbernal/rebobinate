@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 80,
+  "tabWidth": 2,
+  "useTabs": false,
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "arrowParens": "avoid",
+  "endOfLine": "lf",
+  "sortPackageJson": false,
+  // Build output, coverage and Playwright reports are not repeated here: they
+  // are in .gitignore and oxfmt honors it. The Markdown files below are not,
+  // so they need explicit entries, carried over from the Prettier ignore list.
+  "ignorePatterns": [
+    "dist/",
+    "dist-firefox/",
+    "node_modules/",
+    "pnpm-lock.yaml",
+    "README.md",
+    "POST-POC-FEATURES.md",
+    "ADDITIONAL-TESTING.md"
+  ]
+}
