@@ -46,9 +46,9 @@ accepts. `pnpm check:filters` matches every cosmetic filter uBlock Origin and
 AdGuard ship against the badge the build renders, and exits 1 when one of them
 hides it.
 
-CI runs the formatting check, lint, typecheck, tests, and both builds on every
-pull request. It does not run `pnpm e2e` or `pnpm check:filters`, so those two
-are on you.
+CI runs the formatting check, lint, typecheck, tests, both builds and `pnpm e2e`
+on every pull request. It does not run `pnpm check:filters`, so that one is on
+you.
 
 ## Seeing it run
 

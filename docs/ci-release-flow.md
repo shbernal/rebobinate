@@ -22,8 +22,10 @@ and the SHA-pinned actions. Development dependencies share one pull request,
 and `react` with `react-dom` another, since React refuses to run when the two
 versions differ.
 
-The Playwright suite is not in CI yet. It needs a Chromium that can load
-extensions; run it locally with `pnpm e2e` before packaging.
+A separate `e2e` job runs the Playwright suite (`pnpm e2e`) against the built
+extension in a real Chromium, installed with `playwright install --with-deps
+chromium` because the bundled headless shell cannot load extensions. The HTML
+report is uploaded as the `playwright-report` artifact.
 
 ## Releasing
 
