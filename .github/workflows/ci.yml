@@ -93,6 +93,12 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
+      # scripts/chromium-path.mjs prefers a system Chromium, and the runner
+      # ships one built without H.264, so /playing's MP4 never decodes there.
+      # Playwright's build does decode it.
+      - name: Use Playwright's Chromium
+        run: echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE=$(node -e "import('@playwright/test').then(m => console.log(m.chromium.executablePath()))")" >> "$GITHUB_ENV"
+
       - name: Run end-to-end tests
         run: pnpm e2e
 
