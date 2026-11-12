@@ -22,12 +22,16 @@ export const SETTINGS_STORAGE_KEY = 'rebobinate:settings'
  * same terms: a stored `3` object has neither, and its `keys` normalize to the
  * actions it had plus the default bindings for the two new ones.
  *
+ * `5` added `rememberStats` and `statsRetentionDays`, on the same terms: a
+ * stored `4` object has neither and normalizes to the defaults, so recording
+ * starts on the first update and nothing already stored is touched.
+ *
  * Exported with no importer yet, and tagged so knip leaves it: it is the
  * stored-state marker a migration test will reach for.
  *
  * @public
  */
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 export const BADGE_CORNERS = [
   'top-left',
@@ -37,6 +41,11 @@ export const BADGE_CORNERS = [
 ] as const
 
 export type BadgeCorner = (typeof BADGE_CORNERS)[number]
+
+/** How many days of watch time are kept. `0` keeps every day. */
+const STATS_RETENTION_DAYS = [90, 365, 0] as const
+
+type StatsRetentionDays = (typeof STATS_RETENTION_DAYS)[number]
 
 export type BadgeSettings = {
   enabled: boolean
@@ -80,6 +89,12 @@ export type Settings = {
   toolbarBadge: boolean
   /** How far `seekBack` and `seekForward` move the video, in seconds. */
   seekSeconds: number
+  /**
+   * Whether watch time is recorded per day, site and speed. Off, the stats
+   * store is neither read nor written; what it already holds stays.
+   */
+  rememberStats: boolean
+  statsRetentionDays: StatsRetentionDays
   keys: KeyBindings
 }
 
@@ -114,6 +129,8 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   toolbarBadge: true,
   seekSeconds: 10,
+  rememberStats: true,
+  statsRetentionDays: 365,
   keys: {
     increase: ['+', '=', 'Equal', 'NumpadAdd'],
     decrease: ['-', 'Minus', 'NumpadSubtract'],
@@ -295,6 +312,15 @@ export const normalizeSettings = (value: unknown): Settings => {
       DEFAULT_SETTINGS.toolbarBadge,
     ),
     seekSeconds: clampSeekSeconds(source.seekSeconds),
+    rememberStats: normalizeBoolean(
+      source.rememberStats,
+      DEFAULT_SETTINGS.rememberStats,
+    ),
+    statsRetentionDays: STATS_RETENTION_DAYS.includes(
+      source.statsRetentionDays as StatsRetentionDays,
+    )
+      ? (source.statsRetentionDays as StatsRetentionDays)
+      : DEFAULT_SETTINGS.statsRetentionDays,
     keys: normalizeKeys(source.keys),
   }
 }

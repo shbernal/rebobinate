@@ -1,5 +1,6 @@
 import type { DomainStore } from './domains'
 import type { SeekAction, SpeedAction } from './keys'
+import type { StatsSample } from './stats'
 
 /**
  * A keystroke only reaches the frame that has focus, but the video is often in
@@ -123,6 +124,19 @@ type ImportDomainsMessage = {
   store: DomainStore
 }
 
+/**
+ * A frame handing over the watch time it has added up since its last report.
+ *
+ * Frames never write the stats store themselves: every tab would be reading
+ * and writing the same key, and the last writer would win. The service worker
+ * resolves the domain from the tab's top frame, as site memory does, and owns
+ * the write.
+ */
+type WatchTimeMessage = {
+  type: 'rebobinate:watch-time'
+  samples: StatsSample[]
+}
+
 export type RuntimeMessage =
   | SpeedIntentMessage
   | SeekIntentMessage
@@ -137,6 +151,7 @@ export type RuntimeMessage =
   | ImportDomainsMessage
   | MediaPresenceMessage
   | TabMediaMessage
+  | WatchTimeMessage
 
 export type SpeedResponse = {
   speed: number

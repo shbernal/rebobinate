@@ -4,6 +4,7 @@ import type { DomainMemory } from '@/shared/domains'
 import { DOMAINS_SCHEMA_VERSION, DOMAINS_STORAGE_KEY } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '@/shared/settings'
+import { STATS_STORAGE_KEY } from '@/shared/stats'
 
 type Sender = chrome.runtime.MessageSender
 
@@ -1183,5 +1184,82 @@ describe('the speed on the toolbar icon', () => {
 
     expect(badgeText()).toBe('1')
     expect(badgeText(7)).toBe('1.1')
+  })
+})
+
+describe('recording watch time', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 0, 5, 12))
+    seedSettings()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const watched = (seconds: number, bucket = '1.5') => ({
+    type: 'rebobinate:watch-time',
+    samples: [{ day: '2026-01-05', bucket, seconds }],
+  })
+
+  const storedStats = () =>
+    (
+      getChromeMock().storage.local.snapshot()[STATS_STORAGE_KEY] as
+        | { days?: Record<string, unknown> }
+        | undefined
+    )?.days
+
+  it('files frames under the tab domain and writes them together', async () => {
+    const { send, chromeMock } = await loadBackground()
+
+    send(watched(30), onSite())
+    send(
+      watched(10),
+      onSite({ frameId: 3, frameUrl: 'https://player.vimeo.com/x' }),
+    )
+    vi.advanceTimersByTime(1000)
+
+    expect(storedStats()).toEqual({
+      '2026-01-05': { 'youtube.com': { '1.5': 40 } },
+    })
+    expect(chromeMock.storage.local.set).toHaveBeenCalledTimes(1)
+  })
+
+  it('adds to what is stored and prunes past the retention', async () => {
+    getChromeMock().storage.local.seed({
+      [STATS_STORAGE_KEY]: {
+        schemaVersion: 1,
+        days: {
+          '2025-01-01': { 'youtube.com': { '1': 5 } },
+          '2026-01-05': { 'youtube.com': { '1.5': 20 } },
+        },
+      },
+    })
+    seedSettings({ statsRetentionDays: 90 })
+    const { send } = await loadBackground()
+
+    send(watched(30), onSite())
+    vi.advanceTimersByTime(1000)
+
+    expect(storedStats()).toEqual({
+      '2026-01-05': { 'youtube.com': { '1.5': 50 } },
+    })
+  })
+
+  it('keeps nothing from a private window, a page with no site, or with recording off', async () => {
+    const { send } = await loadBackground()
+
+    send(watched(30), onSite({ incognito: true }))
+    send(watched(30), onSite({ url: 'file:///home/me/clip.mp4' }))
+    vi.advanceTimersByTime(1000)
+
+    expect(storedStats()).toBeUndefined()
+
+    seedSettings({ rememberStats: false })
+    send(watched(30), onSite())
+    vi.advanceTimersByTime(1000)
+
+    expect(storedStats()).toBeUndefined()
   })
 })

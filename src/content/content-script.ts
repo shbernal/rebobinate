@@ -15,6 +15,7 @@ import { createEnforcer } from './enforcer'
 import { createKeyHandler } from './keys'
 import { createMediaRegistry } from './media'
 import { formatSeekLabel, seekVideo } from './seek'
+import { createWatchTimeRecorder } from './watch-time'
 
 if (isControllableDocument(document)) {
   let settings: Settings = DEFAULT_SETTINGS
@@ -133,6 +134,18 @@ if (isControllableDocument(document)) {
     onAction: action => sendIntent(action),
   })
 
+  const watchTime = createWatchTimeRecorder({
+    document,
+    // The master switch stops the recording as well: an extension switched
+    // off keeps no record of anything.
+    isRecording: () => alive() && settings.enabled && settings.rememberStats,
+    onFlush: samples => {
+      send({ type: 'rebobinate:watch-time', samples }, () => {
+        void chrome.runtime.lastError
+      })
+    },
+  })
+
   let stopSettingsWatch = () => {}
   let tornDown = false
 
@@ -160,6 +173,7 @@ if (isControllableDocument(document)) {
     tornDown = true
     keyHandler.stop()
     registry.stop()
+    watchTime.stop()
     badge.destroy()
 
     try {
@@ -281,6 +295,7 @@ if (isControllableDocument(document)) {
 
   registry.start()
   keyHandler.start()
+  watchTime.start()
   reportMedia()
 
   // Pick up a speed that was set before this frame existed — an iframe added

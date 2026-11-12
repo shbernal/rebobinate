@@ -10,6 +10,8 @@ import {
   writeDomains,
 } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
+import type { StatsSample } from '@/shared/stats'
+import { mergeStats, pruneStats, readStats, writeStats } from '@/shared/stats'
 import {
   clampToSettings,
   onSettingsChange,
@@ -208,28 +210,41 @@ const cancelAllPendingWrites = () => {
 }
 
 /**
- * Domain updates waiting their turn, the head being the one in flight.
+ * Updates to one stored key, waiting their turn, the head being the one in
+ * flight.
  *
- * Every update is a read of the whole map followed by a write of the whole map
- * back, so two left to overlap both read the same map and the second write
- * drops the first: a popup edit landing while a debounced browse write fires,
- * or two quick edits in the Sites tab. Each one reads only once the write
- * before it has landed.
+ * Every update is a read of the whole value followed by a write of the whole
+ * value back, so two left to overlap both read the same value and the second
+ * write drops the first: a popup edit landing while a debounced browse write
+ * fires, or two quick edits in the Sites tab. Each one reads only once the
+ * write before it has landed.
  */
-const domainUpdates: ((done: () => void) => void)[] = []
+const createSerialQueue = () => {
+  const tasks: ((done: () => void) => void)[] = []
 
-const runNextDomainUpdate = () => {
-  domainUpdates[0]?.(() => {
-    domainUpdates.shift()
-    runNextDomainUpdate()
-  })
+  const runNext = () => {
+    tasks[0]?.(() => {
+      tasks.shift()
+      runNext()
+    })
+  }
+
+  return (task: (done: () => void) => void) => {
+    tasks.push(task)
+
+    if (tasks.length === 1) {
+      runNext()
+    }
+  }
 }
+
+const enqueueDomainUpdate = createSerialQueue()
 
 const updateDomains = (
   change: (store: DomainStore) => DomainStore,
   callback?: (error?: string) => void,
 ) => {
-  domainUpdates.push(done => {
+  enqueueDomainUpdate(done => {
     readDomains(store => {
       writeDomains(change(store), error => {
         callback?.(error)
@@ -237,10 +252,72 @@ const updateDomains = (
       })
     })
   })
+}
 
-  if (domainUpdates.length === 1) {
-    runNextDomainUpdate()
+/**
+ * Watch time reported by frames, per domain, not yet written. Frames already
+ * batch it, so this only coalesces the reports that arrive together — every
+ * frame of every tab flushing on the same `pagehide` — into one write, on the
+ * same short window as a domain write and for the same reason.
+ */
+const pendingStats = new Map<string, StatsSample[]>()
+let statsTimer: ReturnType<typeof setTimeout> | undefined
+
+const enqueueStatsUpdate = createSerialQueue()
+
+const dropPendingStats = () => {
+  clearTimeout(statsTimer)
+  statsTimer = undefined
+  pendingStats.clear()
+}
+
+const writePendingStats = () => {
+  statsTimer = undefined
+
+  const batch = [...pendingStats]
+
+  pendingStats.clear()
+  enqueueStatsUpdate(done => {
+    readSettings(settings => {
+      // Switched off while the batch waited: it is dropped, not written.
+      if (!settings.rememberStats) {
+        done()
+        return
+      }
+
+      readStats(store => {
+        const merged = batch.reduce(
+          (next, [domain, samples]) => mergeStats(next, domain, samples),
+          store,
+        )
+
+        writeStats(
+          pruneStats(merged, settings.statsRetentionDays, Date.now()),
+          done,
+        )
+      })
+    })
+  })
+}
+
+/**
+ * Takes a frame's watch time for the tab's domain. The rules are site
+ * memory's: a private window keeps no record, and a page with no domain has
+ * nothing to file it under.
+ */
+const recordWatchTime = (
+  sender: chrome.runtime.MessageSender,
+  samples: StatsSample[],
+) => {
+  const tab = sender.tab
+  const domain = domainKeyFromUrl(tab?.url)
+
+  if (!tab || tab.incognito || !domain || samples.length === 0) {
+    return
   }
+
+  pendingStats.set(domain, [...(pendingStats.get(domain) ?? []), ...samples])
+  statsTimer ??= setTimeout(writePendingStats, WRITE_DEBOUNCE_MS)
 }
 
 const forget = (domain: string) => {
@@ -456,6 +533,12 @@ chrome.runtime.onMessage.addListener(
       return false
     }
 
+    if (message.type === 'rebobinate:watch-time') {
+      recordWatchTime(sender, message.samples)
+
+      return false
+    }
+
     if (message.type === 'rebobinate:forget-domain') {
       forget(message.domain)
 
@@ -654,6 +737,10 @@ const onSettingsSeen = (settings: Settings) => {
   if (wasEnabled && !settings.enabled) {
     tabSpeeds.clear()
     cancelAllPendingWrites()
+  }
+
+  if (!settings.enabled || !settings.rememberStats) {
+    dropPendingStats()
   }
 
   wasEnabled = settings.enabled

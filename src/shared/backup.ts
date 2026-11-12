@@ -24,6 +24,12 @@ export const BACKUP_FORMAT = 'rebobinate-backup'
  */
 export const BACKUP_VERSION = 1
 
+/*
+ * Watch-time stats are not in the envelope. They are the bulkiest thing the
+ * extension stores, they rebuild themselves from use, and leaving them out
+ * keeps `BACKUP_VERSION` where it is.
+ */
+
 type Backup = {
   format: typeof BACKUP_FORMAT
   version: number

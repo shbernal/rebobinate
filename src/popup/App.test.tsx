@@ -1644,6 +1644,24 @@ describe('popup color picker', () => {
   })
 })
 
+describe('popup watch-time toggle', () => {
+  beforeEach(() => {
+    seedSettings()
+    answerPopupState('youtube.com')
+  })
+
+  it('is on by default and switches off', async () => {
+    const user = await openSettings()
+
+    const toggle = screen.getByRole('checkbox', { name: 'Record watch time' })
+    expect(toggle).toBeChecked()
+
+    await user.click(toggle)
+
+    expect(storedSettings().rememberStats).toBe(false)
+  })
+})
+
 describe('popup toolbar badge toggle', () => {
   beforeEach(() => {
     seedSettings()

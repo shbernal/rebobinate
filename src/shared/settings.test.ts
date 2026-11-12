@@ -93,6 +93,18 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings({ seekSeconds: 'x' }).seekSeconds).toBe(10)
   })
 
+  // A stored `4` object has neither key, and gains the defaults.
+  it('fills the stats settings and refuses an unknown retention', () => {
+    expect(normalizeSettings({}).rememberStats).toBe(true)
+    expect(normalizeSettings({}).statsRetentionDays).toBe(365)
+    expect(
+      normalizeSettings({ statsRetentionDays: 0 }).statsRetentionDays,
+    ).toBe(0)
+    expect(
+      normalizeSettings({ statsRetentionDays: 30 }).statsRetentionDays,
+    ).toBe(365)
+  })
+
   it('always stamps the current schema version', () => {
     expect(normalizeSettings({ schemaVersion: 0 }).schemaVersion).toBe(
       DEFAULT_SETTINGS.schemaVersion,

@@ -440,6 +440,20 @@ const SettingsPane = ({
 
       <hr />
 
+      <section className="field">
+        <span>Record watch time</span>
+        <Toggle
+          label="Record watch time"
+          checked={settings.rememberStats}
+          onChange={rememberStats => save({ ...settings, rememberStats })}
+        />
+      </section>
+      <p className="note">
+        Time watched per site and speed, kept on this device only.
+      </p>
+
+      <hr />
+
       <h2 className="pane-heading">Backup</h2>
       <Backup settings={settings} domains={domains} onImport={onImport} />
     </>

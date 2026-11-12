@@ -255,6 +255,41 @@ set for the domain the active tab is on is applied to that tab as well —
 editing the row for the site being watched and seeing nothing happen would read
 as broken.
 
+## Watch time
+
+Time watched is recorded per local day, site and speed, on the device only.
+Nothing displays it yet.
+
+**The shape is the privacy answer.** `rebobinate:stats`, in
+`src/shared/stats.ts`, holds `days[YYYY-MM-DD][domain][speedBucket] = seconds`
+and nothing else: no event log, no URLs, no time of day. Speeds are bucketed to
+the nearest 0.25×. The day is the user's local date. Every read goes through
+`normalizeStats`, which drops a malformed day, site or bucket on its own and
+keeps the rest, and the store carries its own `schemaVersion` (`1`). Stats are
+not in the backup envelope: they are bulky and rebuild themselves from use, and
+leaving them out keeps `BACKUP_VERSION` unchanged.
+
+**Frames count, the service worker writes.** `src/content/watch-time.ts` runs
+on `timeupdate` alone, with no timer: each tick adds the wall-clock time since
+the previous one, at the video's actual `playbackRate`, so a speed the site has
+overridden counts at the site's rate. The clock is per frame, so two videos
+playing at once count the time once. Nothing is counted while the document is
+hidden, for a muted video with no box (a background preview or ad slot), across
+a pause, seek or a gap over two seconds, or while the master switch or
+`rememberStats` is off. A tick is filed under the day it lands on, so playback
+across midnight starts the new day at the first tick after it.
+
+A frame hands its totals over in `rebobinate:watch-time` every 30 seconds of
+playback, when the document is hidden, and on `pagehide`. The service worker
+files them under the tab's top-frame domain, with the same resolver and the
+same exclusions as site memory: private windows and pages with no domain record
+nothing. Reports are coalesced for a second, then merged and written through a
+serial queue (the same one domain updates use), so tabs cannot overwrite each
+other's time. Each write prunes days older than `statsRetentionDays` (90, 365,
+or `0` for forever, default 365), counting today as one of them. With
+`rememberStats` off, the store is neither read nor written, and a batch still
+waiting is dropped.
+
 ## Whether a keystroke is ours
 
 `src/content/keys.ts` listens on `window` in the **capture** phase and, when it
@@ -441,7 +476,8 @@ code: both are new keys, so a stored `1` object has them filled from the
 defaults like any other missing field and nothing an installed copy holds is
 reset. Schema `3` added `toolbarBadge` on the same terms.
 Schema `4` added `seekSeconds` and the two seek bindings, on the same terms: an
-action missing from a stored `keys` object gets its default bindings.
+action missing from a stored `keys` object gets its default bindings. Schema `5`
+added `rememberStats` and `statsRetentionDays`, on the same terms.
 
 `toolbarBadge` is a flat boolean and deliberately not a field of `badge`: that
 object configures the badge drawn over the video down to its corner and

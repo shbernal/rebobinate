@@ -16,6 +16,8 @@ type PartialSettings = Partial<Omit<Settings, 'badge'>> & {
 }
 import type { DomainMemory, DomainStore } from '../../src/shared/domains'
 import { DOMAINS_STORAGE_KEY } from '../../src/shared/domains'
+import type { StatsStore } from '../../src/shared/stats'
+import { STATS_STORAGE_KEY } from '../../src/shared/stats'
 import {
   closeExtensionContext,
   getExtensionId,
@@ -44,6 +46,8 @@ type ExtensionFixtures = {
   seedSettings: (settings: PartialSettings) => Promise<void>
   /** What the extension has written down per site, as it stands right now. */
   rememberedSites: () => Promise<Record<string, DomainMemory>>
+  /** The watch time the extension has stored, by day, site and speed bucket. */
+  storedStats: () => Promise<StatsStore['days']>
   /**
    * The badge and tooltip on the toolbar icon: for the tab open on `url`, or
    * the global pair every unvisited tab shows when `url` is left out.
@@ -101,6 +105,17 @@ export const test = base.extend<ExtensionFixtures>({
       )
 
       return stored?.entries ?? {}
+    })
+  },
+
+  storedStats: async ({ extensionContext }, use) => {
+    await use(async () => {
+      const stored = await getStorageValue<StatsStore>(
+        extensionContext,
+        STATS_STORAGE_KEY,
+      )
+
+      return stored?.days ?? {}
     })
   },
 
