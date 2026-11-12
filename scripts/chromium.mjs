@@ -5,7 +5,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
-import { extensionPath, resolveChromiumExecutable } from './chromium-path.mjs'
+import {
+  dropCachedServiceWorkers,
+  extensionPath,
+  resolveChromiumExecutable,
+} from './chromium-path.mjs'
 
 export { extensionPath, resolveChromiumExecutable }
 
@@ -36,6 +40,8 @@ export const launchWithExtension = async ({
 }) => {
   const executablePath = resolveChromiumExecutable()
   const loaded = [extensionPath, ...extraExtensions].join(',')
+
+  dropCachedServiceWorkers(profilePath)
 
   return chromium.launchPersistentContext(profilePath, {
     executablePath,

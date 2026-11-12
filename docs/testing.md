@@ -234,6 +234,15 @@ open until the window is closed. Loading the build by hand —
 `chrome://extensions`, or `about:debugging` on Gecko — does the same thing; the
 scripts only save the trip.
 
+A reused Chromium profile keeps the extension's service worker cached, and
+Chromium goes on running that script after `dist/` is rebuilt while the
+manifest version stays the same. The new content script then talks to the old
+service worker, which drops any message it does not know without an error. The
+Chromium launchers (`dev:chrome`, `inspect:chrome`, the screenshot capture)
+delete the profile's `Service Worker` store before every start for that
+reason. Loading by hand from `chrome://extensions` needs the reload button
+after each build.
+
 `pnpm dev:firefox --with-ublock` and `pnpm dev:zen --with-ublock` add the real
 uBlock Origin to the profile. Gecko is the only place it can run — see [Ad
 Blockers](./ad-blockers.md).
