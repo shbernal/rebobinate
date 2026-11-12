@@ -1,0 +1,233 @@
+/* The popup's vocabulary: system colour keywords, so the page follows the OS
+   theme with no per-theme block, and AccentColor for the one thing that is
+   data or focus. */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --muted: color-mix(in srgb, CanvasText 65%, Canvas);
+  --line: color-mix(in srgb, CanvasText 15%, Canvas);
+  --raised: color-mix(in srgb, CanvasText 5%, Canvas);
+}
+
+/* On `body` rather than `:root`: Chromium gives extension pages a stylesheet
+   of its own that sets `body { font-size: 75% }`, which would scale anything
+   set on the root down to 10.5px. */
+body {
+  margin: 0;
+  font-size: 14px;
+  background: Canvas;
+  color: CanvasText;
+}
+
+button,
+select {
+  font: inherit;
+}
+
+:where(button, select, summary):focus-visible {
+  outline: 2px solid AccentColor;
+  outline-offset: 2px;
+}
+
+.stats {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.stats-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.stats-privacy,
+.note {
+  color: var(--muted);
+}
+
+.rule {
+  padding: 8px 12px;
+  border-left: 3px solid AccentColor;
+  background: var(--raised);
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented button {
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.segmented button:focus-visible {
+  outline-offset: -2px;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: color-mix(in srgb, AccentColor 18%, Canvas);
+  font-weight: 600;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.tile-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tile-value {
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-section {
+  margin-top: 32px;
+}
+
+.chart {
+  margin: 0;
+}
+
+.chart-plot {
+  position: relative;
+}
+
+.chart svg {
+  display: block;
+}
+
+.chart-bar {
+  fill: AccentColor;
+}
+
+.chart-bar-lost {
+  fill: var(--muted);
+}
+
+.chart-bar[data-active] {
+  opacity: 0.75;
+}
+
+.chart-hit {
+  fill: transparent;
+}
+
+.chart-baseline {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.chart-axis {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: Canvas;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.chart-table {
+  margin-top: 8px;
+}
+
+.chart-table summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table th,
+.data-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+}
+
+.data-table th:first-child {
+  text-align: left;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.data-table thead th {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.field {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.confirm p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.danger {
+  color: Canvas;
+  background: CanvasText;
+  border: 1px solid CanvasText;
+  border-radius: 4px;
+  padding: 4px 12px;
+}

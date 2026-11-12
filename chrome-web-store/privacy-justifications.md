@@ -17,11 +17,11 @@ Last reviewed against `manifest.config.ts` at version 0.2.0.
 
 ## Single Purpose
 
-Rebobinate has one purpose: to let the user change the playback speed of videos on web pages, from the keyboard or from the extension popup, and to show the current speed on the video and on the toolbar icon.
+Rebobinate has one purpose: to let the user change the playback speed of videos on web pages, from the keyboard or from the extension popup, and to show the current speed on the video and on the toolbar icon, along with how much time the chosen speeds have saved.
 
 ## Permission: `storage`
 
-The extension stores the user's own preferences in local extension storage so they persist between sessions: the speed increment, the keyboard bindings, and the appearance of the on-video speed badge. It also stores the playback speed the user chose on a site, so the same speed applies on the next visit. That per-site memory is keyed by domain, is written only when the user changes the speed on that site, holds at most 500 entries, and can be switched off or cleared from the popup. No other data is stored, and nothing is written to a remote service.
+The extension stores the user's own preferences in local extension storage so they persist between sessions: the speed increment, the keyboard bindings, and the appearance of the on-video speed badge. It also stores the playback speed the user chose on a site, so the same speed applies on the next visit. That per-site memory is keyed by domain, is written only when the user changes the speed on that site, holds at most 500 entries, and can be switched off or cleared from the popup. It also keeps usage statistics stored locally, never transmitted: daily totals of how long videos played on each site and at what speed, with no URLs and no times of day, shown on the extension's own stats page and switchable off or clearable there and in the popup. No other data is stored, and nothing is written to a remote service.
 
 ## Host Permission: `<all_urls>`
 
@@ -39,8 +39,8 @@ Check nothing. The extension collects and transmits no user data:
 - no health, financial, or authentication information;
 - no personal communications;
 - no location;
-- no web history — the extension does not record which sites the user visits. The per-site speed memory saves a domain only when the user changes the speed on it, stays in local extension storage, and is never transmitted;
-- no user activity — the extension does not log clicks, keystrokes, or views;
+- no web history — the extension does not record which pages the user visits. The per-site speed memory saves a domain only when the user changes the speed on it, and the usage statistics keep daily watch-time totals per domain; both stay in local extension storage and are never transmitted;
+- no user activity — the extension does not log clicks or keystrokes, and the watch-time totals it keeps on the device are never transmitted;
 - no website content — page content is never read or copied.
 
 Confirm all three certifications:
@@ -57,6 +57,6 @@ Confirm all three certifications:
    remove manifest permissions that no longer serve the single purpose.
 3. The per-site speed memory stores more than preferences, though it never
    leaves the device. Keep its answers above in step with what the popup can
-   remember and clear. If usage statistics ship, revisit the data-usage answers
-   on the same terms.
+   remember and clear. The usage statistics are held to the same rule: local
+   daily totals only, never transmitted.
 4. Keep every dashboard answer under the field limit shown in the form.

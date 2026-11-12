@@ -1644,6 +1644,32 @@ describe('popup color picker', () => {
   })
 })
 
+describe('popup stats tab', () => {
+  it('shows the headline numbers and opens the full page', async () => {
+    const today = new Date()
+    const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    getChromeMock().storage.local.seed({
+      'rebobinate:stats': {
+        schemaVersion: 1,
+        days: { [day]: { 'a.com': { '2': 1800 } } },
+      },
+    })
+    answerPopupState('a.com')
+    const user = userEvent.setup()
+    render(<App />)
+
+    await openTab(user, 'Stats')
+
+    expect(screen.getAllByText('30 min')).toHaveLength(4)
+
+    await user.click(screen.getByRole('button', { name: 'Open full stats' }))
+
+    expect(getChromeMock().tabs.create).toHaveBeenCalledWith({
+      url: 'chrome-extension://rebobinate-test/src/stats/stats-page.html',
+    })
+  })
+})
+
 describe('popup watch-time toggle', () => {
   beforeEach(() => {
     seedSettings()

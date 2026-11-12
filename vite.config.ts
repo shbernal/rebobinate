@@ -156,7 +156,22 @@ export default defineConfig(async ({ command }) => {
   return {
     resolve: { alias },
     plugins,
-    build: { outDir },
+    build: {
+      outDir,
+      // Pages the manifest does not name are invisible to crxjs, so the stats
+      // page is a build input of its own. Opened with `tabs.create` from the
+      // popup, it needs no manifest key in either package.
+      rolldownOptions: {
+        input: {
+          // Not `stats`: that is also `src/shared/stats.ts`'s chunk name, and
+          // entries sharing a name collide (see docs/build-targets.md).
+          'stats-page': path.resolve(
+            import.meta.dirname,
+            'src/stats/stats-page.html',
+          ),
+        },
+      },
+    },
     server: {
       cors: {
         origin: isFirefox ? [/moz-extension:\/\//] : [/chrome-extension:\/\//],

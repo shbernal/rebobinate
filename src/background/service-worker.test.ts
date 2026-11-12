@@ -1247,6 +1247,22 @@ describe('recording watch time', () => {
     })
   })
 
+  it('clears the store and drops a batch still waiting', async () => {
+    getChromeMock().storage.local.seed({
+      [STATS_STORAGE_KEY]: {
+        schemaVersion: 1,
+        days: { '2026-01-05': { 'youtube.com': { '1': 5 } } },
+      },
+    })
+    const { send } = await loadBackground()
+
+    send(watched(30), onSite())
+    send({ type: 'rebobinate:clear-stats' }, POPUP)
+    vi.advanceTimersByTime(1000)
+
+    expect(storedStats()).toEqual({})
+  })
+
   it('keeps nothing from a private window, a page with no site, or with recording off', async () => {
     const { send } = await loadBackground()
 

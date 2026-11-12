@@ -137,6 +137,15 @@ type WatchTimeMessage = {
   samples: StatsSample[]
 }
 
+/**
+ * The stats page clears every recorded day. Through the service worker, for
+ * the reason a site edit goes there: a batch still waiting to be written would
+ * otherwise land on the emptied store a second later.
+ */
+type ClearStatsMessage = {
+  type: 'rebobinate:clear-stats'
+}
+
 export type RuntimeMessage =
   | SpeedIntentMessage
   | SeekIntentMessage
@@ -152,6 +161,7 @@ export type RuntimeMessage =
   | MediaPresenceMessage
   | TabMediaMessage
   | WatchTimeMessage
+  | ClearStatsMessage
 
 export type SpeedResponse = {
   speed: number

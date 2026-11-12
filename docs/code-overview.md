@@ -257,8 +257,8 @@ as broken.
 
 ## Watch time
 
-Time watched is recorded per local day, site and speed, on the device only.
-Nothing displays it yet.
+Time watched is recorded per local day, site and speed, on the device only,
+and shown in the popup's Stats tab and on the stats page.
 
 **The shape is the privacy answer.** `rebobinate:stats`, in
 `src/shared/stats.ts`, holds `days[YYYY-MM-DD][domain][speedBucket] = seconds`
@@ -516,11 +516,35 @@ field is being edited. A value that is already valid saves as it is typed;
 anything else waits for blur, which clamps it (`clampStep`, `clampSeekSeconds`)
 or, for an empty field, restores the saved value.
 
+**What is shown is derived, not stored.** `src/shared/stats-summary.ts` turns
+the buckets into real time (`real`), the video it covered (`content`, real ×
+speed) and time saved (`content − real`). Time saved goes negative below 1×,
+and every surface shows it that way rather than flooring it at zero: watching
+slowed down costs time.
+
+The popup's **Stats** tab shows the last 7 and last 30 days and opens the stats
+page with `tabs.create`. That page, `src/stats/stats-page.html`, is a second
+extension page in both builds: daily time saved as columns for the chosen
+period, sites ranked by time saved, the retention selector, and Clear all
+stats. Both follow the stats store while open. The chart is inline SVG drawn at
+the plot's measured width (scaled through a `viewBox`, its axis text shrank to
+6px at phone width), one series in `AccentColor` with no legend, a day spent
+below 1× drawn down in the muted ink, and a hover tooltip per column. The SVG
+is a labelled image; the numbers are in a table under it, which is what a
+screen reader reads. Clear asks inline rather than through `confirm()`, and goes
+through the service worker as `rebobinate:clear-stats`, so a batch still waiting
+to be written cannot land on the emptied store.
+
+The page sets its font size on `body`, not `:root`: Chromium gives extension
+pages a stylesheet of its own with `body { font-size: 75% }`.
+
 ## The popup
 
 `src/popup/App.tsx` is a shell rather than a screen. It owns the state every
 pane reads — settings, the tab's speed, the domain the tab counts as, the domain
-map — and renders one of `SpeedPane`, `SitesPane` or `SettingsPane`. Only the
+map — and renders one of `SpeedPane`, `SitesPane`, `StatsPane` or
+`SettingsPane`. `StatsPane` reads the stats store itself: nothing else in the
+popup needs it, and it is the one store that can be large. Only the
 selected pane is mounted, so nothing off screen holds state or listens for keys.
 
 Two things about it are load-bearing:

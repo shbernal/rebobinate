@@ -202,8 +202,8 @@ selected first, and a reload puts the popup back on Speed.
 - Video discovery, rate enforcement, badge geometry: unit tests against jsdom.
 - Anything that depends on real frames, real focus, or the real extension
   messaging path: Playwright. That includes iframes, fullscreen, and the popup.
-- Accessibility of the popup: `e2e/specs/popup-a11y.spec.ts` runs axe over each
-  tab in both colour schemes, since the system colour keywords only resolve to
+- Accessibility: `e2e/specs/a11y.spec.ts` runs axe over each popup tab and the
+  stats page in both colour schemes, since the system colour keywords only resolve to
   a contrast in a real browser. It drops the pane's scroll-cue gradients first,
   because axe reports text over a gradient as unmeasured rather than failing
   it. Focus-ring contrast is outside what axe checks.

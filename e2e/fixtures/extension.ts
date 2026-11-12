@@ -48,6 +48,8 @@ type ExtensionFixtures = {
   rememberedSites: () => Promise<Record<string, DomainMemory>>
   /** The watch time the extension has stored, by day, site and speed bucket. */
   storedStats: () => Promise<StatsStore['days']>
+  seedStats: (days: StatsStore['days']) => Promise<void>
+  openStatsPage: () => Promise<Page>
   /**
    * The badge and tooltip on the toolbar icon: for the tab open on `url`, or
    * the global pair every unvisited tab shows when `url` is left out.
@@ -117,6 +119,25 @@ export const test = base.extend<ExtensionFixtures>({
 
       return stored?.days ?? {}
     })
+  },
+
+  seedStats: async ({ extensionContext }, use) => {
+    await use(async days => {
+      await setStorageValue(extensionContext, STATS_STORAGE_KEY, {
+        schemaVersion: 1,
+        days,
+      })
+    })
+  },
+
+  openStatsPage: async ({ extensionContext, extensionId }, use) => {
+    await use(async () =>
+      openExtensionPageInContext(
+        extensionContext,
+        extensionId,
+        '/src/stats/stats-page.html',
+      ),
+    )
   },
 
   actionBadge: async ({ extensionContext }, use) => {

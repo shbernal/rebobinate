@@ -50,8 +50,8 @@ paste into another browser.
 
 ## Privacy
 
-Rebobinate collects nothing, sends nothing, and has no account. Your settings
-never leave your device.
+Rebobinate collects nothing, sends nothing, and has no account. Your settings,
+remembered sites and watch-time stats never leave your device.
 
 ## Contributing
 

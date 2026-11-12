@@ -155,6 +155,7 @@ const createChromeMock = () => {
     lastError: undefined as chrome.runtime.LastError | undefined,
     id: 'rebobinate-test' as string | undefined,
     onMessage: runtimeMessage,
+    getURL: (path: string) => `chrome-extension://rebobinate-test/${path}`,
     sendMessage: vi.fn(
       (_message: unknown, callback?: (response?: unknown) => void) => {
         answer(() => callback?.())
@@ -225,6 +226,7 @@ const createChromeMock = () => {
     tabs: {
       onRemoved: tabRemoved,
       onUpdated: tabUpdated,
+      create: vi.fn(),
       // The tabs a query answers with. Seeded rather than fixed because the
       // service worker now reads the tab's URL and its private-window flag, not
       // just its id. A seeded tab with no `url` is the shape Chromium returns

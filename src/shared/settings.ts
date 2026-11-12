@@ -43,9 +43,9 @@ export const BADGE_CORNERS = [
 export type BadgeCorner = (typeof BADGE_CORNERS)[number]
 
 /** How many days of watch time are kept. `0` keeps every day. */
-const STATS_RETENTION_DAYS = [90, 365, 0] as const
+export const STATS_RETENTION_DAYS = [90, 365, 0] as const
 
-type StatsRetentionDays = (typeof STATS_RETENTION_DAYS)[number]
+export type StatsRetentionDays = (typeof STATS_RETENTION_DAYS)[number]
 
 export type BadgeSettings = {
   enabled: boolean

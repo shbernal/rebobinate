@@ -144,7 +144,13 @@ cat dist/service-worker-loader.js   # must import the service-worker chunk
 ```
 
 This is why the entries are `src/background/service-worker.ts` and
-`src/content/content-script.ts`.
+`src/content/content-script.ts`, and why the stats page is the build input
+`stats-page` rather than `stats`: `stats` is also the chunk
+`src/shared/stats.ts` lands in.
+
+The stats page is an input in `vite.config.ts` because crxjs only builds the
+pages the manifest names, and no manifest key names it: the popup opens it with
+`tabs.create`. It ships in both packages at `src/stats/stats-page.html`.
 
 ## Firefox lint
 

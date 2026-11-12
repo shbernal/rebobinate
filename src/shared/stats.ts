@@ -211,3 +211,24 @@ export const writeStats = (store: StatsStore, callback?: () => void): void => {
     },
   )
 }
+
+export const onStatsChange = (
+  listener: (store: StatsStore) => void,
+): (() => void) => {
+  const handler = (
+    changes: Record<string, chrome.storage.StorageChange>,
+    areaName: string,
+  ) => {
+    if (areaName !== 'local' || !changes[STATS_STORAGE_KEY]) {
+      return
+    }
+
+    listener(normalizeStats(changes[STATS_STORAGE_KEY].newValue))
+  }
+
+  chrome.storage.onChanged.addListener(handler)
+
+  return () => {
+    chrome.storage.onChanged.removeListener(handler)
+  }
+}

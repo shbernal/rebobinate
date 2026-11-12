@@ -11,7 +11,13 @@ import {
 } from '@/shared/domains'
 import type { Settings } from '@/shared/settings'
 import type { StatsSample } from '@/shared/stats'
-import { mergeStats, pruneStats, readStats, writeStats } from '@/shared/stats'
+import {
+  mergeStats,
+  normalizeStats,
+  pruneStats,
+  readStats,
+  writeStats,
+} from '@/shared/stats'
 import {
   clampToSettings,
   onSettingsChange,
@@ -535,6 +541,15 @@ chrome.runtime.onMessage.addListener(
 
     if (message.type === 'rebobinate:watch-time') {
       recordWatchTime(sender, message.samples)
+
+      return false
+    }
+
+    if (message.type === 'rebobinate:clear-stats') {
+      dropPendingStats()
+      enqueueStatsUpdate(done => {
+        writeStats(normalizeStats(undefined), done)
+      })
 
       return false
     }
