@@ -206,7 +206,9 @@ selected first, and a reload puts the popup back on Speed.
   stats page in both colour schemes, since the system colour keywords only resolve to
   a contrast in a real browser. It drops the pane's scroll-cue gradients first,
   because axe reports text over a gradient as unmeasured rather than failing
-  it. Focus-ring contrast is outside what axe checks.
+  it. axe also skips buttons whose content is a lone glyph (− + ✕), so the
+  same spec measures those against 3:1 non-text contrast itself. Focus-ring
+  contrast is outside what axe checks.
 - Anything that depends on a video actually decoding — playback progress, source
   reloads, buffering: `e2e/specs/playback.spec.ts`, against `/playing`. A
   source-less fixture cannot show any of it.
