@@ -59,7 +59,10 @@ browser's own end-to-end encrypted service under the user's own account,
 carries it between that user's browsers when they have turned it on. Mozilla's
 built-in data consent documentation does not mention `storage.sync`; if it
 comes to classify it as transmission, the declaration changes before the next
-release.
+release. That change is not a one-word swap: the matching category,
+`technicalAndInteraction` ("extension usage and settings data"), may only be
+declared optional, so the Firefox build would have to sync only while the user
+has granted it, or not sync at all.
 
 If a future change transmits anything else off the device — analytics, crash
 reporting, a remote config fetch, syncing the site map or the stats —
