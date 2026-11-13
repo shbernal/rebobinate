@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react'
-import type { KeyBindings, SpeedAction } from '@/shared/keys'
+import type { Action, KeyBindings } from '@/shared/keys'
 import {
-  SPEED_ACTIONS,
+  ACTIONS,
   bindingOwner,
   captureBinding,
   formatBinding,
 } from '@/shared/keys'
 import { DEFAULT_SETTINGS } from '@/shared/settings'
 
-const ACTION_LABELS: Record<SpeedAction, string> = {
+const ACTION_LABELS: Record<Action, string> = {
   increase: 'Faster',
   decrease: 'Slower',
   reset: 'Reset',
+  seekBack: 'Back',
+  seekForward: 'Forward',
 }
 
 const REJECTIONS = {
   modified: 'Ctrl, Alt and ⌘ combinations are left to the browser.',
-  reserved: 'Esc closes the capture and Tab has to keep moving the focus.',
 } as const
 
 type Chip = {
@@ -53,7 +54,7 @@ type KeyEditorProps = {
 }
 
 const KeyEditor = ({ keys, onChange }: KeyEditorProps) => {
-  const [capturing, setCapturing] = useState<SpeedAction | null>(null)
+  const [capturing, setCapturing] = useState<Action | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -72,6 +73,12 @@ const KeyEditor = ({ keys, onChange }: KeyEditorProps) => {
       // A modifier held on its own is the first half of a keystroke, so the
       // capture stays open and the event stays the browser's.
       if (result.status === 'pending') {
+        return
+      }
+
+      // Tab moves the focus on as usual; the capture just closes behind it.
+      if (result.status === 'released') {
+        stop()
         return
       }
 
@@ -120,7 +127,7 @@ const KeyEditor = ({ keys, onChange }: KeyEditorProps) => {
     }
   }, [capturing, keys, onChange])
 
-  const removeChip = (action: SpeedAction, chip: Chip) => {
+  const removeChip = (action: Action, chip: Chip) => {
     onChange({
       ...keys,
       [action]: keys[action].filter(
@@ -132,12 +139,12 @@ const KeyEditor = ({ keys, onChange }: KeyEditorProps) => {
   // The slot under the listening row, or the one under the last row when
   // nothing is listening.
   const noteOrder = capturing
-    ? SPEED_ACTIONS.indexOf(capturing) * 2 + 1
-    : SPEED_ACTIONS.length * 2
+    ? ACTIONS.indexOf(capturing) * 2 + 1
+    : ACTIONS.length * 2
 
   return (
     <section className="keys">
-      {SPEED_ACTIONS.map((action, index) => {
+      {ACTIONS.map((action, index) => {
         const chips = toChips(keys[action])
         const isCapturing = capturing === action
 
@@ -213,11 +220,14 @@ const KeyEditor = ({ keys, onChange }: KeyEditorProps) => {
           setMessage(null)
           // Copied, not handed over: `DEFAULT_SETTINGS` is a module-level
           // object every surface reads from.
-          onChange({
-            increase: [...DEFAULT_SETTINGS.keys.increase],
-            decrease: [...DEFAULT_SETTINGS.keys.decrease],
-            reset: [...DEFAULT_SETTINGS.keys.reset],
-          })
+          onChange(
+            Object.fromEntries(
+              ACTIONS.map(action => [
+                action,
+                [...DEFAULT_SETTINGS.keys[action]],
+              ]),
+            ) as KeyBindings,
+          )
         }}
       >
         Restore default keys

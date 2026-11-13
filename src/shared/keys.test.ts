@@ -55,6 +55,26 @@ describe('resolveAction', () => {
     )
   })
 
+  it('seeks on z and x', () => {
+    expect(resolveAction(event({ key: 'z', code: 'KeyZ' }), keys)).toBe(
+      'seekBack',
+    )
+    expect(resolveAction(event({ key: 'x', code: 'KeyX' }), keys)).toBe(
+      'seekForward',
+    )
+  })
+
+  // Spanish layout: `+` sits on the US `]` key and the US `[` key is a dead
+  // accent. Neither may seek.
+  it('leaves the bracket positions to what they type', () => {
+    expect(resolveAction(event({ key: '+', code: 'BracketRight' }), keys)).toBe(
+      'increase',
+    )
+    expect(
+      resolveAction(event({ key: 'Dead', code: 'BracketLeft' }), keys),
+    ).toBeNull()
+  })
+
   it('ignores unrelated keys', () => {
     expect(resolveAction(event({ key: 'k', code: 'KeyK' }), keys)).toBeNull()
     expect(resolveAction(event({ key: '1', code: 'Digit1' }), keys)).toBeNull()
@@ -82,7 +102,13 @@ describe('resolveAction', () => {
   })
 
   it('follows custom bindings', () => {
-    const custom = { increase: ['>'], decrease: ['<'], reset: ['r'] }
+    const custom = {
+      increase: ['>'],
+      decrease: ['<'],
+      reset: ['r'],
+      seekBack: ['j'],
+      seekForward: ['l'],
+    }
 
     expect(resolveAction(event({ key: '>', code: 'Period' }), custom)).toBe(
       'increase',
@@ -129,13 +155,12 @@ describe('captureBinding', () => {
     ).toEqual({ status: 'rejected', reason: 'modified' })
   })
 
-  it('cancels on Escape and refuses Tab', () => {
+  it('cancels on Escape and releases Tab', () => {
     expect(captureBinding(event({ key: 'Escape', code: 'Escape' }))).toEqual({
       status: 'cancelled',
     })
     expect(captureBinding(event({ key: 'Tab', code: 'Tab' }))).toEqual({
-      status: 'rejected',
-      reason: 'reserved',
+      status: 'released',
     })
   })
 })

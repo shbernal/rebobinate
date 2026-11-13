@@ -1,6 +1,7 @@
 import type { RuntimeMessage } from '@/shared/messages'
 import { isRuntimeMessage } from '@/shared/messages'
-import type { SpeedAction } from '@/shared/keys'
+import type { Action } from '@/shared/keys'
+import { isSeekAction } from '@/shared/keys'
 import type { BadgeSettings, Settings } from '@/shared/settings'
 import {
   DEFAULT_SETTINGS,
@@ -13,6 +14,8 @@ import { isControllableDocument } from './document'
 import { createEnforcer } from './enforcer'
 import { createKeyHandler } from './keys'
 import { createMediaRegistry } from './media'
+import { formatSeekLabel, seekVideo } from './seek'
+import { createWatchTimeRecorder } from './watch-time'
 
 if (isControllableDocument(document)) {
   let settings: Settings = DEFAULT_SETTINGS
@@ -131,6 +134,18 @@ if (isControllableDocument(document)) {
     onAction: action => sendIntent(action),
   })
 
+  const watchTime = createWatchTimeRecorder({
+    document,
+    // The master switch stops the recording as well: an extension switched
+    // off keeps no record of anything.
+    isRecording: () => alive() && settings.enabled && settings.rememberStats,
+    onFlush: samples => {
+      send({ type: 'rebobinate:watch-time', samples }, () => {
+        void chrome.runtime.lastError
+      })
+    },
+  })
+
   let stopSettingsWatch = () => {}
   let tornDown = false
 
@@ -158,6 +173,7 @@ if (isControllableDocument(document)) {
     tornDown = true
     keyHandler.stop()
     registry.stop()
+    watchTime.stop()
     badge.destroy()
 
     try {
@@ -195,15 +211,17 @@ if (isControllableDocument(document)) {
     })
   }
 
-  function sendIntent(action: SpeedAction) {
+  function sendIntent(action: Action) {
     send(
-      {
-        type: 'rebobinate:intent',
-        action,
-        currentSpeed: enforcer.getSpeed(),
-      },
+      isSeekAction(action)
+        ? { type: 'rebobinate:seek-intent', action }
+        : {
+            type: 'rebobinate:intent',
+            action,
+            currentSpeed: enforcer.getSpeed(),
+          },
       () => {
-        // The resolved speed arrives as a broadcast to every frame of the tab,
+        // The outcome arrives as a broadcast to every frame of the tab,
         // so there is nothing to do with the direct response. Reading
         // `lastError` keeps Chrome from logging an unchecked-error warning when
         // the service worker is still starting.
@@ -246,6 +264,15 @@ if (isControllableDocument(document)) {
 
     if (message.type === 'rebobinate:state') {
       applySpeed(message.speed)
+      return
+    }
+
+    if (message.type === 'rebobinate:seek') {
+      const video = registry.primary()
+
+      if (video && seekVideo(video, message.seconds)) {
+        badge.flashText(formatSeekLabel(message.seconds), badgeSettings())
+      }
     }
   })
 
@@ -268,6 +295,7 @@ if (isControllableDocument(document)) {
 
   registry.start()
   keyHandler.start()
+  watchTime.start()
   reportMedia()
 
   // Pick up a speed that was set before this frame existed — an iframe added

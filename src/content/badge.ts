@@ -43,6 +43,9 @@ const REPOSITION_BURST_MS = 600
  * "wrong until the next speed change" into "wrong for a quarter second".
  */
 const IDLE_WATCH_MS = 250
+
+/** How long a text flash lasts on a badge whose auto-hide is off. */
+const TEXT_FLASH_MS = 1000
 const INSET_PX = 10
 
 export type BadgeGeometry = {
@@ -68,6 +71,12 @@ export type Badge = {
   render: (speed: number, settings: BadgeSettings, overridden?: boolean) => void
   /** Shows the badge and restarts the auto-hide countdown. */
   flash: (speed: number, settings: BadgeSettings, overridden?: boolean) => void
+  /**
+   * Shows `text` in place of the speed, for news that is not a speed — a seek.
+   * It is shown at 1.0× too, since `hideAtNormalSpeed` is about the speed. A
+   * badge set never to hide goes back to the last speed afterwards.
+   */
+  flashText: (text: string, settings: BadgeSettings) => void
   destroy: () => void
 }
 
@@ -146,6 +155,9 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
   let currentSettings: BadgeSettings | null = null
   let resizeObserver: ResizeObserver | null = null
   let observedVideo: HTMLVideoElement | null = null
+  // What `flashText` goes back to on a badge that never hides.
+  let lastSpeed = 1
+  let lastOverridden = false
 
   const ensureHost = (): HTMLDivElement => {
     if (host?.isConnected) {
@@ -401,16 +413,12 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
   viewport?.addEventListener('resize', handleViewportChange)
   viewport?.addEventListener('scroll', handleViewportChange)
 
-  const show = (
-    speed: number,
-    settings: BadgeSettings,
-    overridden: boolean,
-  ) => {
+  const show = (text: string, settings: BadgeSettings, overridden: boolean) => {
     ensureHost()
     styleLabel(settings, overridden)
 
     if (label) {
-      label.textContent = formatSpeedLabel(speed)
+      label.textContent = text
     }
 
     visible = true
@@ -441,6 +449,8 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     overridden = false,
   ) => {
     currentSettings = settings
+    lastSpeed = speed
+    lastOverridden = overridden
 
     if (!shouldShow(speed, settings)) {
       clearHideTimer()
@@ -453,7 +463,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       return
     }
 
-    show(speed, settings, overridden)
+    show(formatSpeedLabel(speed), settings, overridden)
   }
 
   const flash = (
@@ -462,6 +472,8 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     overridden = false,
   ) => {
     currentSettings = settings
+    lastSpeed = speed
+    lastOverridden = overridden
     clearHideTimer()
 
     if (!shouldShow(speed, settings)) {
@@ -469,7 +481,7 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
       return
     }
 
-    show(speed, settings, overridden)
+    show(formatSpeedLabel(speed), settings, overridden)
 
     // Track the video for a moment: a speed change often coincides with the
     // player showing its controls, which moves the video box.
@@ -478,6 +490,29 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     if (settings.autoHideMs > 0) {
       hideTimer = setTimeout(hide, settings.autoHideMs)
     }
+  }
+
+  const flashText = (text: string, settings: BadgeSettings) => {
+    currentSettings = settings
+    clearHideTimer()
+
+    if (!settings.enabled || !anchor()) {
+      hide()
+      return
+    }
+
+    show(text, settings, false)
+    startBurst()
+
+    if (settings.autoHideMs > 0) {
+      hideTimer = setTimeout(hide, settings.autoHideMs)
+      return
+    }
+
+    hideTimer = setTimeout(() => {
+      hideTimer = null
+      render(lastSpeed, currentSettings ?? settings, lastOverridden)
+    }, TEXT_FLASH_MS)
   }
 
   const destroy = () => {
@@ -510,5 +545,5 @@ export const createBadge = ({ document: doc, anchor }: BadgeOptions): Badge => {
     label = null
   }
 
-  return { render, flash, destroy }
+  return { render, flash, flashText, destroy }
 }

@@ -184,6 +184,23 @@ describe('popup tabs', () => {
     expect(screen.getByRole('tab', { name: 'Settings' })).toHaveFocus()
   })
 
+  it('jumps to the first and last tab with Home and End', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    screen.getByRole('tab', { name: 'Speed' }).focus()
+    await user.keyboard('{End}')
+
+    expect(screen.getByRole('tab', { name: 'Settings' })).toHaveFocus()
+
+    await user.keyboard('{Home}')
+
+    expect(screen.getByRole('tab', { name: 'Speed' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
   it('keeps the enabled switch out of the tabs', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -337,7 +354,12 @@ describe('popup tabs', () => {
   // The hint stops being true the moment a key is rebound.
   it('names the bound keys in the hint', () => {
     seedSettings({
-      keys: { increase: ['ArrowUp'], decrease: ['ArrowDown'], reset: ['r'] },
+      keys: {
+        ...DEFAULT_SETTINGS.keys,
+        increase: ['ArrowUp'],
+        decrease: ['ArrowDown'],
+        reset: ['r'],
+      },
     })
     render(<App />)
 
@@ -1307,7 +1329,7 @@ describe('popup key bindings', () => {
     const user = await openSettings()
     const note = document.querySelector('section.keys p.note') as HTMLElement
 
-    expect(note.style.order).toBe('6')
+    expect(note.style.order).toBe('10')
 
     await capture(user, 'Faster')
     expect(note.style.order).toBe('1')
@@ -1316,7 +1338,7 @@ describe('popup key bindings', () => {
     expect(note.style.order).toBe('5')
 
     await user.keyboard('{Escape}')
-    expect(note.style.order).toBe('6')
+    expect(note.style.order).toBe('10')
   })
 
   // The content script hands modified keystrokes back to the browser, so a
@@ -1340,6 +1362,20 @@ describe('popup key bindings', () => {
     expect(
       screen.getByRole('button', { name: 'Add a key for Reset' }),
     ).toHaveAttribute('aria-pressed', 'false')
+    expect(storedSettings().keys.reset).toEqual(DEFAULT_SETTINGS.keys.reset)
+  })
+
+  // Tab is how a keyboard user leaves the row, so it closes the capture and
+  // still moves the focus instead of being refused or bound.
+  it('lets Tab move the focus out and closes the capture', async () => {
+    const user = await openSettings()
+    const add = screen.getByRole('button', { name: 'Add a key for Reset' })
+
+    await capture(user, 'Reset')
+    await user.tab()
+
+    expect(add).toHaveAttribute('aria-pressed', 'false')
+    expect(add).not.toHaveFocus()
     expect(storedSettings().keys.reset).toEqual(DEFAULT_SETTINGS.keys.reset)
   })
 
@@ -1370,7 +1406,13 @@ describe('popup key bindings', () => {
 
   it('puts the defaults back', async () => {
     seedSettings({
-      keys: { increase: ['a'], decrease: ['b'], reset: ['c'] },
+      keys: {
+        increase: ['a'],
+        decrease: ['b'],
+        reset: ['c'],
+        seekBack: ['d'],
+        seekForward: ['e'],
+      },
     })
     const user = await openSettings()
 
@@ -1432,6 +1474,39 @@ describe('popup step field', () => {
 
     expect(stepField()).toHaveValue(0.2)
     expect(storedSettings().step).toBe(0.2)
+  })
+})
+
+describe('popup seek field', () => {
+  const seekField = () =>
+    screen.getByLabelText('Seek seconds') as HTMLInputElement
+
+  beforeEach(() => {
+    answerPopupState('youtube.com')
+  })
+
+  it('saves whole seconds and clamps on leaving', async () => {
+    const user = await openSettings()
+
+    await user.clear(seekField())
+    await user.type(seekField(), '30')
+    expect(storedSettings().seekSeconds).toBe(30)
+
+    await user.clear(seekField())
+    await user.type(seekField(), '500')
+    await user.tab()
+    expect(storedSettings().seekSeconds).toBe(120)
+  })
+
+  it('lists the seek actions among the keys', async () => {
+    await openSettings()
+
+    expect(
+      screen.getByRole('button', { name: 'Add a key for Back' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Add a key for Forward' }),
+    ).toBeInTheDocument()
   })
 })
 
@@ -1566,6 +1641,50 @@ describe('popup color picker', () => {
       '#ff8800',
     )
     expect(within(picker).getByLabelText('Hue')).toHaveValue('32')
+  })
+})
+
+describe('popup stats tab', () => {
+  it('shows the headline numbers and opens the full page', async () => {
+    const today = new Date()
+    const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    getChromeMock().storage.local.seed({
+      'rebobinate:stats': {
+        schemaVersion: 1,
+        days: { [day]: { 'a.com': { '2': 1800 } } },
+      },
+    })
+    answerPopupState('a.com')
+    const user = userEvent.setup()
+    render(<App />)
+
+    await openTab(user, 'Stats')
+
+    expect(screen.getAllByText('30 min')).toHaveLength(4)
+
+    await user.click(screen.getByRole('button', { name: 'Open full stats' }))
+
+    expect(getChromeMock().tabs.create).toHaveBeenCalledWith({
+      url: 'chrome-extension://rebobinate-test/src/stats/stats-page.html',
+    })
+  })
+})
+
+describe('popup watch-time toggle', () => {
+  beforeEach(() => {
+    seedSettings()
+    answerPopupState('youtube.com')
+  })
+
+  it('is on by default and switches off', async () => {
+    const user = await openSettings()
+
+    const toggle = screen.getByRole('checkbox', { name: 'Record watch time' })
+    expect(toggle).toBeChecked()
+
+    await user.click(toggle)
+
+    expect(storedSettings().rememberStats).toBe(false)
   })
 })
 

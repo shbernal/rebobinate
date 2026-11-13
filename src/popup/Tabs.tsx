@@ -18,7 +18,8 @@ export const tabId = (id: string) => `tab-${id}`
 
 /**
  * The ARIA tab pattern, including the part that is easy to skip: only the
- * selected tab is in the focus order, and the arrow keys move between them.
+ * selected tab is in the focus order, the arrow keys move between them, and
+ * Home and End jump to the ends.
  * Without that a keyboard user has to tab through every tab to reach the panel.
  */
 const Tabs = <TId extends string>({
@@ -28,24 +29,30 @@ const Tabs = <TId extends string>({
 }: TabsProps<TId>) => {
   const buttons = useRef(new Map<TId, HTMLButtonElement | null>())
 
-  const move = (from: TId, delta: number) => {
-    const index = tabs.findIndex(tab => tab.id === from)
-    const next = tabs[(index + delta + tabs.length) % tabs.length]
-
+  const select = (next: Tab<TId>) => {
     onSelect(next.id)
     buttons.current.get(next.id)?.focus()
   }
 
   const handleKeyDown = (event: ReactKeyboardEvent, id: TId) => {
-    const delta =
-      event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+    const index = tabs.findIndex(tab => tab.id === id)
+    const target =
+      event.key === 'ArrowRight'
+        ? (index + 1) % tabs.length
+        : event.key === 'ArrowLeft'
+          ? (index - 1 + tabs.length) % tabs.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? tabs.length - 1
+              : null
 
-    if (delta === 0) {
+    if (target === null) {
       return
     }
 
     event.preventDefault()
-    move(id, delta)
+    select(tabs[target])
   }
 
   return (

@@ -1,4 +1,5 @@
 import type { KeyBindings } from './keys'
+import { ACTIONS } from './keys'
 import { clampSpeed, roundSpeed } from './speed'
 
 export const SETTINGS_STORAGE_KEY = 'rebobinate:settings'
@@ -17,12 +18,20 @@ export const SETTINGS_STORAGE_KEY = 'rebobinate:settings'
  * key and normalizes to the default, so an installed copy keeps everything it
  * had and gains the speed on its toolbar icon.
  *
+ * `4` added `seekSeconds` and the `seekBack` / `seekForward` bindings, on the
+ * same terms: a stored `3` object has neither, and its `keys` normalize to the
+ * actions it had plus the default bindings for the two new ones.
+ *
+ * `5` added `rememberStats` and `statsRetentionDays`, on the same terms: a
+ * stored `4` object has neither and normalizes to the defaults, so recording
+ * starts on the first update and nothing already stored is touched.
+ *
  * Exported with no importer yet, and tagged so knip leaves it: it is the
  * stored-state marker a migration test will reach for.
  *
  * @public
  */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 5
 
 export const BADGE_CORNERS = [
   'top-left',
@@ -32,6 +41,11 @@ export const BADGE_CORNERS = [
 ] as const
 
 export type BadgeCorner = (typeof BADGE_CORNERS)[number]
+
+/** How many days of watch time are kept. `0` keeps every day. */
+export const STATS_RETENTION_DAYS = [90, 365, 0] as const
+
+export type StatsRetentionDays = (typeof STATS_RETENTION_DAYS)[number]
 
 export type BadgeSettings = {
   enabled: boolean
@@ -73,6 +87,14 @@ export type Settings = {
    * worth more here than one grouping.
    */
   toolbarBadge: boolean
+  /** How far `seekBack` and `seekForward` move the video, in seconds. */
+  seekSeconds: number
+  /**
+   * Whether watch time is recorded per day, site and speed. Off, the stats
+   * store is neither read nor written; what it already holds stays.
+   */
+  rememberStats: boolean
+  statsRetentionDays: StatsRetentionDays
   keys: KeyBindings
 }
 
@@ -84,6 +106,7 @@ export const LIMITS = {
   fontSize: { min: 8, max: 48 },
   opacity: { min: 0.1, max: 1 },
   autoHideMs: { min: 0, max: 30000 },
+  seekSeconds: { min: 1, max: 120 },
 } as const
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -105,10 +128,18 @@ export const DEFAULT_SETTINGS: Settings = {
     autoHideMs: 2000,
   },
   toolbarBadge: true,
+  seekSeconds: 10,
+  rememberStats: true,
+  statsRetentionDays: 365,
   keys: {
     increase: ['+', '=', 'Equal', 'NumpadAdd'],
     decrease: ['-', 'Minus', 'NumpadSubtract'],
     reset: ['0', 'Digit0', 'Numpad0'],
+    // Plain letters, matched as typed and never by position: on most non-US
+    // layouts the bracket keys take AltGr, and their physical keys are `+` and
+    // a dead accent. Video Speed Controller uses the same pair.
+    seekBack: ['z'],
+    seekForward: ['x'],
   },
 }
 
@@ -131,6 +162,16 @@ const normalizeNumber = (
 
 const normalizeBoolean = (value: unknown, fallback: boolean): boolean => {
   return typeof value === 'boolean' ? value : fallback
+}
+
+/** Same reason as `clampStep`: the popup clamps the field as it is typed. */
+export const clampSeekSeconds = (value: unknown): number => {
+  return normalizeNumber(
+    value,
+    DEFAULT_SETTINGS.seekSeconds,
+    LIMITS.seekSeconds,
+    Math.round,
+  )
 }
 
 /**
@@ -167,6 +208,23 @@ const normalizeBindings = (value: unknown, fallback: string[]): string[] => {
   )
 
   return tokens.length > 0 ? Array.from(new Set(tokens)) : [...fallback]
+}
+
+/**
+ * An action missing from the stored object — one added after that object was
+ * written — gets its default bindings like any other missing field. A user who
+ * had already bound one of those keys elsewhere keeps it working: the content
+ * script resolves the speed actions first.
+ */
+const normalizeKeys = (value: unknown): KeyBindings => {
+  const source = isRecord(value) ? value : {}
+
+  return Object.fromEntries(
+    ACTIONS.map(action => [
+      action,
+      normalizeBindings(source[action], DEFAULT_SETTINGS.keys[action]),
+    ]),
+  ) as KeyBindings
 }
 
 const normalizeBadge = (value: unknown): BadgeSettings => {
@@ -216,7 +274,6 @@ const normalizeBadge = (value: unknown): BadgeSettings => {
  */
 export const normalizeSettings = (value: unknown): Settings => {
   const source = isRecord(value) ? value : {}
-  const keys = isRecord(source.keys) ? source.keys : {}
   const minSpeed = normalizeNumber(
     source.minSpeed,
     DEFAULT_SETTINGS.minSpeed,
@@ -254,17 +311,17 @@ export const normalizeSettings = (value: unknown): Settings => {
       source.toolbarBadge,
       DEFAULT_SETTINGS.toolbarBadge,
     ),
-    keys: {
-      increase: normalizeBindings(
-        keys.increase,
-        DEFAULT_SETTINGS.keys.increase,
-      ),
-      decrease: normalizeBindings(
-        keys.decrease,
-        DEFAULT_SETTINGS.keys.decrease,
-      ),
-      reset: normalizeBindings(keys.reset, DEFAULT_SETTINGS.keys.reset),
-    },
+    seekSeconds: clampSeekSeconds(source.seekSeconds),
+    rememberStats: normalizeBoolean(
+      source.rememberStats,
+      DEFAULT_SETTINGS.rememberStats,
+    ),
+    statsRetentionDays: STATS_RETENTION_DAYS.includes(
+      source.statsRetentionDays as StatsRetentionDays,
+    )
+      ? (source.statsRetentionDays as StatsRetentionDays)
+      : DEFAULT_SETTINGS.statsRetentionDays,
+    keys: normalizeKeys(source.keys),
   }
 }
 

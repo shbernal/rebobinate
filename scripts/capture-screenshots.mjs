@@ -5,7 +5,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
-import { extensionPath, resolveChromiumExecutable } from './chromium-path.mjs'
+import {
+  dropCachedServiceWorkers,
+  extensionPath,
+  resolveChromiumExecutable,
+} from './chromium-path.mjs'
 import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
 printHelpAndExit(`
@@ -181,6 +185,8 @@ const CARD_PAGE = `<!doctype html>
 `
 
 const executablePath = resolveChromiumExecutable()
+
+dropCachedServiceWorkers(profileDir)
 
 const context = await chromium.launchPersistentContext(profileDir, {
   // The same browser every other script launches, not only Playwright's own.

@@ -111,38 +111,43 @@ export const getExtensionId = async (context: BrowserContext) => {
   return new URL(worker.url()).hostname
 }
 
+/** `sync` stands in for another browser's edit arriving through sync. */
+type StorageAreaName = 'local' | 'sync'
+
 export const setStorageValue = async <Value>(
   context: BrowserContext,
   key: string,
   value: Value,
+  area: StorageAreaName = 'local',
 ) => {
   const worker = await waitForExtensionWorker(context)
 
   await worker.evaluate(
-    ({ storageKey, storageValue }) =>
+    ({ storageKey, storageValue, areaName }) =>
       new Promise<void>(resolve => {
-        chrome.storage.local.set({ [storageKey]: storageValue }, () => {
+        chrome.storage[areaName].set({ [storageKey]: storageValue }, () => {
           resolve()
         })
       }),
-    { storageKey: key, storageValue: value },
+    { storageKey: key, storageValue: value, areaName: area },
   )
 }
 
 export const getStorageValue = async <Value>(
   context: BrowserContext,
   key: string,
+  area: StorageAreaName = 'local',
 ): Promise<Value | undefined> => {
   const worker = await waitForExtensionWorker(context)
 
   return worker.evaluate(
-    storageKey =>
+    ({ storageKey, areaName }) =>
       new Promise<unknown>(resolve => {
-        chrome.storage.local.get(storageKey, stored => {
+        chrome.storage[areaName].get(storageKey, stored => {
           resolve(stored?.[storageKey])
         })
       }),
-    key,
+    { storageKey: key, areaName: area },
   ) as Promise<Value | undefined>
 }
 

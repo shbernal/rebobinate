@@ -127,8 +127,10 @@ assert the property the extension just wrote — the plumbing, not the outcome.
 `/playing` points at `e2e/fixtures/media/clip.mp4`, four seconds of animation
 committed alongside a WebM transcode of the same footage (~50 KB together, see
 that directory's README for provenance and the ffmpeg flags). They are served by
-the same route interception as the pages, whole and without range support, which
-Chromium is happy with at this size.
+the same route interception as the pages, with byte-range support: without it
+Chromium reports nothing as seekable and a seek snaps back to 0. `/paused`
+holds the clip still so `currentTime` only moves when something seeks it, and
+`/embedder-media` puts it in a third-party iframe for the seek test.
 
 `e2e/specs/playback.spec.ts` is what they exist for:
 
@@ -200,6 +202,13 @@ selected first, and a reload puts the popup back on Speed.
 - Video discovery, rate enforcement, badge geometry: unit tests against jsdom.
 - Anything that depends on real frames, real focus, or the real extension
   messaging path: Playwright. That includes iframes, fullscreen, and the popup.
+- Accessibility: `e2e/specs/a11y.spec.ts` runs axe over each popup tab and the
+  stats page in both colour schemes, since the system colour keywords only resolve to
+  a contrast in a real browser. It drops the pane's scroll-cue gradients first,
+  because axe reports text over a gradient as unmeasured rather than failing
+  it. axe also skips buttons whose content is a lone glyph (− + ✕), so the
+  same spec measures those against 3:1 non-text contrast itself. Focus-ring
+  contrast is outside what axe checks.
 - Anything that depends on a video actually decoding — playback progress, source
   reloads, buffering: `e2e/specs/playback.spec.ts`, against `/playing`. A
   source-less fixture cannot show any of it.
@@ -231,6 +240,15 @@ that is reused between runs so a site logged into once stays logged in, and stay
 open until the window is closed. Loading the build by hand —
 `chrome://extensions`, or `about:debugging` on Gecko — does the same thing; the
 scripts only save the trip.
+
+A reused Chromium profile keeps the extension's service worker cached, and
+Chromium goes on running that script after `dist/` is rebuilt while the
+manifest version stays the same. The new content script then talks to the old
+service worker, which drops any message it does not know without an error. The
+Chromium launchers (`dev:chrome`, `inspect:chrome`, the screenshot capture)
+delete the profile's `Service Worker` store before every start for that
+reason. Loading by hand from `chrome://extensions` needs the reload button
+after each build.
 
 `pnpm dev:firefox --with-ublock` and `pnpm dev:zen --with-ublock` add the real
 uBlock Origin to the profile. Gecko is the only place it can run — see [Ad

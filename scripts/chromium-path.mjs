@@ -28,3 +28,22 @@ export const resolveChromiumExecutable = () => {
     '/usr/bin/google-chrome-stable',
   ].find(candidate => fs.existsSync(candidate))
 }
+
+/**
+ * Removes a reused profile's service-worker store before launch.
+ *
+ * Chromium keeps the extension's service worker in that store and goes on
+ * running the cached script after `dist/` is rebuilt, as long as the manifest
+ * version is unchanged: the new content script then talks to the old service
+ * worker, and any message it does not know is dropped without an error. The
+ * extension registers its worker again on load, and site logins live elsewhere
+ * in the profile, so nothing worth keeping goes with it.
+ *
+ * @param {string} profilePath
+ */
+export const dropCachedServiceWorkers = profilePath => {
+  fs.rmSync(path.join(profilePath, 'Default', 'Service Worker'), {
+    recursive: true,
+    force: true,
+  })
+}

@@ -18,21 +18,18 @@ import {
 import SettingsPane from './SettingsPane'
 import SitesPane from './SitesPane'
 import SpeedPane from './SpeedPane'
+import StatsPane from './StatsPane'
 import Tabs, { tabId, tabPanelId } from './Tabs'
 import type { Tab } from './Tabs'
 import Toggle from './Toggle'
 import './App.css'
 
-type TabId = 'speed' | 'sites' | 'settings'
+type TabId = 'speed' | 'sites' | 'stats' | 'settings'
 
-/**
- * The Stats tab the plan calls for is not here yet: there is nothing to put in
- * it until the metrics feature exists, and a tab that opens onto a placeholder
- * is worse than one that is not there. Adding it is one entry in this list.
- */
 const TABS: Tab<TabId>[] = [
   { id: 'speed', label: 'Speed' },
   { id: 'sites', label: 'Sites' },
+  { id: 'stats', label: 'Stats' },
   { id: 'settings', label: 'Settings' },
 ]
 
@@ -473,6 +470,10 @@ const App = () => {
             onForget={forgetSite}
             onHoldHeight={holdPaneHeight}
           />
+        ) : null}
+
+        {tab === 'stats' ? (
+          <StatsPane recording={settings.rememberStats} />
         ) : null}
 
         {tab === 'settings' ? (

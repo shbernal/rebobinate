@@ -74,6 +74,37 @@ describe('normalizeSettings', () => {
     expect(keys.reset).toEqual(['r'])
   })
 
+  it('gives a stored object without seek keys the default ones', () => {
+    // What a copy installed before the seek actions holds.
+    const keys = normalizeSettings({
+      keys: { increase: ['+'], decrease: ['-'], reset: ['0'] },
+    }).keys
+
+    expect(keys.seekBack).toEqual(DEFAULT_SETTINGS.keys.seekBack)
+    expect(keys.seekForward).toEqual(DEFAULT_SETTINGS.keys.seekForward)
+    expect(keys.reset).toEqual(['0'])
+  })
+
+  it('clamps the seek distance to whole seconds in range', () => {
+    expect(normalizeSettings({}).seekSeconds).toBe(10)
+    expect(normalizeSettings({ seekSeconds: 0 }).seekSeconds).toBe(1)
+    expect(normalizeSettings({ seekSeconds: 900 }).seekSeconds).toBe(120)
+    expect(normalizeSettings({ seekSeconds: 4.6 }).seekSeconds).toBe(5)
+    expect(normalizeSettings({ seekSeconds: 'x' }).seekSeconds).toBe(10)
+  })
+
+  // A stored `4` object has neither key, and gains the defaults.
+  it('fills the stats settings and refuses an unknown retention', () => {
+    expect(normalizeSettings({}).rememberStats).toBe(true)
+    expect(normalizeSettings({}).statsRetentionDays).toBe(365)
+    expect(
+      normalizeSettings({ statsRetentionDays: 0 }).statsRetentionDays,
+    ).toBe(0)
+    expect(
+      normalizeSettings({ statsRetentionDays: 30 }).statsRetentionDays,
+    ).toBe(365)
+  })
+
   it('always stamps the current schema version', () => {
     expect(normalizeSettings({ schemaVersion: 0 }).schemaVersion).toBe(
       DEFAULT_SETTINGS.schemaVersion,

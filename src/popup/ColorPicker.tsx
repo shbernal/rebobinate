@@ -35,9 +35,9 @@ const HUE_TRACK =
   'linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)'
 
 const CHANNELS = [
-  { key: 'h', label: 'Hue', max: 360 },
-  { key: 's', label: 'Saturation', max: 100 },
-  { key: 'l', label: 'Lightness', max: 100 },
+  { key: 'h', label: 'Hue', max: 360, unit: '°' },
+  { key: 's', label: 'Saturation', max: 100, unit: '%' },
+  { key: 'l', label: 'Lightness', max: 100, unit: '%' },
 ] as const
 
 const trackFor = (channel: 'h' | 's' | 'l', { h, s, l }: Hsl): string => {
@@ -171,6 +171,7 @@ const ColorPicker = ({ label, value, onChange, onClose }: ColorPickerProps) => {
             min={0}
             max={channel.max}
             value={hsl[channel.key]}
+            aria-valuetext={`${hsl[channel.key]}${channel.unit}`}
             style={{ background: trackFor(channel.key, hsl) }}
             onChange={event => applyChannel(channel.key, event.target.value)}
           />

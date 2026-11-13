@@ -24,6 +24,26 @@ inherit a speed that was set before they existed; one that asks before the top
 frame has (which happens) resolves from the tab's domain too, rather than
 sitting at 1.0 until the broadcast corrects it.
 
+## Seeking
+
+`seekBack` and `seekForward` reach the video the same way a speed intent does,
+because the keystroke lands in the focused frame and the player may be in
+another. The frame sends `rebobinate:seek-intent`; the service worker reads
+`seekSeconds`, checks the master switch, and broadcasts `rebobinate:seek` with
+signed seconds to every frame. Nothing is stored: a position is not tab-wide
+state, so there is no map and nothing to resume from after eviction.
+
+Each frame seeks its own primary video (`src/content/seek.ts`), clamped to
+`[0, duration]`, and leaves alone a live stream (`duration === Infinity`) or a
+video with no metadata yet. The defaults are `z` / `x`, bound by character only. Brackets were the obvious
+pick and are wrong off a US layout: on Spanish or German they need AltGr, and
+their physical keys (`BracketLeft`, `BracketRight`) type a dead accent and `+`,
+so a position binding would seek on the accent and lose Forward to Faster.
+
+A frame that seeked flashes `−10s` / `+10s` through
+`badge.flashText`, which shows at 1.0× too and, on a badge set never to hide,
+goes back to the speed a second later.
+
 ## An orphaned content script
 
 An extension update, reload or disable does not reload open tabs. The content
@@ -97,7 +117,10 @@ not worth it here: when the guess is wrong two sites share a speed, and one
 keypress fixes it. So the rule is "the last two labels", with a third kept when
 the last two are a known multi-part suffix. That table is the part that earns
 its keep — without it `bbc.co.uk` keys as `co.uk` and every UK site shares one
-speed, which is the one failure anybody would notice. IP literals and
+speed, which is the one failure anybody would notice. The table does not cover
+hosting suffixes, so `alice.github.io` and `bob.github.io` share a key. The key
+format is part of what installed copies store, so changing the rule later means
+re-keying the map, not resetting it. IP literals and
 single-label hosts are kept whole; `chrome://`, `about:`, `file://` and `data:`
 pages get no key at all and are never written down.
 
@@ -231,6 +254,41 @@ may still be sitting in the debounce, and only the worker can cancel it. A speed
 set for the domain the active tab is on is applied to that tab as well —
 editing the row for the site being watched and seeing nothing happen would read
 as broken.
+
+## Watch time
+
+Time watched is recorded per local day, site and speed, on the device only,
+and shown in the popup's Stats tab and on the stats page.
+
+**The shape is the privacy answer.** `rebobinate:stats`, in
+`src/shared/stats.ts`, holds `days[YYYY-MM-DD][domain][speedBucket] = seconds`
+and nothing else: no event log, no URLs, no time of day. Speeds are bucketed to
+the nearest 0.25×. The day is the user's local date. Every read goes through
+`normalizeStats`, which drops a malformed day, site or bucket on its own and
+keeps the rest, and the store carries its own `schemaVersion` (`1`). Stats are
+not in the backup envelope: they are bulky and rebuild themselves from use, and
+leaving them out keeps `BACKUP_VERSION` unchanged.
+
+**Frames count, the service worker writes.** `src/content/watch-time.ts` runs
+on `timeupdate` alone, with no timer: each tick adds the wall-clock time since
+the previous one, at the video's actual `playbackRate`, so a speed the site has
+overridden counts at the site's rate. The clock is per frame, so two videos
+playing at once count the time once. Nothing is counted while the document is
+hidden, for a muted video with no box (a background preview or ad slot), across
+a pause, seek or a gap over two seconds, or while the master switch or
+`rememberStats` is off. A tick is filed under the day it lands on, so playback
+across midnight starts the new day at the first tick after it.
+
+A frame hands its totals over in `rebobinate:watch-time` every 30 seconds of
+playback, when the document is hidden, and on `pagehide`. The service worker
+files them under the tab's top-frame domain, with the same resolver and the
+same exclusions as site memory: private windows and pages with no domain record
+nothing. Reports are coalesced for a second, then merged and written through a
+serial queue (the same one domain updates use), so tabs cannot overwrite each
+other's time. Each write prunes days older than `statsRetentionDays` (90, 365,
+or `0` for forever, default 365), counting today as one of them. With
+`rememberStats` off, the store is neither read nor written, and a batch still
+waiting is dropped.
 
 ## Whether a keystroke is ours
 
@@ -417,6 +475,29 @@ Schema `2` added `defaultSpeed` and `rememberPerDomain`. It needed no migration
 code: both are new keys, so a stored `1` object has them filled from the
 defaults like any other missing field and nothing an installed copy holds is
 reset. Schema `3` added `toolbarBadge` on the same terms.
+Schema `4` added `seekSeconds` and the two seek bindings, on the same terms: an
+action missing from a stored `keys` object gets its default bindings. Schema `5`
+added `rememberStats` and `statsRetentionDays`, on the same terms.
+
+**Settings follow the user between browsers through `storage.sync`.**
+`storage.local` stays the copy every surface reads, writes and listens to, and
+`src/background/settings-sync.ts` in the service worker keeps a replica under
+the same key in `storage.sync`. A local change is copied to sync a second after
+the last one, re-read at that moment, so a drag becomes one write: Chrome
+allows about 120 sync writes a minute, and the popup writes on every input
+event, so writing sync directly made a slider jump back under the cursor when
+the quota refused it. A sync change, which is another browser's edit arriving,
+is copied into local when it differs, and every surface hears it there as an
+ordinary settings change. At start-up a synced copy wins over local, which is
+how a second browser or a reinstall picks up settings made elsewhere; with
+nothing synced yet, local seeds sync, so an upgrade changes nothing. The cost of
+that rule is a change made in the second before the browser closed, which the
+next start reverts to the synced copy. A refused sync write leaves local as it
+is and the next change tries again; the callers' own write errors still come
+from local, as before. A backup restore writes settings through the same path.
+Firefox without an account keeps sync storage on the device. The domain map and
+the stats stay local: the map would need chunking under sync's per-item quota,
+and watch time belongs to the device it was watched on.
 
 `toolbarBadge` is a flat boolean and deliberately not a field of `badge`: that
 object configures the badge drawn over the video down to its corner and
@@ -446,21 +527,44 @@ the step size in the direction of travel, so a site that left the video at 1.07
 does not drag that stray 0.02 through every later press.
 
 The step field in the popup — labelled **Speed step**, since the buttons and
-keys it moves live on other tabs — is the one setting typed a character at a
-time, and
-its halfway states are not valid settings: going from `0.2` to `0.15` passes
+keys it moves live on other tabs — and the **Seek seconds** field under it are
+typed a character at a time, and their halfway states are not valid settings: going from `0.2` to `0.15` passes
 through `''`, `'0'` and `'0.'`. Normalizing each keystroke back into the field
 would rewrite it under the cursor and make those targets unreachable, so
-`src/popup/SettingsPane.tsx` holds the raw text in a draft while the field is
-being edited. A value that is already a valid step saves as it is typed;
-anything else waits for blur, which clamps it through `clampStep` or, for an
-empty field, restores the saved step.
+`useNumberDraft` in `src/popup/SettingsPane.tsx` holds the raw text while the
+field is being edited. A value that is already valid saves as it is typed;
+anything else waits for blur, which clamps it (`clampStep`, `clampSeekSeconds`)
+or, for an empty field, restores the saved value.
+
+**What is shown is derived, not stored.** `src/shared/stats-summary.ts` turns
+the buckets into real time (`real`), the video it covered (`content`, real ×
+speed) and time saved (`content − real`). Time saved goes negative below 1×,
+and every surface shows it that way rather than flooring it at zero: watching
+slowed down costs time.
+
+The popup's **Stats** tab shows the last 7 and last 30 days and opens the stats
+page with `tabs.create`. That page, `src/stats/stats-page.html`, is a second
+extension page in both builds: daily time saved as columns for the chosen
+period, sites ranked by time saved, the retention selector, and Clear all
+stats. Both follow the stats store while open. The chart is inline SVG drawn at
+the plot's measured width (scaled through a `viewBox`, its axis text shrank to
+6px at phone width), one series in `AccentColor` with no legend, a day spent
+below 1× drawn down in the muted ink, and a hover tooltip per column. The SVG
+is a labelled image; the numbers are in a table under it, which is what a
+screen reader reads. Clear asks inline rather than through `confirm()`, and goes
+through the service worker as `rebobinate:clear-stats`, so a batch still waiting
+to be written cannot land on the emptied store.
+
+The page sets its font size on `body`, not `:root`: Chromium gives extension
+pages a stylesheet of its own with `body { font-size: 75% }`.
 
 ## The popup
 
 `src/popup/App.tsx` is a shell rather than a screen. It owns the state every
 pane reads — settings, the tab's speed, the domain the tab counts as, the domain
-map — and renders one of `SpeedPane`, `SitesPane` or `SettingsPane`. Only the
+map — and renders one of `SpeedPane`, `SitesPane`, `StatsPane` or
+`SettingsPane`. `StatsPane` reads the stats store itself: nothing else in the
+popup needs it, and it is the one store that can be large. Only the
 selected pane is mounted, so nothing off screen holds state or listens for keys.
 
 Two things about it are load-bearing:
@@ -478,8 +582,8 @@ Two things about it are load-bearing:
   unmarked. `deferReads()`/`flushReads()` on the Chrome mock hold callbacks
   back so tests can reach these orderings.
 - **The tab strip follows the ARIA tab pattern**, including the part that is
-  easy to skip: only the selected tab is in the focus order and the arrow keys
-  move between them. Without that a keyboard user tabs through every tab to
+  easy to skip: only the selected tab is in the focus order, the arrow keys
+  move between them and Home/End jump to the ends. Without that a keyboard user tabs through every tab to
   reach the pane. Only the selected pane is mounted, so only the selected tab
   carries `aria-controls`. The pane itself is in the focus order: it scrolls
   with its scrollbar hidden, and the notes between controls are otherwise out
@@ -574,12 +678,14 @@ Three things about the panes follow from that width:
   and not a footnote to it, and painted at the aside's weight they were quieter
   than the field labels beside them, which merely name a control already on
   screen. Keeping them apart is what leaves the quiet tier meaning something.
-- **Selected is a fill, focused is an outline.** `outline: 2px solid Highlight`
-  used to mark the open Export panel, the chosen corner, the matching preset
+- **Selected is a fill, focused is an outline.** One outline used to mark the open Export panel, the chosen corner, the matching preset
   chip, the open swatch _and_ `:focus-visible`, so three different meanings were
   one ring and a focused selected control could not show both. Selection is now
   an accent border over `color-mix(in srgb, AccentColor 18%, Canvas)` and the
-  outline belongs to the focus ring alone. The colour presets keep their own
+  outline belongs to the focus ring alone, drawn in `AccentColor`: Chromium
+  resolves `Highlight` to the same translucent dark blue in both themes, under
+  2:1 against the dark Canvas, where `AccentColor` clears the 3:1 a focus
+  indicator needs in both. The colour presets keep their own
   inline background, so on those it is the border that carries it — and the open
   swatch is the one place where a border could not: 44x24 of a user-chosen
   colour with a 1px accent edge was the entire signal that this row's panel was
@@ -642,7 +748,8 @@ is not what somebody who pressed `;` asked for.
 `captureBinding` decides what a press means, and its rules follow
 `resolveAction`: a keystroke the matcher would never accept must not be offered
 as a binding. A modifier held alone leaves the capture open, `Escape` cancels,
-`Tab` is refused because it is how a keyboard user leaves the row, and a
+`Tab` closes the capture and still moves the focus, because it is how a
+keyboard user leaves the row, and a
 modified keystroke is refused because the content script deliberately hands
 those to the browser — binding one would produce a key that silently never
 fires. A key already bound to another action is refused too, since the content

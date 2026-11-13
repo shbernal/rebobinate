@@ -5,7 +5,11 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { chromium } from '@playwright/test'
-import { extensionPath, resolveChromiumExecutable } from './chromium-path.mjs'
+import {
+  dropCachedServiceWorkers,
+  extensionPath,
+  resolveChromiumExecutable,
+} from './chromium-path.mjs'
 import { printHelpAndExit, rejectUnknownArguments } from './help.mjs'
 
 printHelpAndExit(`
@@ -45,6 +49,8 @@ const openUrl =
   defaultOpenUrl
 const headless = process.env.REBOBINATE_HEADLESS === '1'
 const executablePath = resolveChromiumExecutable()
+
+dropCachedServiceWorkers(profilePath)
 
 const context = await chromium.launchPersistentContext(profilePath, {
   executablePath,
