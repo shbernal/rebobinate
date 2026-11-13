@@ -3,5 +3,21 @@
     "file": "public/icons/icon128.png",
     "sha256": "10b693583d1d6213c9a988688fa527b27543248b30116e51a3bf10ad3c801aa0"
   },
-  "previews": []
+  "previews": [
+    {
+      "file": "store/screenshots/rebobinate-1.png",
+      "sha256": "528a0eec3ca3416c33cc9872438f8223a438fe9e45e3c9ea7e6e4e2c4b69ae66",
+      "id": 450025
+    },
+    {
+      "file": "store/screenshots/rebobinate-2.png",
+      "sha256": "e9943ad18fdb17713572bfe2601128420b521a2490ae8708c5be3400d538746d",
+      "id": 450026
+    },
+    {
+      "file": "store/screenshots/rebobinate-3.png",
+      "sha256": "373b82b3c3151ffd94bde8b523681cf89e4d7655ce9de2df1fefb75b36b77532",
+      "id": 450027
+    }
+  ]
 }
