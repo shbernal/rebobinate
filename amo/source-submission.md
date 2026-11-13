@@ -63,18 +63,18 @@ backticks and asterisks would arrive as themselves.
 
 ## Reproducibility
 
-Verified for 0.2.1. `release/rebobinate-source-0.2.1.zip` was extracted into a
+Verified for 0.3.0. `release/rebobinate-source-0.3.0.zip` was extracted into a
 fresh directory and built with the instructions above; the resulting
-`dist-firefox/` matched `release/rebobinate-firefox-0.2.1.zip` on all 11 files,
+`dist-firefox/` matched `release/rebobinate-firefox-0.3.0.zip` on all 16 files,
 by name and SHA-256, with nothing extra or missing on either side.
 
 The build was run on two deliberately different environments:
 
-- Arch Linux, Node.js 26.13.0, pnpm 12.18.0.
+- Arch Linux, Node.js 26.13.0, pnpm 12.11.2.
 - `node:24-bookworm` container, Debian 12, Node.js 24.22.2, pnpm 12.18.0 via
   Corepack. That is the Node major CI uses.
 
-Both produced the same 11 hashes, so the output does not depend on the host or
+Both produced the same 16 hashes, so the output does not depend on the host or
 the Node.js version, only on the lockfile.
 
 Re-run that check before any release that changes dependencies, the Vite config,

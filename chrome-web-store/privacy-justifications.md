@@ -13,7 +13,7 @@ markup, and anything explaining an answer belongs in a section that is never
 pasted. Each answer is one unwrapped line, however long, because a form field
 keeps the newlines it is given and a hard-wrapped paragraph arrives ragged.
 
-Last reviewed against `manifest.config.ts` at version 0.2.0.
+Last reviewed against `manifest.config.ts` at version 0.3.0.
 
 ## Single Purpose
 
